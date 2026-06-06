@@ -353,6 +353,20 @@ wezterm.on('helm-session-selected', function(window, pane, id)
   end
 end)
 
+-- Cmd+Shift+B: mark current pane as 'background'
+table.insert(config.keys, {
+  key  = 'B',
+  mods = 'CMD|SHIFT',
+  action = wezterm.action_callback(function(_, pane)
+    local sessions = wezterm.GLOBAL.helm_sessions
+    local id = tostring(pane:pane_id())
+    if sessions[id] then
+      sessions[id].state = 'background'
+      wezterm.GLOBAL.helm_sessions = sessions
+    end
+  end),
+})
+
 -- Cmd+Shift+S: show session overlay
 table.insert(config.keys, {
   key   = 'S',
