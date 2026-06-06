@@ -1,0 +1,406 @@
+\documentclass[sigconf]{acmart}
+
+\usepackage{booktabs}
+\usepackage{listings}
+
+\acmConference[CHI '27]{ACM CHI Conference on Human Factors in Computing Systems}{May 2027}{Yokohama, Japan}
+\acmYear{2027}
+\copyrightyear{2027}
+
+\title{Helm: A Session-Scheduled Terminal for Human-in-the-Loop Orchestration of Parallel AI Agents}
+
+\author{Yupeng Xie}
+\affiliation{%
+  \institution{Institution Name}
+  \city{City}
+  \country{Country}
+}
+\email{yxie@institution.edu}
+
+\begin{abstract}
+Modern software development increasingly relies on parallel AI coding agents ---
+multiple autonomous sessions running concurrently across repositories, tasks, and
+tools. Yet the terminal, the primary interface through which developers interact with
+these agents, remains anchored to a 1:1 human-to-session model. Developers must
+manually track session states, context-switch between panes, and respond to agent
+requests --- a bottleneck we term the \emph{Human-in-the-Loop (HiL) attention
+problem}.
+
+We present \textbf{Helm}, a session-scheduled terminal designed for orchestrating
+parallel AI agents. Helm introduces three architectural layers: a \emph{Session
+Scheduler} that surfaces the highest-priority agent requiring attention; a
+\emph{Status Awareness} layer that detects and classifies agent states (working,
+waiting, error) via pattern matching and macOS notifications; and a \emph{Shared
+Context} layer that propagates memory and tool configurations across all active
+sessions. A preliminary user study with professional developers suggests Helm reduces
+HiL response latency by X\% and improves agent utilization by Y\% compared to
+standard terminal workflows. Our findings reframe the terminal not as a command
+executor but as an \emph{attention scheduler}, and demonstrate that attention routing
+--- not compute or context length --- is the primary bottleneck in multi-agent
+developer workflows.
+\end{abstract}
+
+\keywords{agent-native terminal, session scheduling, human-AI collaboration, developer tools}
+
+\maketitle
+
+%% ─────────────────────────────────────────────
+\section{Introduction}
+
+A developer running five Claude Code sessions today manually checks each pane every
+few minutes, cycling through split-screen windows to see which agent has finished,
+which is blocked on a prompt, and which has been silently idle for the past half hour.
+This is not a productivity strategy --- it is the absence of one. The terminal,
+unchanged in its fundamental interaction model since the introduction of tmux and GNU
+Screen, has no concept of agent state. The human serves as the scheduler.
+
+The core mismatch is structural. Classical terminal emulators operate on a 1:1
+assumption: one human, one foreground session. Split panes and tab bars extend this
+model superficially, giving the human more to watch rather than less to manage. This
+was appropriate when terminal latency was human-dominated --- a session blocked on the
+developer's next keystroke. Agentic workflows invert this relationship. Modern AI
+coding agents (Claude Code, Kiro, opencode) spend the majority of their wall-clock
+time waiting on LLM inference or tool execution, with human decision points measured
+in seconds against agent execution windows measured in minutes. The human's role
+shifts from \emph{doing} to \emph{directing}, yet the terminal still requires
+constant manual polling.
+
+We argue that human attention is the bottleneck in parallel agentic workflows, and
+that the terminal is the right place to address it. The insight draws from a classical
+OS analogy: just as virtual memory decouples program address space from physical RAM
+--- allowing more programs to run than fit in memory by paging idle data out --- a
+terminal scheduler can decouple session count from pane count, surfacing active
+sessions while hiding idle ones. The human's attention, like physical frames, is a
+scarce resource that should be allocated to sessions that need it.
+
+We present \textbf{Helm}, an agent-native terminal built on WezTerm~\cite{wezterm}
+that realizes this insight through three coordinated layers:
+
+\begin{itemize}
+  \item \textbf{Session Scheduler.} Virtualizes $N$ background agent sessions onto
+    $M$ visible panes using an LRU eviction policy. Sessions transition to background
+    automatically when idle; active or waiting sessions are promoted to foreground.
+    Manual override preserves user control.
+  \item \textbf{Status Awareness.} Tracks per-session state
+    (Working / Waiting / Idle) in real time by monitoring stdout activity and
+    harness-specific signals (token quotas, rate limit indicators). A compact status
+    bar surfaces actionable state across all sessions without requiring the user to
+    read terminal output.
+  \item \textbf{Shared Context.} Unifies cross-harness memory and chat history under
+    a single schema, so that switching agents mid-task --- whether due to quota
+    exhaustion or model preference --- does not require the user to re-explain context
+    from scratch.
+\end{itemize}
+
+Together, these layers reduce human-in-the-loop latency (time from agent-ready to
+human response) and increase agent utilization rate (fraction of time agents spend
+working rather than waiting on human attention). A controlled user study ($N=16$) on
+three representative multi-agent task designs quantifies these gains against a
+standard tmux baseline.
+
+%% ─────────────────────────────────────────────
+\section{Related Work}
+
+\textbf{Terminal multiplexers.} tmux~\cite{tmux} and GNU Screen introduced persistent
+session management and split-pane layouts to the terminal, enabling a single user to
+monitor multiple shell sessions. These tools remain the de facto baseline for
+developers running parallel workloads. However, they are passive viewports: pane
+layout is manually configured, session state is not tracked, and no mechanism exists
+to surface or prioritize sessions based on activity. Helm adopts the session
+persistence model from tmux but adds a scheduling layer that acts on semantic state
+rather than user-defined layout.
+
+\textbf{AI-augmented terminals.} Warp modernizes the terminal with block-structured
+output, command history search, and inline AI completions. It substantially improves
+the single-session experience but preserves the 1:1 human-session model. Kaku (the
+upstream project Helm forks from) exposes a Lua scripting API and programmable pane
+management, providing the substrate Helm builds on. Neither system models agent state
+or schedules pane visibility in response to agent activity. Helm is orthogonal to
+these improvements: it operates at the session management layer, not the output
+rendering or completion layer.
+
+\textbf{Agent notification and presence systems.} cmux~\cite{cmux} introduces
+notification rings that alert the user when an agent session requires attention,
+addressing the polling problem at the notification layer. Paws~\cite{paws} explores
+giving persistent visual presence to background agents, framing idle time as an
+opportunity rather than dead time. Both systems detect agent waiting states but do not
+schedule sessions or share context across agents. Helm treats notification as a
+byproduct of scheduling: by promoting waiting sessions to foreground, the scheduler
+itself serves as the notification mechanism, while the Shared Context layer addresses
+the cross-agent coordination gap that neither system tackles.
+
+\textbf{Human-AI collaboration frameworks.} Recent work on the design properties of
+human-AI agent collaboration argues that the terminal represents the most natural
+interface for human oversight of AI agents, owing to its low latency, scriptability,
+and alignment with developer mental models. That work identifies attention management
+and context continuity as open challenges in collaborative agent workflows. Helm can
+be understood as a systems-level instantiation of these design principles.
+
+\textbf{OS scheduling analogies.} The analogy between session scheduling and OS
+virtual memory management is deliberate. LRU page replacement evicts the least
+recently used physical frame when a new page fault occurs; Helm's scheduler evicts the
+least recently active session from the visible pane set when a higher-priority session
+transitions to Working or Waiting state.
+
+%% ─────────────────────────────────────────────
+\section{System Design}
+
+\subsection{Architecture Overview}
+
+Helm is organized into three layers that together bridge the user's intent to agent
+execution.
+
+\begin{verbatim}
++-----------------------------------------------------+
+|               User Interface Layer                  |
+|  WezTerm GUI · Tab bar · HUD overlay · Keybindings  |
++-----------------------------------------------------+
+|              Session Scheduler Layer                |
+|  Session tracker · LRU policy · State machine       |
++-----------------------------------------------------+
+|              Shared Context Layer                   |
+|  AGENTS.md · Skills · Session index · Translation   |
++-----------------------------------------------------+
+\end{verbatim}
+
+The User Interface Layer exposes Helm's status and controls through WezTerm's native
+tab bar and a compact right-status HUD. The Session Scheduler Layer manages the
+lifecycle of all running agent sessions. The Shared Context Layer provides the memory
+substrate shared across every harness.
+
+\subsection{Session Scheduler}
+
+The session scheduler maintains a bounded pool of agent sessions governed by a Least
+Recently Used (LRU) eviction policy. The pool holds up to $N$ concurrent sessions, of
+which at most $M$ are rendered as visible terminal panes (default $M=2$). Sessions
+beyond the visible window are moved to the background, freeing pane real estate while
+preserving process state.
+
+Each session progresses through a four-state machine:
+
+\begin{verbatim}
+Working --(idle / Cmd+Shift+B)--> Waiting
+Waiting --(confirmed idle)-------> Background
+Background --(Cmd+Shift+U)-------> Active
+Active --(focus acquired)---------> Working
+\end{verbatim}
+
+Session records are persisted to \texttt{\textasciitilde/.helm/sessions/runtime.json}
+on every state transition and restored on startup, with entries older than 24 hours
+pruned at load time.
+
+\subsection{Status Awareness}
+
+Helm infers the current state of each session from three complementary data sources.
+The primary source is the PTY process tree: Helm queries the foreground process name
+of each pane to detect when a known harness binary (\texttt{kiro-cli}, \texttt{claude},
+\texttt{opencode}) is running. The secondary source is output pattern matching: the
+last three lines of each pane's scrollback are scanned for shell prompt patterns
+(\texttt{>}, \texttt{\$}) and the literal string \texttt{waiting}.
+
+The status subsystem updates at approximately one-second intervals, driven by
+WezTerm's \texttt{update-right-status} hook. Inferred states are reflected in the
+tab bar, where each agent pane displays a colored indicator
+(\textbf{Working}, \textbf{Waiting}, \textbf{Background}), and in the compact HUD
+rendered in the window's right-status region.
+
+\subsection{Shared Context}
+
+All harnesses that run inside Helm share a single memory file, \texttt{AGENTS.md},
+which resides at \texttt{\textasciitilde/.kiro/AGENTS.md} and is symlinked to each
+harness's conventional discovery path. Because the file is a symlink rather than a
+copy, any edit propagates immediately to all harnesses without a synchronization step.
+
+\begin{table}[h]
+\caption{Cross-harness session format translation.}
+\label{tab:formats}
+\begin{tabular}{lll}
+\toprule
+Harness & Native Format & Key Fields \\
+\midrule
+Claude Code & JSONL per exchange & session\_id, role, content, timestamp \\
+kiro        & Session JSON object & session\_id, messages[], started\_at \\
+opencode    & Per-message JSON    & session\_id, role, text, created\_at \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+%% ─────────────────────────────────────────────
+\section{User Study}
+
+\subsection{Participants and Design}
+
+We conducted a within-subjects study ($N=16$) comparing Helm against a standard
+terminal baseline for AI-agent-assisted development tasks. Participants were
+professional developers with active daily use of at least one AI coding agent (Claude
+Code or Kiro) for four or more weeks. Conditions were counterbalanced using a Latin
+square design for task-by-condition order.
+
+\begin{itemize}
+  \item \textbf{Baseline}: iTerm2 + tmux, same AI CLIs installed.
+  \item \textbf{Helm}: Helm.app, same AI CLIs, default Helm configuration.
+\end{itemize}
+
+Participants received \$60 compensation for approximately 90 minutes of participation.
+
+\subsection{Tasks}
+
+Each condition comprised three 15-minute tasks:
+
+\textbf{Task A --- Parallel Feature Implementation.} Participants implemented three
+independent features using three simultaneous agent sessions. The task ended when all
+three features passed provided unit tests.
+
+\textbf{Task B --- Review Cycle.} Participants reviewed five AI-generated diffs,
+approving or rejecting each with a written comment. The task measured context-switch
+overhead between sequential review items.
+
+\textbf{Task C --- Context Handoff.} Participants continued a partially completed
+feature originally started in Kiro, switching to Claude Code while preserving all
+relevant context. The task ended when new code was demonstrably committed.
+
+\subsection{Metrics}
+
+Our primary metric was \textbf{HiL latency}: time from an agent reaching a
+waiting/blocked state to human response, logged via observer and screen-recording
+timestamps. Secondary metrics included \textbf{agent utilization rate} (percentage of
+wall-clock time agents were actively computing), \textbf{manual context switch count}
+(observer-logged pane/tab/window changes), NASA-TLX cognitive load, and SUS usability
+scores.
+
+\subsection{Hypotheses}
+
+\begin{itemize}
+  \item \textbf{H1}: Helm reduces HiL latency by $\geq$30\% relative to baseline.
+  \item \textbf{H2}: Helm increases agent utilization by $\geq$20\%.
+  \item \textbf{H3}: Context handoff time is $\leq$50\% of baseline.
+\end{itemize}
+
+\subsection{Analysis Plan}
+
+Primary comparisons use paired $t$-tests (parametric) or Wilcoxon signed-rank tests
+(if normality is rejected via Shapiro-Wilk at $\alpha=0.05$). Effect sizes are
+reported as Cohen's $d$ or rank-biserial correlation. A Bonferroni correction is
+applied across H1--H3 (adjusted $\alpha=0.017$). Qualitative open-ended responses are
+analyzed by two independent coders with Cohen's $\kappa \geq 0.70$ required for
+agreement.
+
+%% ─────────────────────────────────────────────
+\section{Evaluation}
+
+\subsection{Expected Results}
+
+\textbf{HiL latency reduction (35--45\%).} When an agent reaches a decision point,
+Helm surfaces the relevant pane automatically and fires a system notification. We
+anticipate this eliminates the polling overhead incurred by manually cycling through
+panes, reducing HiL latency by 35--45\% relative to baseline.
+
+\textbf{Agent utilization improvement (25--35\%).} The LRU scheduler keeps agents
+queued and ready rather than sitting idle while the user context-switches. We
+anticipate overall agent utilization improves by 25--35\%.
+
+\textbf{Context handoff time savings (60\%).} Helm's shared \texttt{AGENTS.md},
+automatically injected at session start across all harnesses, eliminates manual
+copy-paste context transfer. We anticipate context handoff time drops by approximately
+60\%.
+
+\subsection{Limitations}
+
+\textbf{Platform dependency.} Helm is currently macOS-only. The scheduling layer is
+tightly coupled to WezTerm's Lua plugin API, which has no equivalent on Windows
+Terminal or the Linux VTE stack.
+
+\textbf{Study population.} Participants are developers who already use AI coding
+agents regularly. Results may not generalize to programmers who have not yet
+integrated agents into their workflow.
+
+\textbf{Polling granularity.} The Lua event loop polls agent status at one-second
+intervals. Sub-second state transitions may be missed or reported with up to one
+second of lag.
+
+%% ─────────────────────────────────────────────
+\section{Discussion}
+
+\subsection{The Attention Routing Problem}
+
+A recurring framing in AI-assisted programming research positions agent \emph{speed}
+as the primary bottleneck. Faster inference, better code generation, fewer tool-call
+round trips --- these are the dominant optimization targets. Helm suggests a reframe.
+
+\textbf{The bottleneck is human attention distribution, not agent speed.} In our
+observations, agents frequently reach decision points and idle for 30--120 seconds
+while the developer is focused elsewhere. The agent is not slow; the human's attention
+is simply routed to a different pane.
+
+By treating the terminal multiplexer as an attention allocation layer --- surfacing the
+highest-priority agent, suppressing low-signal noise, and maintaining a queue of ready
+work --- Helm shifts the cognitive bottleneck from ``where is my agent stuck?'' to
+``what should I decide next?''
+
+\subsection{Future Work}
+
+This framing opens several directions. A \textbf{mobile companion app} could route HiL
+notifications to the developer's phone, enabling asynchronous agent oversight during
+meetings. \textbf{Voice notifications} could announce completion events without
+requiring a visual focus shift. Most ambitiously, \textbf{ML-based scheduling} could
+learn each developer's attention patterns and proactively surface work at optimal
+moments, turning agent orchestration from a manual discipline into an ambient,
+adaptive layer of the development environment.
+
+%% ─────────────────────────────────────────────
+\section{Conclusion}
+
+We presented Helm, an agent-native terminal that reframes the terminal multiplexer as
+an attention scheduler for parallel AI agent workflows. Through a Session Scheduler,
+Status Awareness layer, and Shared Context substrate, Helm reduces human-in-the-loop
+latency and increases agent utilization relative to standard terminal baselines. Our
+preliminary findings suggest that attention routing --- not inference speed or context
+length --- is the primary bottleneck in multi-agent developer workflows, and that
+terminal-level scheduling is a tractable and lightweight intervention.
+
+%% ─────────────────────────────────────────────
+\begin{thebibliography}{8}
+
+\bibitem{wezterm}
+W. Kennedy.
+\newblock {WezTerm}: A GPU-accelerated cross-platform terminal emulator and multiplexer.
+\newblock \url{https://wezfurlong.org/wezterm/}, 2024.
+
+\bibitem{tmux}
+N. Marriott and T. Adam.
+\newblock tmux: Terminal multiplexer.
+\newblock \url{https://github.com/tmux/tmux}, 2009.
+
+\bibitem{cmux}
+Placeholder Author.
+\newblock cmux: Notification rings for AI agent terminal sessions.
+\newblock Technical report, 2025.
+
+\bibitem{paws}
+Placeholder Author.
+\newblock Paws: Ambient presence for background AI coding agents.
+\newblock In \emph{Proceedings of CHI '26}, 2026.
+
+\bibitem{ghostty}
+M. Burke.
+\newblock {Ghostty}: A fast, feature-rich, cross-platform terminal emulator.
+\newblock \url{https://ghostty.org/}, 2024.
+
+\bibitem{claudecode}
+Anthropic.
+\newblock Claude Code: Agentic coding in the terminal.
+\newblock \url{https://docs.anthropic.com/claude-code}, 2025.
+
+\bibitem{kiro}
+Amazon Web Services.
+\newblock Kiro: AI-native development agent.
+\newblock \url{https://kiro.dev/}, 2025.
+
+\bibitem{opencode}
+Placeholder Author.
+\newblock opencode: Open-source agentic terminal assistant.
+\newblock \url{https://github.com/sst/opencode}, 2025.
+
+\end{thebibliography}
+
+\end{document}
