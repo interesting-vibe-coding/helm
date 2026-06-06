@@ -68,7 +68,21 @@ else
 fi
 echo ""
 
-# ── Shell setup ───────────────────────────────────────────────────────────────
+# ── Cross-harness memory (single source of truth) ────────────────────────────
+# ~/.kiro/AGENTS.md is the master memory file.
+# Symlink it into every harness's convention path so they all share context.
+MASTER_MEMORY="$HOME/.kiro/AGENTS.md"
+if [[ -f "$MASTER_MEMORY" ]]; then
+  # Claude Code
+  mkdir -p "$HOME/.claude"
+  [[ ! -e "$HOME/.claude/CLAUDE.md" ]] && ln -sf "$MASTER_MEMORY" "$HOME/.claude/CLAUDE.md"
+  # opencode
+  mkdir -p "$HOME/.config/opencode"
+  [[ ! -e "$HOME/.config/opencode/AGENTS.md" ]] && ln -sf "$MASTER_MEMORY" "$HOME/.config/opencode/AGENTS.md"
+  # Codex
+  mkdir -p "$HOME/.codex"
+  [[ ! -e "$HOME/.codex/AGENTS.md" ]] && ln -sf "$MASTER_MEMORY" "$HOME/.codex/AGENTS.md"
+fi
 echo -e "${BOLD}  Setting up shell integration...${NC}"
 if [[ "$DETECTED_SHELL" == "fish" ]]; then
   if [[ -f "$RESOURCES_DIR/setup_fish.sh" ]]; then

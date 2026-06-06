@@ -70,6 +70,17 @@ open dist/Helm.app
 
 ---
 
+## Credits
+
+Helm is built on the shoulders of:
+
+- **[Kaku](https://github.com/tw93/Kaku)** by [Tw93](https://github.com/tw93) — our immediate foundation. Thank you 🙏
+- **[WezTerm](https://wezfurlong.org/wezterm/)** by Wez Furlong — the terminal engine powering Helm
+- **[Ghostty](https://ghostty.org)** by Mitchell Hashimoto — inspired fast, native terminal design
+- **[cmux](https://github.com/manaflow-ai/cmux)** — pioneered agent notification rings and the hooks model
+
+---
+
 ## License
 
 MIT — see [LICENSE.md](LICENSE.md)
