@@ -438,17 +438,46 @@ table.insert(config.keys, {
   end),
 })
 
--- Helm Agent Notifications -- detect waiting state + Cmd+Shift+U
+-- Helm Agent Notifications -- detect waiting state + Cmd+Shift+U + HUD overlay
 wezterm.on('update-right-status', function(window, pane)
   local sessions = wezterm.GLOBAL.helm_sessions or {}
   local pid = tostring(pane:pane_id())
   local s = sessions[pid]
-  if not s then return end
-  local text = table.concat(pane:get_lines_as_text(3), ' '):lower()
-  if text:match('[>$] $') or text:match('waiting') then
-    s.state = 'waiting'; sessions[pid] = s
-    wezterm.GLOBAL.helm_sessions = sessions
+  if s then
+    local text = table.concat(pane:get_lines_as_text(3), ' '):lower()
+    if text:match('[>$] $') or text:match('waiting') then
+      s.state = 'waiting'; sessions[pid] = s
+      wezterm.GLOBAL.helm_sessions = sessions
+    end
   end
+
+  -- Build compact HUD: [kiro 🔵 02:34 | claude 🔵 05:12 | 2 bg]
+  local t = now_secs()
+  local working_parts = {}
+  local bg_count = 0
+  for _, entry in ipairs(get_lru_sessions()) do
+    local sess = entry.session
+    if sess.state == 'background' then
+      bg_count = bg_count + 1
+    else
+      local icon = sess.state == 'waiting' and '🟠' or '🔵'
+      local runtime = fmt_duration(t - (sess.start_time or t))
+      table.insert(working_parts, sess.harness .. ' ' .. icon .. ' ' .. runtime)
+    end
+  end
+  if #working_parts == 0 and bg_count == 0 then
+    window:set_right_status('')
+    return
+  end
+  local hud = table.concat(working_parts, ' | ')
+  if bg_count > 0 then
+    if hud ~= '' then hud = hud .. ' | ' end
+    hud = hud .. bg_count .. ' bg'
+  end
+  window:set_right_status(wezterm.format({
+    { Foreground = { Color = '#a89070' } },
+    { Text = ' [' .. hud .. '] ' },
+  }))
 end)
 
 table.insert(config.keys, {
