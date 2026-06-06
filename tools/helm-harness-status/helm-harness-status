@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# helm-harness-status: check which AI harnesses are installed and configured
+exec python3 "$(dirname "$0")/status.py" "$@"
