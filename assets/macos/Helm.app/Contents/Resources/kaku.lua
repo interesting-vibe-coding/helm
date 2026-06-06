@@ -352,15 +352,21 @@ wezterm.on('pane-focused', function(pane)
 end)
 
 -- Build InputSelector choices from current sessions (LRU order)
+-- Format: '[kiro] wu (01:23) working'
 local function build_session_choices()
   local lru = get_lru_sessions()
   local choices = {}
   local t = now_secs()
   for _, entry in ipairs(lru) do
     local s = entry.session
-    local runtime = fmt_duration(t - (s.start_time or t))
-    local bg_prefix = (s.state == 'background') and '[BG] ' or ''
-    local label = string.format('%s[%s]  %s  %s  (%s)', bg_prefix, s.harness, s.cwd, runtime, s.state)
+    local elapsed = t - (s.start_time or t)
+    local mm = math.floor(elapsed / 60)
+    local ss = math.floor(elapsed % 60)
+    local runtime = string.format('%02d:%02d', mm, ss)
+    local harness_lower = (s.harness or 'agent'):lower()
+    local project = s.cwd or '?'
+    local state = s.state or 'working'
+    local label = string.format('[%s] %s (%s) %s', harness_lower, project, runtime, state)
     table.insert(choices, { label = label, id = entry.pane_id })
   end
   if #choices == 0 then
@@ -433,7 +439,7 @@ table.insert(config.keys, {
 
 -- ════════════════════════════════════════════════════════════
 -- Layer 2: agent status in tab title
--- Active harness → '🔵 HarnessName (MM:SS)'
+-- Active harness → '🔵 kiro:wu'  (harness:project_name)
 -- Shell/other   → default tab title
 -- ════════════════════════════════════════════════════════════
 wezterm.on('format-tab-title', function(tab, _, _, _, _, _)
@@ -441,13 +447,8 @@ wezterm.on('format-tab-title', function(tab, _, _, _, _, _)
   local proc = pane:get_foreground_process_name()
   local harness = detect_harness(proc)
   if harness then
-    local id = tostring(pane:pane_id())
-    local sessions = wezterm.GLOBAL.helm_sessions or {}
-    local start = sessions[id] and sessions[id].start_time or now_secs()
-    local elapsed = now_secs() - start
-    local mm = math.floor(elapsed / 60)
-    local ss = elapsed % 60
-    return '🔵 ' .. harness .. ' (' .. string.format('%02d:%02d', mm, ss) .. ')'
+    local project = cwd_basename(pane:get_current_working_dir())
+    return '🔵 ' .. harness:lower() .. ':' .. project
   end
   -- fallback: pane title set by shell/app
   return tab:get_title()
