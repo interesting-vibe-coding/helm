@@ -438,4 +438,39 @@ table.insert(config.keys, {
   end),
 })
 
+-- Helm Agent Notifications -- detect waiting state + Cmd+Shift+U
+wezterm.on('update-right-status', function(window, pane)
+  local sessions = wezterm.GLOBAL.helm_sessions or {}
+  local pid = tostring(pane:pane_id())
+  local s = sessions[pid]
+  if not s then return end
+  local text = table.concat(pane:get_lines_as_text(3), ' '):lower()
+  if text:match('[>$] $') or text:match('waiting') then
+    s.state = 'waiting'; sessions[pid] = s
+    wezterm.GLOBAL.helm_sessions = sessions
+  end
+end)
+
+table.insert(config.keys, {
+  key = 'U', mods = 'CMD|SHIFT',
+  action = wezterm.action_callback(function(window, pane)
+    local sessions = wezterm.GLOBAL.helm_sessions or {}
+    local best_id, best_t = nil, 0
+    for id, s in pairs(sessions) do
+      if s.state == 'waiting' and (s.last_accessed or 0) > best_t then
+        best_id = tonumber(id); best_t = s.last_accessed or 0
+      end
+    end
+    if best_id then
+      for _, mux_win in ipairs(wezterm.mux.all_windows()) do
+        for _, tab in ipairs(mux_win:tabs()) do
+          for _, p in ipairs(tab:panes()) do
+            if p:pane_id() == best_id then tab:activate(); mux_win:gui_window():focus(); return end
+          end
+        end
+      end
+    end
+  end),
+})
+
 return config
