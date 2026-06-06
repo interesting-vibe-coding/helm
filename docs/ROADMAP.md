@@ -37,6 +37,79 @@
 
 ---
 
+## Helm Vision: The Agent OS
+
+> Three layers that together make Helm an operating system for AI agents.
+
+```
+┌─────────────────────────────────────────────────┐
+│  Layer 3: Shared Context                        │
+│  chat history + memory + skills across harnesses│
+├─────────────────────────────────────────────────┤
+│  Layer 2: Status Awareness                      │
+│  runtime, active sessions, quota per harness    │
+├─────────────────────────────────────────────────┤
+│  Layer 1: Session Scheduler                     │
+│  N sessions, M visible panes, LRU swap          │
+└─────────────────────────────────────────────────┘
+```
+
+### Layer 1 — Session Scheduler (novel, no competitor does this)
+
+**The idea**: Like an emperor reviewing memorials — 20 sessions running in the background, 2 panes visible. Sessions swap in/out based on LRU/LFU, like OS virtual memory.
+
+**Design**:
+- `SessionScheduler` in mux layer: maintains `active_set` (2-3 visible panes) + `background_pool` (N PTY processes, alive but hidden)
+- Trigger to swap in: agent emits waiting signal → scheduler brings it to foreground, pushes idle session to background
+- PTY process stays alive in background (no state lost), just pane is hidden
+- LRU: least-recently-interacted session gets swapped out first
+- User sees: a compact session list (like phone notifications), taps one to bring to front
+
+**Why it matters**: Today every terminal is 1:1 between sessions and visible panes. This breaks that constraint.
+
+### Layer 2 — Status Awareness
+
+**Per-session data to show**:
+- Runtime (PTY spawn timestamp → now)
+- State: Working / Waiting / Idle / Done (harness output pattern detection, reuse paws hooks)
+- Quota remaining: parse `~/.claude/` usage JSON, opencode session metadata
+
+**Implementation**: Lua-side HUD overlay on each pane, updated every few seconds.
+
+### Layer 3 — Shared Context
+
+**Memory + Skills**: ✅ Already done via symlinks.
+
+**Chat History**: Three formats, all convertible to unified schema:
+
+```
+Claude Code: ~/.claude/projects/<path>/<session>.jsonl
+             {"type":"user/assistant", "content": ...}
+
+kiro:        ~/.kiro/sessions/cli/<session>.json + .jsonl
+             {session_id, cwd, title, messages: [...]}
+
+opencode:    ~/.local/share/opencode/storage/message/<ses>/<msg>.json
+             {id, sessionID, role, model, summary}
+```
+
+**Unified schema**:
+```json
+{
+  "session_id": "...",
+  "harness": "claude-code|kiro|opencode|codex",
+  "cwd": "/path/to/project",
+  "started_at": "...",
+  "messages": [
+    {"role": "user|assistant", "content": "...", "timestamp": "..."}
+  ]
+}
+```
+
+A background converter indexes all harness histories into `~/.helm/sessions/`. Any harness can then read recent context from any other harness's session.
+
+---
+
 ## Next Steps (Priority Order)
 
 ### 1. Cross-Harness Memory — Bake Into Helm (HIGH)
