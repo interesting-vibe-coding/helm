@@ -45,6 +45,24 @@ Every terminal today treats AI as a plugin bolted on top. Helm is different:
 
 ---
 
+## Architecture: The Agent OS
+
+```
+┌─────────────────────────────────────────────────┐
+│  Layer 3: Shared Context                        │
+│  AGENTS.md → all harnesses  |  unified history  │
+├─────────────────────────────────────────────────┤
+│  Layer 2: Status Awareness                      │
+│  tab bar status  |  HUD overlay  |  notifications│
+├─────────────────────────────────────────────────┤
+│  Layer 1: Session Scheduler                     │
+│  LRU swap  |  N background  |  M visible panes   │
+└─────────────────────────────────────────────────┘
+              WezTerm / Kaku core
+```
+
+---
+
 ## Quick Start
 ```bash
 # Build from source (macOS)
@@ -62,6 +80,8 @@ open dist/Helm.app
 | `Cmd+Shift+S` | Session list — all active agents with runtime |
 | `Cmd+Shift+M` | Toggle AI model (sonnet ↔ opus) in kiro chat |
 | `Cmd+Shift+B` | Background current agent session |
+| `Cmd+Shift+U` | Jump to waiting agent |
+| `Cmd+Shift+K` | Launch new harness |
 | `Cmd+L` | AI chat panel |
 | `Cmd+Shift+G` | lazygit |
 
