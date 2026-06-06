@@ -8,9 +8,11 @@ on:
 jobs:
   check:
     name: Cargo Check
-    runs-on: macos-15-arm64
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo check --locked -p kaku -p kaku-gui
+      - name: Check kaku.lua syntax
+        run: luac -p assets/macos/Helm.app/Contents/Resources/kaku.lua
