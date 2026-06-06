@@ -521,6 +521,22 @@ wezterm.on('update-right-status', function(window, pane)
     if hud ~= '' then hud = hud .. ' | ' end
     hud = hud .. bg_count .. ' bg'
   end
+  -- Window title: "Helm — N agents (M waiting)" or just "Helm"
+  local total_agents = #working_parts + bg_count
+  local waiting_count = 0
+  for _, entry in ipairs(get_lru_sessions()) do
+    if entry.session.state == 'waiting' then waiting_count = waiting_count + 1 end
+  end
+  if total_agents > 0 then
+    local title = 'Helm \xe2\x80\x94 ' .. total_agents .. ' agent' .. (total_agents == 1 and '' or 's')
+    if waiting_count > 0 then
+      title = title .. ' (' .. waiting_count .. ' waiting)'
+    end
+    window:set_title(title)
+  else
+    window:set_title('Helm')
+  end
+
   window:set_right_status(wezterm.format({
     { Foreground = { Color = '#a89070' } },
     { Text = ' [' .. hud .. '] ' },
