@@ -68,7 +68,7 @@ else
 fi
 echo ""
 
-# ── Cross-harness memory (single source of truth) ────────────────────────────
+# -- Cross-harness memory setup
 # ~/.kiro/AGENTS.md is the master memory file.
 # Symlink it into every harness's convention path so they all share context.
 MASTER_MEMORY="$HOME/.kiro/AGENTS.md"
@@ -82,7 +82,10 @@ if [[ -f "$MASTER_MEMORY" ]]; then
   # Codex
   mkdir -p "$HOME/.codex"
   [[ ! -e "$HOME/.codex/AGENTS.md" ]] && ln -sf "$MASTER_MEMORY" "$HOME/.codex/AGENTS.md"
+  ok "Cross-harness memory linked ($(ls -1 $HOME/.claude $HOME/.config/opencode $HOME/.codex 2>/dev/null | grep -c AGENTS)/${MASTER_MEMORY:+3} harnesses)"
 fi
+
+# ── Shell integration ─────────────────────────────────────────────────────────
 echo -e "${BOLD}  Setting up shell integration...${NC}"
 if [[ "$DETECTED_SHELL" == "fish" ]]; then
   if [[ -f "$RESOURCES_DIR/setup_fish.sh" ]]; then
@@ -104,11 +107,27 @@ if ! command -v starship >/dev/null 2>&1; then
 else
   ok "starship (already installed)"
 fi
+if [[ "$DETECTED_SHELL" == "fish" ]]; then
+  FISH_CONFIG="$HOME/.config/fish/config.fish"
+  if [[ -f "$FISH_CONFIG" ]] && ! grep -q 'starship init fish' "$FISH_CONFIG"; then
+    echo '' >> "$FISH_CONFIG"
+    echo 'starship init fish | source' >> "$FISH_CONFIG"
+    ok "starship init added to fish config"
+  fi
+fi
 # Zoxide — smart cd
 if ! command -v zoxide >/dev/null 2>&1; then
   brew_install zoxide
 else
   ok "zoxide (already installed)"
+fi
+if [[ "$DETECTED_SHELL" == "fish" ]]; then
+  FISH_CONFIG="$HOME/.config/fish/config.fish"
+  if [[ -f "$FISH_CONFIG" ]] && ! grep -q 'zoxide init fish' "$FISH_CONFIG"; then
+    echo '' >> "$FISH_CONFIG"
+    echo 'zoxide init fish | source' >> "$FISH_CONFIG"
+    ok "zoxide init added to fish config"
+  fi
 fi
 # Delta — better git diff
 if ! command -v delta >/dev/null 2>&1; then
@@ -139,11 +158,11 @@ echo ""
 if [[ "${HELM_LANG:-en}" == "zh" ]]; then
   echo -e "${GREEN}${BOLD}  ✓ Helm 已就绪${NC}"
   echo ""
-  echo -e "  \033[2m快捷键: Cmd+L → AI 对话  ·  Cmd+Shift+M → 切换模型\033[0m"
+  echo -e "  \033[2m快捷键: Cmd+L → AI 对话  ·  Cmd+Shift+M → 切换模型  ·  Cmd+Shift+S → 会话列表\033[0m"
 else
   echo -e "${GREEN}${BOLD}  ✓ Helm is ready${NC}"
   echo ""
-  echo -e "  \033[2mCmd+L → AI chat  ·  Cmd+Shift+M → switch model\033[0m"
+  echo -e "  \033[2mCmd+L → AI chat  ·  Cmd+Shift+M → switch model  ·  Cmd+Shift+S → session list\033[0m"
 fi
 echo ""
 
