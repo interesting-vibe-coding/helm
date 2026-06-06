@@ -1,27 +1,12 @@
 ---
-name: Feature Request
-about: Suggest an idea or improvement for Kaku
-title: '[FEATURE] '
-labels: enhancement
-assignees: ''
+name: Feature request  
+about: Suggest a new agent-native feature
 ---
+**What agent workflow problem does this solve?**
 
-## Problem
+**Proposed solution**
 
-What problem are you trying to solve?
-
-## Proposed behavior
-
-What should Kaku do?
-
-## Use case
-
-Describe a real scenario where this helps.
-
-## Optional references
-
-- mockups
-- similar behavior in other terminals
-- related issues
-
-You can submit first with minimal info; maintainers may ask follow-up questions.
+**Which layer does this touch?**
+- [ ] Layer 1: Session Scheduler
+- [ ] Layer 2: Status Awareness  
+- [ ] Layer 3: Shared Context
