@@ -9,15 +9,17 @@
 <p align="center">
   <a href="https://github.com/interesting-vibe-coding/helm/releases"><img src="https://img.shields.io/github/v/tag/interesting-vibe-coding/helm?label=version&style=flat-square" alt="Version"></a>
   <a href="LICENSE.md"><img src="https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square" alt="License"></a>
+  <img src="https://img.shields.io/badge/platform-macOS-lightgrey?style=flat-square" alt="Platform">
+  <img src="https://img.shields.io/badge/built%20on-WezTerm-orange?style=flat-square" alt="Built on WezTerm">
 </p>
 
 ---
 
 ## What is Helm?
 
-Helm is an **agent-native terminal** — built from the ground up around AI agents, not as an afterthought.
+Helm is the **first agent-native terminal** for macOS. Run 10 AI agents in parallel; Helm handles the scheduling, notifications, and context sharing.
 
-Most terminals put you in front of a command line. Helm puts you at the helm: your agents do the work, surface what matters, and wait for your call. You review and sign off. Zero friction.
+Built from the ground up around AI agents, not as an afterthought. Most terminals put you in front of a command line. Helm puts you at the helm: your agents do the work, surface what matters, and wait for your call. You review and sign off. Zero friction.
 
 > "You steer. Agents execute."
 
@@ -72,6 +74,24 @@ git clone https://github.com/interesting-vibe-coding/helm
 cd helm
 PROFILE=debug ./scripts/build.sh --app-only
 open dist/Helm.app
+```
+
+---
+
+## 5-Minute Demo
+
+```bash
+# After installing Helm.app:
+
+# 1. Run helm-init to set up cross-harness memory
+bash tools/helm-init/helm-init.sh
+
+# 2. Open Helm.app and press Cmd+Shift+K
+#    → Choose kiro, opencode, or claude-code
+#    → A new pane spawns with the agent
+
+# 3. Press Cmd+Shift+S to see all active sessions
+# 4. Press Cmd+Shift+U when an agent needs your input
 ```
 
 ---
