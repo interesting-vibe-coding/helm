@@ -67,6 +67,20 @@ Every terminal today treats AI as a plugin bolted on top. Helm is different:
 
 ---
 
+## Why Helm?
+
+| Feature | Helm | tmux | cmux | Warp |
+|---------|------|------|------|------|
+| Session scheduling (LRU) | ✅ | ❌ | ❌ | ❌ |
+| Agent status in tab bar | ✅ | ❌ | ✅ notification | ❌ |
+| Cross-harness memory | ✅ auto | manual | ❌ | ❌ |
+| Chat history unified | ✅ | ❌ | ❌ | ❌ |
+| macOS native GPU render | ✅ | ❌ | ✅ (libghostty) | ❌ |
+| Open source | ✅ | ✅ | ✅ (GPL) | ❌ |
+| Lua configurable | ✅ | ❌ | ❌ | ❌ |
+
+---
+
 ## Quick Start
 ```bash
 # Build from source (macOS)
