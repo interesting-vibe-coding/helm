@@ -407,8 +407,6 @@ wezterm.on('format-tab-title', function(tab, _, _, _, _, _)
   return tab:get_title()
 end)
 
-return config
-
 -- Helm Harness Launcher 🚀 — Cmd+Shift+K
 table.insert(config.keys, {
   key = 'K',
@@ -439,3 +437,5 @@ table.insert(config.keys, {
     )
   end),
 })
+
+return config
