@@ -264,6 +264,7 @@ local function helm_track(pane)
     sessions[id].cwd     = cwd_basename(pane:get_current_working_dir())
   end
   wezterm.GLOBAL.helm_sessions = sessions
+  save_sessions()
 end
 
 -- Returns sessions sorted by last_accessed descending (most recent first)
@@ -279,12 +280,56 @@ local function get_lru_sessions()
   return list
 end
 
+local RUNTIME_JSON = (os.getenv('HOME') or '/tmp') .. '/.helm/sessions/runtime.json'
+
+local function sessions_to_json(sessions)
+  local parts = {}
+  for id, s in pairs(sessions) do
+    local entry = string.format(
+      '"%s":{"harness":%q,"cwd":%q,"start_time":%d,"last_accessed":%d,"state":%q}',
+      id, s.harness or '', s.cwd or '', s.start_time or 0, s.last_accessed or 0, s.state or 'working'
+    )
+    table.insert(parts, entry)
+  end
+  return '{' .. table.concat(parts, ',') .. '}'
+end
+
+local function save_sessions()
+  local f = io.open(RUNTIME_JSON, 'w')
+  if not f then return end
+  f:write(sessions_to_json(wezterm.GLOBAL.helm_sessions or {}))
+  f:close()
+end
+
+local function restore_sessions()
+  local f = io.open(RUNTIME_JSON, 'r')
+  if not f then return end
+  local raw = f:read('*a'); f:close()
+  if not raw or raw == '' then return end
+  local ok, decoded = pcall(wezterm.json_parse, raw)
+  if not ok or type(decoded) ~= 'table' then return end
+  local cutoff = now_secs() - 86400
+  local restored = {}
+  for id, s in pairs(decoded) do
+    if type(s) == 'table' and (s.last_accessed or 0) > cutoff then
+      restored[id] = s
+    end
+  end
+  wezterm.GLOBAL.helm_sessions = restored
+end
+
 -- Remove a session record
 local function helm_untrack(pane_id)
   local sessions = wezterm.GLOBAL.helm_sessions
   sessions[tostring(pane_id)] = nil
   wezterm.GLOBAL.helm_sessions = sessions
+  save_sessions()
 end
+
+-- Restore on startup
+wezterm.on('gui-startup', function()
+  restore_sessions()
+end)
 
 -- Hook: update on every right-status tick (fires ~every second per active window)
 wezterm.on('update-right-status', function(_, pane)
@@ -363,6 +408,7 @@ table.insert(config.keys, {
     if sessions[id] then
       sessions[id].state = 'background'
       wezterm.GLOBAL.helm_sessions = sessions
+      save_sessions()
     end
   end),
 })
