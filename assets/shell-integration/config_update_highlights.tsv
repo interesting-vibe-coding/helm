@@ -1,0 +1,50 @@
+11	Shell text editing: Cmd+A select all, Shift+Arrow selection, ESC to cancel
+11	AI error fixer: auto-suggests fixes on failure, Cmd+Shift+E to apply
+11	Type y to launch Yazi, cd+Tab falls back to zsh-z history
+11	Plugins already loaded by your config are no longer duplicated
+11	Fixed: delete key after Chinese IME, terminal type for sudo+nano
+11	Improved shell integration defaults for daily terminal editing
+12	Shell text editing now supports Cmd+A, Shift+Arrow selection, and ESC cancel
+12	AI error fixer can suggest and apply fixes directly in the terminal
+12	Yazi launcher and cd+Tab fallback are now built into the default shell workflow
+12	Shell integration compatibility is improved for SSH, Delete key behavior, and existing plugins
+13	Starship prompt and AI shell hooks are more reliable in zsh and xterm-256color environments
+13	First-run setup and managed shell integration refresh are more stable across environments
+14	Fixed an early 0.6.0 zsh prompt helper issue and now regenerate the managed script correctly
+15	Yazi now follows Helm dark and light themes automatically, with corrected folder and file colors in both modes
+15	Helm now refreshes managed tmux integration automatically so Shift+wheel works in local tmux full-screen apps
+15	Helm now always loads its managed zsh integration when available, fixing shells that missed aliases and prompt setup
+15	Smart Tab now only takes over Tab inside Helm sessions by default, so other terminals keep their own completion workflow
+15	Helm can now follow macOS appearance automatically, so bundled dark and light themes switch with the system
+15	Bundled defaults now respect your active custom kaku.lua path and no longer override your own font settings
+15	Tab and pane close protection defaults are available in the bundled config and Settings TUI for safer multi-pane workflows
+16	kaku init now detects Homebrew correctly in non-standard paths such as ~/homebrew
+16	Bundled shell helpers keep working when Homebrew lives outside the standard macOS prefixes
+16	Background tabs now show a bell prefix without the duplicate unread bell dot
+17	Fish shell is now fully supported; run kaku init to configure prompt, yazi, and theme sync
+17	Zsh integration now handles ssh alias conflicts and autosuggest widget detection automatically
+18	fast-syntax-highlighting replaces zsh-syntax-highlighting for richer colors and faster startup
+18	zsh-z is bundled for directory jumping; your existing ~/.z history works immediately
+18	cd+Tab falls back to zsh-z history when filesystem completion has no match
+18	Zsh updates now preserve custom inline Helm blocks when they contain user changes
+19	Global Hotkey now supports Space in the config TUI
+19	Zsh suggestions now avoid conflicts with Kiro and Amazon Q CLI
+19	Zsh comment color is now visible in dark themes; no longer invisible against dark backgrounds
+19	AI Chat Panel: press Cmd+L to chat with AI directly inside the terminal, with streaming and scroll
+19	Shell user-var updates are now cached at startup for faster prompt rendering
+19	MacPorts and non-Homebrew package managers are now detected correctly by kaku init
+19	Cmd+W and Cmd+Shift+W now smart-confirm: bare shells close silently, AI agents and editors prompt before they get killed
+19	Bundled starship.toml shows the current git branch and skips the noisy modification icons; existing users can refresh by removing ~/.config/starship.toml and running kaku init
+19	Helm Light now keeps pale Hermes agent text readable on the cream background
+20	# AI queries now clear the submitted comment immediately so generated commands cannot append after stale input
+20	kaku init now avoids read-only config paths and preserves existing jump providers before loading bundled zsh-z
+20	# AI 查询提交后会立即清空注释输入，避免生成的命令接在旧输入后面
+20	kaku init 现在会跳过只读配置路径，并在加载内置 zsh-z 前保留已有目录跳转工具
+21	Tab and pane close confirmation now support Never, Smart, and Always modes; explicit false closes immediately
+21	标签页和面板关闭确认现在支持 Never、Smart、Always 三种模式，显式 false 会立即关闭
+21	Cmd+Q now smart-confirms by default: Helm quits instantly when every pane sits at a shell prompt, and asks first when an agent or editor is still running
+21	Cmd+Q 现在默认智能确认：所有面板都在 shell 提示符时直接退出，仍有 agent 或编辑器在运行时会先询问
+21	Helm Dark now reports a dark terminal background to Hermes so response text stays readable
+21	Helm Dark 现在会向 Hermes 正确报告深色终端背景，回复正文不再变成黑字
+22	Comment color stays readable in dark theme even when fast-syntax-highlighting or zsh-syntax-highlighting was loaded by your own .zshrc instead of Helm
+22	即使你在 .zshrc 里自行加载了 fast-syntax-highlighting 或 zsh-syntax-highlighting，深色主题下 # 注释颜色也会保持可读

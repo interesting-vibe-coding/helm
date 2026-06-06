@@ -1,0 +1,70 @@
+# ~/.config/starship.toml
+
+add_newline = false
+command_timeout = 10000
+format = "$directory$git_branch$python$conda$package$character"
+
+[directory]
+truncate_to_repo = true
+truncation_length = 2
+style = "bold blue"
+format = "[$path]($style)[$read_only]($read_only_style)"
+
+[character]
+success_symbol = " "
+error_symbol = " "
+format = "$symbol"
+
+# Git branch: shows the current branch name with a Nerd Font branch icon.
+# Modification status is intentionally omitted because the default ASCII
+# indicators (e.g. [!?], (*)) look noisy in a clean prompt. If you want
+# them back, add "$git_status" into `format` above and uncomment the
+# [git_status] block at the bottom of this file.
+[git_branch]
+symbol = " "
+style = "bold purple"
+format = " [$symbol$branch]($style)"
+truncation_length = 24
+truncation_symbol = "…"
+
+[python]
+format = ' [\($virtualenv\)]($style)'
+style = 'bold green'
+python_binary = ['python3', 'python']
+detect_extensions = []
+detect_files = []
+detect_folders = []
+detect_env_vars = ['VIRTUAL_ENV']
+
+[conda]
+format = ' [\($environment\)]($style)'
+style = 'bold green'
+ignore_base = false
+
+[package]
+format = " is [$symbol$version]($style)"
+
+# Avoid prompt width issues caused by emoji variation selectors (e.g. ☁️)
+# in some shell/font/wcwidth combinations.
+[aws]
+disabled = true
+
+# Optional: pretty git status indicators. To enable, add "$git_status" to
+# `format` at the top of this file (e.g. "$directory$git_branch$git_status…")
+# and remove the leading "#" from each line below.
+#
+# Symbols use single-character Nerd Font glyphs grouped together with no
+# brackets, and counts only appear when greater than one. Result looks like:
+#   main  ↑2  ?3
+#
+# [git_status]
+# format = ' [$ahead_behind$conflicted$staged$modified$untracked$stashed]($style)'
+# style = "bold yellow"
+# ahead = " ↑${count}"
+# behind = " ↓${count}"
+# diverged = " ⇕"
+# conflicted = "  "
+# staged = "  "
+# modified = "  "
+# untracked = " ?${count}"
+# stashed = "  "
