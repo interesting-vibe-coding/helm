@@ -408,3 +408,34 @@ wezterm.on('format-tab-title', function(tab, _, _, _, _, _)
 end)
 
 return config
+
+-- Helm Harness Launcher 🚀 — Cmd+Shift+K
+table.insert(config.keys, {
+  key = 'K',
+  mods = 'CMD|SHIFT',
+  action = wezterm.action_callback(function(window, pane)
+    window:perform_action(
+      wezterm.action.InputSelector {
+        action = wezterm.action_callback(function(w, p, id, label)
+          if not id then return end
+          w:perform_action(
+            wezterm.action.SplitPane {
+              direction = 'Right',
+              command = { args = { '/bin/bash', '-l', '-c', id } },
+            },
+            p
+          )
+        end),
+        fuzzy = true,
+        title = '  Launch Harness',
+        choices = {
+          { id = 'kiro-cli chat --trust-all-tools --agent default --effort medium', label = '🤖 kiro  (default, medium effort)' },
+          { id = 'claude --dangerously-skip-permissions',                           label = '🟣 claude-code  (auto-approve)' },
+          { id = 'opencode',                                                        label = '⚡ opencode' },
+          { id = 'codex',                                                           label = '🔵 codex' },
+        },
+      },
+      pane
+    )
+  end),
+})
