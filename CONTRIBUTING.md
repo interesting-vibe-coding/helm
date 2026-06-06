@@ -1,75 +1,43 @@
-# Contributing to Kaku
+# Contributing to Helm
 
-## Setup
+Helm is an agent-native terminal. We welcome contributions that make
+human-agent workflows faster and less friction-filled.
 
-```bash
-# Clone the repository
-git clone https://github.com/tw93/Kaku.git
-cd Kaku
+## Architecture
 
-# Install Rust if it isn't already available (Homebrew keeps rustup keg-only)
-brew install rustup
-echo "export PATH=\"$(brew --prefix rustup)/bin:\$HOME/.cargo/bin:\$PATH\"" >> ~/.zprofile
-exec zsh -l
-rustup toolchain install 1.93.0
+Helm has three layers (see docs/ROADMAP.md for details):
+- **Layer 1** (kaku.lua): Session Scheduler, LRU, keyboard shortcuts
+- **Layer 2** (kaku.lua + tools/): Status awareness, notifications
+- **Layer 3** (tools/): Shared context, history indexer, status dashboard
 
-# Install required tools (cargo-nextest, cargo-watch, nightly rustfmt)
-make install-tools
+Most Layer 1+2 changes are in `assets/macos/Helm.app/Contents/Resources/kaku.lua`.
+Layer 3 changes are standalone Python tools in `tools/`.
 
-# Install pre-commit hook (format + test before each commit)
-make install-hooks
-```
-
-## Development
-
-| Command | Purpose |
-|---------|---------|
-| `make fmt` | Auto-format code (requires nightly) |
-| `make fmt-check` | Check formatting without modifying files |
-| `make check` | Compile check, catch type/syntax errors |
-| `make test` | Run unit tests |
-| `make dev` | Fast local debug: build `kaku-gui` and run from `target/debug` |
-| `make build` | Compile binaries (no app bundle) |
-| `make app` | Build debug app bundle → `dist/Kaku.app` |
-
-**Recommended workflow:**
+## Building
 
 ```bash
-make fmt        # format first
-make check      # verify it compiles
-make test       # run tests
-make dev        # fast local run without packaging
+PROFILE=debug ./scripts/build.sh --app-only
+open dist/Helm.app
 ```
 
-You can override log level for `make dev`:
+## Adding a new harness
+
+1. Add detection in `detect_harness()` in kaku.lua
+2. Add to the launcher choices in Cmd+Shift+K handler
+3. Add symlink in `tools/helm-init/helm-init.sh` if the harness has a convention path
+4. Add to helm-history indexer if the harness stores session history
+
+## Tools
+
+All tools in `tools/` are standalone Python scripts with a shell wrapper.
+Standard structure: `tools/<name>/<name>.py` + `tools/<name>/<name>` (shell wrapper).
+
+## Lua syntax check
 
 ```bash
-RUST_LOG=debug make dev
+luac -p assets/macos/Helm.app/Contents/Resources/kaku.lua
 ```
 
-## Build Release
+## PR process
 
-```bash
-# Build application and DMG (release, universal binary)
-./scripts/build.sh
-# Outputs: dist/Kaku.app and dist/Kaku.dmg
-
-# Build for current architecture only (faster, for local testing)
-./scripts/build.sh --native-arch
-
-# Build app bundle only (skip DMG creation)
-./scripts/build.sh --native-arch --app-only
-
-# Build and open the app automatically
-./scripts/build.sh --native-arch --open
-```
-
-## Pull Requests
-
-1. Fork and create a branch from `main`
-2. Make changes
-3. Run `make fmt && make check && make test`
-4. Commit and push
-5. Open PR targeting `main`
-
-CI runs format check → unit tests → cargo check → universal build validation in order.
+Create a branch, commit, push, open PR to main. We squash-merge.
