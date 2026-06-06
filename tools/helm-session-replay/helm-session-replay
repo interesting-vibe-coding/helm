@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# helm-session-replay — export past session as context for new agent
+exec python3 "$(dirname "$0")/replay.py" "$@"
