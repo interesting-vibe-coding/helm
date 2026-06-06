@@ -1,43 +1,14 @@
 ---
-name: Bug Report
-about: Report a bug or issue with Kaku
-title: '[BUG] '
-labels: bug
-assignees: ''
+name: Bug report
+about: Something broken in Helm
 ---
+**Describe the bug**
 
-## Summary
+**Steps to reproduce**
 
-What happened? A short description is enough.
+**Expected behavior**
 
-## Steps to reproduce
-
-1. ...
-2. ...
-3. ...
-
-## Expected vs actual
-
-- **Expected**:
-- **Actual**:
-
-## Environment
-
-Please include:
-- **Kaku version**: (e.g. `0.4.0`)
-- **macOS version**: (e.g. `macOS 15.3`)
-- **Machine**: (e.g. MacBook Pro M3)
-- **Shell**: (e.g. `zsh`, `bash`, `fish`)
-
-## Optional details
-
-Add anything helpful if available:
-- screenshots or recordings
-- relevant config snippet from `~/.config/kaku/kaku.lua`
-- Doctor panel header and related log lines
-
-You can submit first with minimal info; maintainers may ask follow-up questions.
-
-## Extra context
-
-Related issues, workarounds, or anything else.
+**Environment**
+- Helm version:
+- macOS version:
+- Shell: fish / zsh

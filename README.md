@@ -1,3 +1,5 @@
+> **Status**: Early / MVP — usable daily. Actively developed. [Join the discussion →](https://github.com/interesting-vibe-coding/helm/discussions)
+
 <div align="center">
   <img src="assets/logo.icns" width="120" />
   <h1>Helm 🎯</h1>
