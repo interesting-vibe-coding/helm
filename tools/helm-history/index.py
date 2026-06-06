@@ -138,6 +138,147 @@ def cmd_recent(sessions):
         print(f"{s['harness']:<14} {ts:<26} {s['title'][:38]}")
 
 
+def _extract_text(content):
+    """Extract plain text from a message content field."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return " ".join(c.get("text", "") for c in content if isinstance(c, dict) and "text" in c)
+    if isinstance(content, dict):
+        return content.get("content", content.get("text", ""))
+    return str(content)
+
+
+def _extract_kiro_content(content_list):
+    """Extract text from kiro's content array (list of {kind, data} objects)."""
+    if not isinstance(content_list, list):
+        return _extract_text(content_list)
+    parts = []
+    for item in content_list:
+        if isinstance(item, dict) and item.get("kind") == "text":
+            t = item.get("data", "")
+            if isinstance(t, str) and t.strip():
+                parts.append(t.strip())
+    return "\n".join(parts)
+
+
+def _export_kiro_session(session_id, out_path):
+    pattern = str(HOME / ".kiro/sessions/cli" / f"{session_id}.jsonl")
+    matches = glob.glob(pattern)
+    if not matches:
+        matches = [m for m in glob.glob(str(HOME / ".kiro/sessions/cli/*.jsonl")) if session_id in m]
+    if not matches:
+        print(f"No kiro .jsonl for '{session_id}'")
+        return False
+    lines = []
+    try:
+        lines = [json.loads(l) for l in open(matches[0]) if l.strip()]
+    except Exception as e:
+        print(f"Error: {e}")
+        return False
+    # kiro format: {version, kind, data} — kind is 'Prompt' or 'AssistantMessage'
+    msgs = [l for l in lines if l.get("kind") in ("Prompt", "AssistantMessage")]
+    parts = []
+    for m in msgs:
+        role = "User" if m.get("kind") == "Prompt" else "Assistant"
+        content = m.get("data", {}).get("content", "")
+        text = _extract_kiro_content(content)
+        if text.strip():
+            parts.append(f"## {role}\n\n{text.strip()}\n")
+    Path(out_path).write_text("\n".join(parts))
+    return True
+
+
+def _export_claude_code_session(session_id, out_path):
+    matches = glob.glob(str(HOME / ".claude/projects/**/*.jsonl"), recursive=True)
+    matches = [m for m in matches if Path(m).stem == session_id or session_id in m]
+    if not matches:
+        print(f"No claude-code .jsonl for '{session_id}'")
+        return False
+    lines = []
+    try:
+        lines = [json.loads(l) for l in open(matches[0]) if l.strip()]
+    except Exception as e:
+        print(f"Error: {e}")
+        return False
+    msgs = [l for l in lines if l.get("type") in ("user", "assistant")]
+    parts = []
+    for m in msgs:
+        role = "User" if m.get("type") == "user" else "Assistant"
+        content = m.get("message", {}).get("content", "")
+        text = _extract_text(content)
+        parts.append(f"## {role}\n\n{text.strip()}\n")
+    Path(out_path).write_text("\n".join(parts))
+    return True
+
+
+def _export_opencode_session(session_id, out_path):
+    msg_dir = HOME / ".local/share/opencode/storage/message" / session_id
+    if not msg_dir.is_dir():
+        print(f"No opencode messages for '{session_id}'")
+        return False
+    files = sorted(msg_dir.glob("*.json"))
+    parts = []
+    for f in files:
+        try:
+            d = json.load(open(f))
+        except Exception:
+            continue
+        role_raw = d.get("role", d.get("type", ""))
+        role = "User" if role_raw in ("user",) else "Assistant"
+        text = _extract_text(d.get("content", d.get("text", "")))
+        if text.strip():
+            parts.append(f"## {role}\n\n{text.strip()}\n")
+    Path(out_path).write_text("\n".join(parts))
+    return True
+
+
+def cmd_export(session_id, out_path):
+    """Export a single session to markdown. Tries kiro → claude-code → opencode."""
+    # Try to find the harness from index
+    sessions = build_index()
+    match = next((s for s in sessions if s["session_id"] == session_id), None)
+    harness = match["harness"] if match else None
+
+    ok = False
+    if harness == "kiro" or harness is None:
+        ok = _export_kiro_session(session_id, out_path)
+    if not ok and (harness == "claude-code" or harness is None):
+        ok = _export_claude_code_session(session_id, out_path)
+    if not ok and (harness == "opencode" or harness is None):
+        ok = _export_opencode_session(session_id, out_path)
+    if ok:
+        print(f"Exported → {out_path}")
+    else:
+        print(f"Session '{session_id}' not found in any harness.")
+
+
+def cmd_export_all(harness, out_dir):
+    """Export all sessions from one harness to markdown files in out_dir."""
+    sessions = build_index()
+    subset = [s for s in sessions if s["harness"] == harness]
+    if not subset:
+        print(f"No sessions found for harness '{harness}'")
+        return
+    Path(out_dir).mkdir(parents=True, exist_ok=True)
+    exported = 0
+    for s in subset:
+        sid = s["session_id"]
+        safe = re.sub(r"[^\w\-]", "_", sid)[:60]
+        out_path = str(Path(out_dir) / f"{safe}.md")
+        if harness == "kiro":
+            ok = _export_kiro_session(sid, out_path)
+        elif harness == "claude-code":
+            ok = _export_claude_code_session(sid, out_path)
+        elif harness == "opencode":
+            ok = _export_opencode_session(sid, out_path)
+        else:
+            ok = False
+        if ok:
+            exported += 1
+    print(f"Exported {exported}/{len(subset)} sessions → {out_dir}")
+
+
 def cmd_show(session_id):
     # Find kiro session .jsonl file
     pattern = str(HOME / ".kiro/sessions/cli" / f"{session_id}.jsonl")
@@ -181,6 +322,12 @@ def main():
     sub.add_parser("recent", help="Last 10 sessions sorted by last_active")
     p_show = sub.add_parser("show", help="Show first 5 messages from a kiro session")
     p_show.add_argument("session_id")
+    p_export = sub.add_parser("export", help="Export a session to markdown")
+    p_export.add_argument("session_id")
+    p_export.add_argument("output_file")
+    p_export_all = sub.add_parser("export-all", help="Export all sessions from a harness to a directory")
+    p_export_all.add_argument("harness", choices=["kiro", "claude-code", "opencode"])
+    p_export_all.add_argument("output_dir")
 
     args = parser.parse_args()
     sessions = build_index()
@@ -191,6 +338,10 @@ def main():
         cmd_recent(sessions)
     elif args.cmd == "show":
         cmd_show(args.session_id)
+    elif args.cmd == "export":
+        cmd_export(args.session_id, args.output_file)
+    elif args.cmd == "export-all":
+        cmd_export_all(args.harness, args.output_dir)
     else:
         cmd_list(sessions)
 
