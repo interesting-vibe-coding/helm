@@ -45,9 +45,31 @@ Every terminal today treats AI as a plugin bolted on top. Helm is different:
 
 ---
 
+## Quick Start
+```bash
+# Build from source (macOS)
+git clone https://github.com/interesting-vibe-coding/helm
+cd helm
+PROFILE=debug ./scripts/build.sh --app-only
+open dist/Helm.app
+```
+
+---
+
+## Keyboard Shortcuts
+| Shortcut | Action |
+|---|---|
+| `Cmd+Shift+S` | Session list — all active agents with runtime |
+| `Cmd+Shift+M` | Toggle AI model (sonnet ↔ opus) in kiro chat |
+| `Cmd+Shift+B` | Background current agent session |
+| `Cmd+L` | AI chat panel |
+| `Cmd+Shift+G` | lazygit |
+
+---
+
 ## Built On
 
-Helm is a focused fork of [Kaku](https://github.com/tw93/Kaku) (itself a fork of [WezTerm](https://wezfurlong.org/wezterm/)), with Helm-specific agent orchestration layered on top. GPU rendering, Lua config, multiplexer — all inherited and battle-tested.
+Helm is a focused fork of [Kaku](https://github.com/tw93/Kaku) (itself a fork of [WezTerm](https://wezfurlong.org/wezterm/)), with Helm-specific agent orchestration layered on top. GPU rendering, Lua config, multiplexer — all inherited and battle-tested. Helm adds three layers on top: Session Scheduler (virtual session management), Status Awareness (real-time agent state), and Shared Context (cross-harness memory + history) — forming an Agent OS.
 
 ---
 
