@@ -242,7 +242,12 @@ local function fmt_duration(secs)
   return string.format('%02d:%02d:%02d', math.floor(s/3600), math.floor((s%3600)/60), s%60)
 end
 
+-- forward declarations (defined later, referenced by helm_track)
+local save_sessions, restore_sessions
+
 -- Update or insert a session record for this pane
+-- State detection via idle heuristic: content changing = working,
+-- content stable > 3s = waiting (agent finished, awaiting input).
 local function helm_track(pane)
   local sessions = wezterm.GLOBAL.helm_sessions
   local id = tostring(pane:pane_id())
@@ -250,18 +255,36 @@ local function helm_track(pane)
   local harness = detect_harness(proc)
   if not harness then return end  -- only track known harnesses
 
+  local t = now_secs()
+  -- cheap content fingerprint of last 12 lines: length + sampled byte sum
+  local text = table.concat(pane:get_lines_as_text(12), '')
+  local fp = #text
+  for i = 1, #text, 64 do fp = fp + text:byte(i) end
+
   if not sessions[id] then
     sessions[id] = {
       harness       = harness,
       cwd           = cwd_basename(pane:get_current_working_dir()),
-      start_time    = now_secs(),
-      last_accessed = now_secs(),
+      start_time    = t,
+      last_accessed = t,
       state         = 'working',
+      fp            = fp,
+      last_change   = t,
     }
   else
-    -- refresh cwd and harness on every check
-    sessions[id].harness = harness
-    sessions[id].cwd     = cwd_basename(pane:get_current_working_dir())
+    local s = sessions[id]
+    s.harness = harness
+    s.cwd     = cwd_basename(pane:get_current_working_dir())
+    -- idle detection (skip if user backgrounded it)
+    if s.state ~= 'background' then
+      if fp ~= s.fp then
+        s.fp = fp
+        s.last_change = t
+        s.state = 'working'
+      elseif (t - (s.last_change or t)) > 3 then
+        s.state = 'waiting'
+      end
+    end
   end
   wezterm.GLOBAL.helm_sessions = sessions
   save_sessions()
@@ -294,14 +317,14 @@ local function sessions_to_json(sessions)
   return '{' .. table.concat(parts, ',') .. '}'
 end
 
-local function save_sessions()
+save_sessions = function()
   local f = io.open(RUNTIME_JSON, 'w')
   if not f then return end
   f:write(sessions_to_json(wezterm.GLOBAL.helm_sessions or {}))
   f:close()
 end
 
-local function restore_sessions()
+restore_sessions = function()
   local f = io.open(RUNTIME_JSON, 'r')
   if not f then return end
   local raw = f:read('*a'); f:close()
@@ -448,7 +471,13 @@ wezterm.on('format-tab-title', function(tab, _, _, _, _, _)
   local harness = detect_harness(proc)
   if harness then
     local project = cwd_basename(pane:get_current_working_dir())
-    return '🔵 ' .. harness:lower() .. ':' .. project
+    local sess = (wezterm.GLOBAL.helm_sessions or {})[tostring(pane:pane_id())]
+    local icon = '🔵'
+    if sess then
+      if sess.state == 'waiting' then icon = '🟠'
+      elseif sess.state == 'background' then icon = '⏸' end
+    end
+    return ' ' .. icon .. ' ' .. harness:lower() .. ':' .. project .. ' '
   end
   -- fallback: pane title set by shell/app
   return tab:get_title()
@@ -466,7 +495,9 @@ table.insert(config.keys, {
           w:perform_action(
             wezterm.action.SplitPane {
               direction = 'Right',
-              command = { args = { '/bin/bash', '-l', '-c', id } },
+              -- exec so the agent takes over the shell process; without exec
+              -- bash exits when the command ends and the pane closes (looks like a crash)
+              command = { args = { '/bin/bash', '-l', '-c', 'exec ' .. id } },
             },
             p
           )
@@ -487,16 +518,7 @@ table.insert(config.keys, {
 
 -- Helm Agent Notifications -- detect waiting state + Cmd+Shift+U + HUD overlay
 wezterm.on('update-right-status', function(window, pane)
-  local sessions = wezterm.GLOBAL.helm_sessions or {}
-  local pid = tostring(pane:pane_id())
-  local s = sessions[pid]
-  if s then
-    local text = table.concat(pane:get_lines_as_text(3), ' '):lower()
-    if text:match('[>$] $') or text:match('waiting') then
-      s.state = 'waiting'; sessions[pid] = s
-      wezterm.GLOBAL.helm_sessions = sessions
-    end
-  end
+  -- (working/waiting state detection is handled in helm_track via idle heuristic)
 
   -- Build compact HUD: [kiro 🔵 02:34 | claude 🔵 05:12 | 2 bg]
   local t = now_secs()
@@ -563,6 +585,14 @@ table.insert(config.keys, {
       end
     end
   end),
+})
+
+-- Override Cmd+L: Helm doesn't need the built-in AI chat (use your own harness).
+-- Remap to clear screen (send Ctrl+L to the shell), the conventional terminal behavior.
+table.insert(config.keys, {
+  key = 'l',
+  mods = 'CMD',
+  action = wezterm.action.SendKey { key = 'l', mods = 'CTRL' },
 })
 
 return config
