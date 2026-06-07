@@ -26,8 +26,8 @@ URL="https://github.com/$REPO/releases/latest/download/Helm.app.zip"
 
 # Download + unpack
 TMP=$(mktemp -d)
-say "  → downloading"
-curl -fsSL "$URL" -o "$TMP/Helm.app.zip"
+say "  → downloading (~80MB)"
+curl -fL --progress-bar "$URL" -o "$TMP/Helm.app.zip"
 say "  → unpacking"
 ditto -x -k "$TMP/Helm.app.zip" "$TMP"
 
