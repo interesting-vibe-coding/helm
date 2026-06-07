@@ -240,7 +240,7 @@ ensure_kaku_yazi_theme() {
 		cat <<EOF >"$YAZI_THEME_FILE"
 \$schema = "https://yazi-rs.github.io/schemas/theme.json"
 
-# Kaku manages the [flavor] section below so Yazi matches the current Kaku theme.
+# Helm manages the [flavor] section below so Yazi matches the current Helm theme.
 # Add your own theme overrides in other sections if needed.
 $(kaku_yazi_theme_block "$managed_flavor")
 EOF
@@ -284,8 +284,8 @@ install_yazi_wrapper() {
 set -euo pipefail
 
 YAZI_THEME_FILE="${HOME}/.config/yazi/theme.toml"
-MARKER_START="# ===== Kaku Yazi Flavor (managed) ====="
-MARKER_END="# ===== End Kaku Yazi Flavor (managed) ====="
+MARKER_START="# ===== Helm Yazi Flavor (managed) ====="
+MARKER_END="# ===== End Helm Yazi Flavor (managed) ====="
 WRAPPER_PATH="${BASH_SOURCE[0]}"
 WRAPPER_DIR="$(cd "$(dirname "$WRAPPER_PATH")" && pwd)"
 
@@ -378,7 +378,7 @@ ensure_theme() {
 		cat <<BLOCK >"$YAZI_THEME_FILE"
 \$schema = "https://yazi-rs.github.io/schemas/theme.json"
 
-# Kaku manages the [flavor] section below so Yazi matches the current Kaku theme.
+# Helm manages the [flavor] section below so Yazi matches the current Helm theme.
 $(managed_block "$flavor")
 BLOCK
 		return
@@ -518,7 +518,7 @@ install_kaku_terminfo() {
 
 install_kaku_terminfo
 
-echo -e "${BOLD}Setting up Kaku Shell Environment${NC}"
+echo -e "${BOLD}Setting up Helm Shell Environment${NC}"
 
 # 1. Prepare User Config Directory
 mkdir -p "$USER_CONFIG_DIR"
@@ -1115,7 +1115,7 @@ alias glgp='git log --stat -p'
         fi
     done
     if [[ -z "\$k_cmd" ]]; then
-        echo "k: Kaku app not found. Install Kaku from https://github.com/tw93/Kaku"
+        echo "k: Helm app not found. Install Helm from https://github.com/interesting-vibe-coding/helm"
         return 127
     fi
     "\$k_cmd" "\$@"
@@ -1557,12 +1557,12 @@ fi
 echo -e "  ${GREEN}✓${NC} ${BOLD}Script${NC}      Generated kaku.zsh init script"
 
 # 4. Configure tmux (Optional)
-TMUX_SOURCE_LINE='source-file "$HOME/.config/kaku/tmux/kaku.tmux.conf" # Kaku tmux Integration'
+TMUX_SOURCE_LINE='source-file "$HOME/.config/kaku/tmux/kaku.tmux.conf" # Helm tmux Integration'
 
 write_kaku_tmux_file() {
 	mkdir -p "$KAKU_TMUX_DIR"
 	cat <<'EOF' >"$KAKU_TMUX_FILE"
-# Kaku tmux Integration - DO NOT EDIT MANUALLY
+# Helm tmux Integration - DO NOT EDIT MANUALLY
 # This file is managed by Helm.app. Any changes may be overwritten.
 
 set -g mouse on
@@ -1613,7 +1613,7 @@ END {
 		if ! cmp -s "$TMUXRC" "$tmp_file"; then
 			backup_tmuxrc_once
 			mv "$tmp_file" "$TMUXRC"
-			echo -e "  ${GREEN}✓${NC} ${BOLD}Integrate${NC}   Updated Kaku source line in .tmux.conf"
+			echo -e "  ${GREEN}✓${NC} ${BOLD}Integrate${NC}   Updated Helm source line in .tmux.conf"
 		else
 			rm -f "$tmp_file"
 		fi
@@ -1623,14 +1623,14 @@ END {
 			if ! cmp -s "$TMUXRC" "$tmp_file"; then
 				backup_tmuxrc_once
 				mv "$tmp_file" "$TMUXRC"
-				echo -e "  ${GREEN}✓${NC} ${BOLD}Integrate${NC}   Removed duplicate Kaku source line(s) from .tmux.conf"
+				echo -e "  ${GREEN}✓${NC} ${BOLD}Integrate${NC}   Removed duplicate Helm source line(s) from .tmux.conf"
 			else
 				rm -f "$tmp_file"
 			fi
 		else
 			rm -f "$tmp_file"
 			if [[ "$awk_status" != "3" ]]; then
-				echo -e "${YELLOW}Warning: failed to normalize Kaku source line in .tmux.conf; leaving it unchanged.${NC}"
+				echo -e "${YELLOW}Warning: failed to normalize Helm source line in .tmux.conf; leaving it unchanged.${NC}"
 			fi
 		fi
 	fi
@@ -1685,7 +1685,7 @@ ensure_kaku_tmux_integration() {
 ensure_kaku_tmux_integration
 
 # 5. Configure .zshrc
-PATH_LINE='[[ ":$PATH:" != *":$HOME/.config/kaku/zsh/bin:"* ]] && export PATH="$HOME/.config/kaku/zsh/bin:$PATH" # Kaku PATH Integration'
+PATH_LINE='[[ ":$PATH:" != *":$HOME/.config/kaku/zsh/bin:"* ]] && export PATH="$HOME/.config/kaku/zsh/bin:$PATH" # Helm PATH Integration'
 SOURCE_LINE='[[ -f "$HOME/.config/kaku/zsh/kaku.zsh" ]] && source "$HOME/.config/kaku/zsh/kaku.zsh" # Helm Shell Integration'
 LEGACY_INLINE_BLOCK_PRESERVED=0
 
@@ -1914,7 +1914,7 @@ cleanup_legacy_inline_block() {
 	if [[ "$in_block" == "1" ]]; then
 		rm -f "$tmp_file"
 		LEGACY_INLINE_BLOCK_PRESERVED=1
-		echo -e "${YELLOW}Warning: found unterminated legacy Kaku block; leaving .zshrc unchanged.${NC}"
+		echo -e "${YELLOW}Warning: found unterminated legacy Helm block; leaving .zshrc unchanged.${NC}"
 		return
 	fi
 
@@ -1922,17 +1922,17 @@ cleanup_legacy_inline_block() {
 		backup_zshrc_once
 		mv "$tmp_file" "$ZSHRC"
 		if [[ "$removed_block" == "1" ]]; then
-			echo -e "  ${GREEN}✓${NC} ${BOLD}Migrate${NC}     Removed legacy inline Kaku block from .zshrc"
+			echo -e "  ${GREEN}✓${NC} ${BOLD}Migrate${NC}     Removed legacy inline Helm block from .zshrc"
 		fi
 		if [[ "$preserved_block" == "1" ]]; then
 			LEGACY_INLINE_BLOCK_PRESERVED=1
-			echo -e "${YELLOW}Warning: kept legacy Kaku block with custom lines to avoid deleting user shell config.${NC}"
+			echo -e "${YELLOW}Warning: kept legacy Helm block with custom lines to avoid deleting user shell config.${NC}"
 		fi
 	else
 		rm -f "$tmp_file"
 		if [[ "$preserved_block" == "1" ]]; then
 			LEGACY_INLINE_BLOCK_PRESERVED=1
-			echo -e "${YELLOW}Warning: kept legacy Kaku block with custom lines to avoid deleting user shell config.${NC}"
+			echo -e "${YELLOW}Warning: kept legacy Helm block with custom lines to avoid deleting user shell config.${NC}"
 		fi
 	fi
 }
@@ -1984,7 +1984,7 @@ END {
 		if ! cmp -s "$ZSHRC" "$tmp_file"; then
 			backup_zshrc_once
 			mv "$tmp_file" "$ZSHRC"
-			echo -e "  ${GREEN}✓${NC} ${BOLD}Integrate${NC}   Updated Kaku PATH line in .zshrc"
+			echo -e "  ${GREEN}✓${NC} ${BOLD}Integrate${NC}   Updated Helm PATH line in .zshrc"
 		else
 			rm -f "$tmp_file"
 		fi
@@ -1994,14 +1994,14 @@ END {
 			if ! cmp -s "$ZSHRC" "$tmp_file"; then
 				backup_zshrc_once
 				mv "$tmp_file" "$ZSHRC"
-				echo -e "  ${GREEN}✓${NC} ${BOLD}Integrate${NC}   Removed duplicate Kaku PATH line(s) from .zshrc"
+				echo -e "  ${GREEN}✓${NC} ${BOLD}Integrate${NC}   Removed duplicate Helm PATH line(s) from .zshrc"
 			else
 				rm -f "$tmp_file"
 			fi
 		else
 			rm -f "$tmp_file"
 			if [[ "$awk_status" != "3" ]]; then
-				echo -e "${YELLOW}Warning: failed to normalize Kaku PATH line in .zshrc; leaving it unchanged.${NC}"
+				echo -e "${YELLOW}Warning: failed to normalize Helm PATH line in .zshrc; leaving it unchanged.${NC}"
 			fi
 		fi
 	fi
@@ -2052,7 +2052,7 @@ END {
 		if ! cmp -s "$ZSHRC" "$tmp_file"; then
 			backup_zshrc_once
 			mv "$tmp_file" "$ZSHRC"
-			echo -e "  ${GREEN}✓${NC} ${BOLD}Integrate${NC}   Updated Kaku source line in .zshrc"
+			echo -e "  ${GREEN}✓${NC} ${BOLD}Integrate${NC}   Updated Helm source line in .zshrc"
 		else
 			rm -f "$tmp_file"
 		fi
@@ -2063,14 +2063,14 @@ END {
 			if ! cmp -s "$ZSHRC" "$tmp_file"; then
 				backup_zshrc_once
 				mv "$tmp_file" "$ZSHRC"
-				echo -e "  ${GREEN}✓${NC} ${BOLD}Integrate${NC}   Removed duplicate Kaku source line(s) from .zshrc"
+				echo -e "  ${GREEN}✓${NC} ${BOLD}Integrate${NC}   Removed duplicate Helm source line(s) from .zshrc"
 			else
 				rm -f "$tmp_file"
 			fi
 		else
 			rm -f "$tmp_file"
 			if [[ "$awk_status" != "3" ]]; then
-				echo -e "${YELLOW}Warning: failed to normalize Kaku source line in .zshrc; leaving it unchanged.${NC}"
+				echo -e "${YELLOW}Warning: failed to normalize Helm source line in .zshrc; leaving it unchanged.${NC}"
 			fi
 		fi
 	fi
@@ -2108,7 +2108,7 @@ has_kaku_source_line() {
 if has_kaku_path_line && has_kaku_source_line; then
 	echo -e "  ${GREEN}✓${NC} ${BOLD}Integrate${NC}   Already linked in .zshrc"
 elif [[ "$LEGACY_INLINE_BLOCK_PRESERVED" == "1" ]]; then
-	echo -e "  ${BLUE}•${NC} ${BOLD}Integrate${NC}   Preserved legacy inline Kaku block ${NC}(move custom lines outside it, then rerun kaku init)${NC}"
+	echo -e "  ${BLUE}•${NC} ${BOLD}Integrate${NC}   Preserved legacy inline Helm block ${NC}(move custom lines outside it, then rerun kaku init)${NC}"
 else
 	if [[ -f "$ZSHRC" && ! -w "$ZSHRC" ]]; then
 		echo -e "  ${YELLOW}!${NC} ${BOLD}Integrate${NC}   .zshrc is read-only (symlink or permission). Add manually:"

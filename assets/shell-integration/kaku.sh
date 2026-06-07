@@ -660,7 +660,7 @@ __kaku_check_update_notification() {
   newer=$(printf '%s\n%s\n' "$current_clean" "$latest_clean" | sort -V | tail -n1)
   if [[ "$newer" == "$latest_clean" && "$newer" != "$current_clean" ]]; then
     local key
-    printf '\033[1;36mKaku %s is available. Press Enter to update, any other key to skip.\033[0m ' "$latest_clean"
+    printf '\033[1;36mHelm %s is available. Press Enter to update, any other key to skip.\033[0m ' "$latest_clean"
     # Use zsh-compatible read: -r (raw), -s (silent), -k 1 (one char) for zsh; -n 1 for bash
     if [[ -n "${ZSH_VERSION:-}" ]]; then
       read -rsk1 key

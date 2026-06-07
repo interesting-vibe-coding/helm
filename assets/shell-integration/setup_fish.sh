@@ -899,7 +899,7 @@ function k
         end
     end
     if test -z "$k_cmd"
-        echo "k: Kaku app not found. Install Kaku from https://github.com/tw93/Kaku"
+        echo "k: Helm app not found. Install Helm from https://github.com/interesting-vibe-coding/helm"
         return 127
     end
     $k_cmd $argv
@@ -921,7 +921,7 @@ EOF
 echo -e "  ${GREEN}✓${NC} ${BOLD}Integrate${NC}   Installed ${NC}~/.config/fish/conf.d/kaku.fish${NC}"
 
 echo ""
-echo -e "${GREEN}${BOLD}Kaku Fish setup complete!${NC}"
+echo -e "${GREEN}${BOLD}Helm Fish setup complete!${NC}"
 echo ""
 echo "Restart fish or run: source ~/.config/fish/conf.d/kaku.fish"
 echo "Roll back anytime with: helm reset"

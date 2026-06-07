@@ -192,7 +192,7 @@ fn build_health_group(overall_status: DoctorStatus, summary: &DoctorSummary) -> 
             "Summary: {} ok, {} warn, {} fail, {} info",
             summary.ok, summary.warn, summary.fail, summary.info
         ),
-        format!("Kaku version: {}", doctor_version_string()),
+        format!("Helm version: {}", doctor_version_string()),
     ];
 
     if summary.fail > 0 || summary.warn > 0 {
@@ -204,8 +204,8 @@ fn build_health_group(overall_status: DoctorStatus, summary: &DoctorSummary) -> 
         status: overall_status,
         summary: match overall_status {
             DoctorStatus::Ok => "No blocking issues detected".to_string(),
-            DoctorStatus::Warn => "Kaku works but setup is incomplete".to_string(),
-            DoctorStatus::Fail => "Kaku command entry is broken or missing".to_string(),
+            DoctorStatus::Warn => "Helm works but setup is incomplete".to_string(),
+            DoctorStatus::Fail => "Helm command entry is broken or missing".to_string(),
             DoctorStatus::Info => "Informational only".to_string(),
         },
         details,
@@ -245,7 +245,7 @@ fn build_environment_group() -> DoctorGroup {
             None => "SHELL is not set".to_string(),
         },
         details: vec![
-            "Kaku shell integration supports zsh and fish for PATH injection and managed shell config"
+            "Helm shell integration supports zsh and fish for PATH injection and managed shell config"
                 .to_string(),
             "Doctor reports the current process environment. GUI-launched apps can differ from a Terminal login shell."
                 .to_string(),
@@ -269,7 +269,7 @@ fn build_environment_group() -> DoctorGroup {
             "Run `kaku init --update-only` and restart zsh with `exec zsh -l`".to_string()
         };
         checks.push(DoctorCheck {
-            title: "PATH Contains Kaku Managed Bin",
+            title: "PATH Contains Helm Managed Bin",
             status: if path_has_managed_bin {
                 DoctorStatus::Ok
             } else {
@@ -281,8 +281,8 @@ fn build_environment_group() -> DoctorGroup {
                 format!("PATH is missing {}", bin_dir_display)
             },
             details: vec![
-                format!("Kaku command wrapper is expected at {}/kaku", bin_dir_display),
-                "This PATH entry is normally added by Kaku shell integration on startup".to_string(),
+                format!("Helm command wrapper is expected at {}/kaku", bin_dir_display),
+                "This PATH entry is normally added by Helm shell integration on startup".to_string(),
                 "PATH in Doctor reflects the current process environment and can differ between GUI and Terminal launches."
                     .to_string(),
             ],
@@ -308,7 +308,7 @@ fn build_environment_group() -> DoctorGroup {
                     format!("Not present: {}", conf_d.display())
                 },
                 details: vec![format!(
-                    "Fish loads Kaku integration via {}",
+                    "Fish loads Helm integration via {}",
                     conf_d.display()
                 )],
                 fix: None,
@@ -328,12 +328,12 @@ fn build_environment_group() -> DoctorGroup {
         }
     } else {
         checks.push(DoctorCheck {
-            title: "PATH Contains Kaku Managed Bin",
+            title: "PATH Contains Helm Managed Bin",
             status: DoctorStatus::Info,
-            summary: "Current shell is not managed by Kaku; skipping shell-specific PATH check"
+            summary: "Current shell is not managed by Helm; skipping shell-specific PATH check"
                 .to_string(),
             details: vec![
-                "Kaku shell integration manages PATH for zsh and fish.".to_string(),
+                "Helm shell integration manages PATH for zsh and fish.".to_string(),
                 "For other shells, add the kaku bin directory to PATH manually.".to_string(),
             ],
             fix: None,
@@ -391,10 +391,10 @@ fn build_shell_integration_group() -> DoctorGroup {
             title: "Shell Integration",
             status: DoctorStatus::Info,
             summary: format!(
-                "Current shell ({}) is not managed by Kaku; shell-specific checks skipped",
+                "Current shell ({}) is not managed by Helm; shell-specific checks skipped",
                 shell_kind.name()
             ),
-            details: vec!["Kaku shell integration supports zsh and fish.".to_string()],
+            details: vec!["Helm shell integration supports zsh and fish.".to_string()],
             fix: None,
         });
         return DoctorGroup {
@@ -430,7 +430,7 @@ fn build_shell_integration_group() -> DoctorGroup {
         } else {
             format!("Missing {}", init_file.display())
         },
-        details: vec!["Kaku writes PATH and shell integration to this managed file".to_string()],
+        details: vec!["Helm writes PATH and shell integration to this managed file".to_string()],
         fix: if init_exists {
             None
         } else {
@@ -443,7 +443,7 @@ fn build_shell_integration_group() -> DoctorGroup {
     }
 
     checks.push(wrapper_check(
-        "Kaku Wrapper Script",
+        "Helm Wrapper Script",
         managed_wrapper_path(),
         DoctorStatus::Fail,
         vec![
@@ -471,7 +471,7 @@ fn build_shell_integration_group() -> DoctorGroup {
         let source_check = check_fish_conf_d_source_line(&conf_d);
         let mut details = vec![
             format!("Checked {}", conf_d.display()),
-            "Fish loads Kaku integration via this conf.d file on startup".to_string(),
+            "Fish loads Helm integration via this conf.d file on startup".to_string(),
         ];
         if !source_check.has_valid_source
             && !source_check.missing_file
@@ -482,7 +482,7 @@ fn build_shell_integration_group() -> DoctorGroup {
             );
         }
         checks.push(DoctorCheck {
-            title: "fish conf.d Sources Kaku Init",
+            title: "fish conf.d Sources Helm Init",
             status: if source_check.read_error.is_some() {
                 DoctorStatus::Fail
             } else if source_check.has_valid_source {
@@ -495,9 +495,9 @@ fn build_shell_integration_group() -> DoctorGroup {
             } else if source_check.missing_file {
                 format!("Missing {}", conf_d.display())
             } else if source_check.has_valid_source {
-                format!("Found valid Kaku source entry in {}", conf_d.display())
+                format!("Found valid Helm source entry in {}", conf_d.display())
             } else {
-                format!("No valid Kaku source entry in {}", conf_d.display())
+                format!("No valid Helm source entry in {}", conf_d.display())
             },
             details,
             fix: if source_check.has_valid_source {
@@ -510,7 +510,7 @@ fn build_shell_integration_group() -> DoctorGroup {
         let zshrc = zshrc_path();
         let source_check = check_zshrc_source_line(&zshrc);
         checks.push(DoctorCheck {
-            title: "zshrc Sources Kaku Init",
+            title: "zshrc Sources Helm Init",
             status: if source_check.read_error.is_some() {
                 DoctorStatus::Fail
             } else if source_check.has_active_lines() && !source_check.has_legacy_guarded_lines() {
@@ -524,19 +524,19 @@ fn build_shell_integration_group() -> DoctorGroup {
                 format!("No zshrc file found at {}", zshrc.display())
             } else if source_check.has_legacy_guarded_lines() {
                 format!(
-                    "Found {} active Kaku source line(s), including {} legacy guarded line(s) in {}",
+                    "Found {} active Helm source line(s), including {} legacy guarded line(s) in {}",
                     source_check.guarded_active_lines + source_check.unguarded_active_lines,
                     source_check.guarded_active_lines,
                     zshrc.display()
                 )
             } else if source_check.has_active_lines() {
                 format!(
-                    "Found {} active Kaku source line(s) in {}",
+                    "Found {} active Helm source line(s) in {}",
                     source_check.guarded_active_lines + source_check.unguarded_active_lines,
                     zshrc.display()
                 )
             } else {
-                format!("No active Kaku source line in {}", zshrc.display())
+                format!("No active Helm source line in {}", zshrc.display())
             },
             details: source_check.details(&zshrc),
             fix: if source_check.read_error.is_some() {
@@ -568,7 +568,7 @@ fn build_runtime_group() -> DoctorGroup {
         .find(|p| config::is_executable_file(p))
         .cloned();
     checks.push(DoctorCheck {
-        title: "Kaku App Binary",
+        title: "Helm App Binary",
         status: if existing.is_some() {
             DoctorStatus::Ok
         } else {
@@ -576,7 +576,7 @@ fn build_runtime_group() -> DoctorGroup {
         },
         summary: match &existing {
             Some(path) => format!("Found executable {}", path.display()),
-            None => "Kaku CLI binary not found in known locations".to_string(),
+            None => "Helm CLI binary not found in known locations".to_string(),
         },
         details: candidates
             .iter()
@@ -585,7 +585,7 @@ fn build_runtime_group() -> DoctorGroup {
         fix: if existing.is_some() {
             None
         } else {
-            Some("Install Kaku.app to /Applications or ~/Applications".to_string())
+            Some("Install Helm.app to /Applications or ~/Applications".to_string())
         },
     });
 
@@ -631,10 +631,10 @@ fn build_local_network_check() -> DoctorCheck {
         });
 
     let mut details = vec![
-        "If LAN access works in Terminal or iTerm2 but fails in Kaku, compare the two launch contexts before changing shell or PATH setup.".to_string(),
+        "If LAN access works in Terminal or iTerm2 but fails in Helm, compare the two launch contexts before changing shell or PATH setup.".to_string(),
         "Run these in both apps: `route -n get <ip>`, `netstat -rn | grep <subnet>`, `ifconfig`, `scutil --nwi`, `ping -v <ip>`, `nc -vz <ip> 22`.".to_string(),
-        "Check macOS System Settings > Privacy & Security > Local Network and confirm Kaku is allowed.".to_string(),
-        "Compare launching Kaku from Finder/Dock versus Terminal, for example `open -na /Applications/Kaku.app`.".to_string(),
+        "Check macOS System Settings > Privacy & Security > Local Network and confirm Helm is allowed.".to_string(),
+        "Compare launching Helm from Finder/Dock versus Terminal, for example `open -na /Applications/Helm.app`.".to_string(),
     ];
 
     if let Some(bundle) = app_bundle {
@@ -644,14 +644,14 @@ fn build_local_network_check() -> DoctorCheck {
         ));
     } else {
         details.push(
-            "No installed Kaku.app bundle was detected in the standard locations.".to_string(),
+            "No installed Helm.app bundle was detected in the standard locations.".to_string(),
         );
     }
 
     DoctorCheck {
         title: "Local Network Troubleshooting",
         status: DoctorStatus::Info,
-        summary: "Use this when local-network access differs between Kaku and other terminals"
+        summary: "Use this when local-network access differs between Helm and other terminals"
             .to_string(),
         details,
         fix: None,
@@ -745,7 +745,7 @@ fn build_zsh_external_autosuggest_check(init_file: &Path, provider: &str) -> Doc
             "Checked {} for the provider marker and bundled zsh-autosuggestions source line",
             init_file.display()
         ),
-        "When compatibility is active, Kaku keeps Tab bound but leaves it in completion-only mode to avoid widget recursion.".to_string(),
+        "When compatibility is active, Helm keeps Tab bound but leaves it in completion-only mode to avoid widget recursion.".to_string(),
     ];
 
     let init_content = match fs::read_to_string(init_file) {
@@ -822,7 +822,7 @@ fn group_status(checks: &[DoctorCheck]) -> DoctorStatus {
 
 fn render_text_report(report: &DoctorReport) -> String {
     let mut out = String::new();
-    out.push_str("Kaku Doctor\n");
+    out.push_str("Helm Doctor\n");
     out.push_str(&format!(
         "Status: {} {}\n",
         report.overall_status.icon(),
@@ -902,18 +902,18 @@ impl ZshrcSourceCheck {
         }
         if self.has_legacy_guarded_lines() {
             details.push(
-                "Found older Kaku-specific guarded source line variants; `kaku init --update-only` will normalize them."
+                "Found older Helm-specific guarded source line variants; `kaku init --update-only` will normalize them."
                     .to_string(),
             );
         }
         if self.malformed_escaped_path_lines > 0 {
             details.push(format!(
-                "Found {} malformed Kaku source line(s) with escaped absolute paths (for example, \"\\/Users/...\"), which prevents loading kaku.zsh",
+                "Found {} malformed Helm source line(s) with escaped absolute paths (for example, \"\\/Users/...\"), which prevents loading kaku.zsh",
                 self.malformed_escaped_path_lines
             ));
         }
         if self.commented_example {
-            details.push("Found a commented Kaku source line".to_string());
+            details.push("Found a commented Helm source line".to_string());
         }
         details
     }
@@ -1136,7 +1136,7 @@ fn probe_wrapper(wrapper: &Path) -> DoctorCheck {
             let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
             wrapper_check(
                 DoctorStatus::Ok,
-                "Wrapper can launch Kaku binary".to_string(),
+                "Wrapper can launch Helm binary".to_string(),
                 if stdout.is_empty() {
                     vec![format!(
                         "Command succeeded: {} --version",
@@ -1161,7 +1161,7 @@ fn probe_wrapper(wrapper: &Path) -> DoctorCheck {
                 DoctorStatus::Fail,
                 format!("Wrapper exited with status {}", output.status),
                 details,
-                Some("Check Kaku.app location then run `kaku init --update-only`".to_string()),
+                Some("Check Helm.app location then run `kaku init --update-only`".to_string()),
             )
         }
         Err(err) => wrapper_check(
@@ -1189,8 +1189,8 @@ fn probe_login_shell_integration() -> DoctorCheck {
         ),
         _ => (
             "Login Shell Integration Probe",
-            "Doctor skips login shell probe for shells not managed by Kaku.",
-            "Kaku shell integration supports zsh and fish. Other shells are not managed.",
+            "Doctor skips login shell probe for shells not managed by Helm.",
+            "Helm shell integration supports zsh and fish. Other shells are not managed.",
         ),
     };
 
