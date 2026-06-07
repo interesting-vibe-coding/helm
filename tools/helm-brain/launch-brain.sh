@@ -3,7 +3,7 @@
 #
 # The Brain is a normal coding-agent session pointed at the cross-harness
 # `helm-first-mate` skill (single source of truth for the persona; bundled in
-# Helm.app and symlinked to ~/.kiro/skills by first_run.sh) and given the
+# Helm.app and installed to the open hub ~/.agents/skills by first_run.sh) and given the
 # `helm-brain` CLI on its PATH. It watches every worker session (via
 # `helm-brain sessions`) and relays the captain's orders to worker panes.
 #
@@ -94,16 +94,16 @@ case "$BRAIN_HARNESS" in
     echo "launch-brain: using kiro-cli (--model claude-sonnet-4.6, helm-first-mate skill)" >&2
     exec kiro-cli chat --trust-all-tools --agent default \
       --model claude-sonnet-4.6 \
-      "You are the Helm First Mate. Use the helm-first-mate skill (~/.kiro/skills/helm-first-mate), then run 'helm-brain sessions' and greet me."
+      "You are the Helm First Mate. Use the helm-first-mate skill (~/.agents/skills/helm-first-mate), then run 'helm-brain sessions' and greet me."
     ;;
   opencode)
     echo "launch-brain: using opencode (--model openrouter/anthropic/claude-sonnet-4.6, helm-first-mate skill)" >&2
     exec opencode --model "openrouter/anthropic/claude-sonnet-4.6" \
-      --prompt "You are the Helm First Mate. Use the helm-first-mate skill (~/.kiro/skills/helm-first-mate), then run 'helm-brain sessions' and greet me."
+      --prompt "You are the Helm First Mate. Use the helm-first-mate skill (~/.agents/skills/helm-first-mate), then run 'helm-brain sessions' and greet me."
     ;;
   codex)
     echo "launch-brain: using codex (--dangerously-bypass-approvals-and-sandbox, helm-first-mate skill)" >&2
     exec codex --dangerously-bypass-approvals-and-sandbox \
-      "You are the Helm First Mate. Use the helm-first-mate skill (~/.kiro/skills/helm-first-mate), then run 'helm-brain sessions' and greet me."
+      "You are the Helm First Mate. Use the helm-first-mate skill (~/.agents/skills/helm-first-mate), then run 'helm-brain sessions' and greet me."
     ;;
 esac
