@@ -1269,6 +1269,18 @@ fn kaku_bin_candidates() -> Vec<PathBuf> {
         }
     }
 
+    // The installed bundle is Helm.app; the binary inside is still named `kaku`.
+    // Prefer Helm.app, but keep the legacy Kaku.app paths as a secondary fallback
+    // so older installs continue to resolve.
+    candidates.push(PathBuf::from("/Applications/Helm.app/Contents/MacOS/kaku"));
+    candidates.push(
+        home_dir()
+            .join("Applications")
+            .join("Helm.app")
+            .join("Contents")
+            .join("MacOS")
+            .join("kaku"),
+    );
     candidates.push(PathBuf::from("/Applications/Kaku.app/Contents/MacOS/kaku"));
     candidates.push(
         home_dir()
