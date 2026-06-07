@@ -199,26 +199,41 @@ config.restore_previous_session = true
 -- Helm Sessions 🪖 — Layer 1: session tracker + Cmd+Shift+S overlay
 -- ════════════════════════════════════════════════════════════
 
+-- ── Helm tuning constants ───────────────────────────────────
+local HELM_IDLE_THRESHOLD = 3   -- secs of stable pane content before a session is 'waiting'
+local HELM_LRU_LIMIT      = 6   -- max sessions shown in the Cmd+Shift+S overlay (most-recent first)
+local HELM_FP_LINES       = 12  -- trailing lines hashed for the content-change fingerprint
+
 -- helm_sessions[pane_id] = { harness, cwd, start_time, state }
 -- Stored in wezterm.GLOBAL so it survives config reloads.
 wezterm.GLOBAL.helm_sessions = wezterm.GLOBAL.helm_sessions or {}
 
--- Known harness process names → display labels
-local HARNESS_NAMES = {
-  ['kiro-cli']  = 'Kiro',
-  kiro          = 'Kiro',
-  ['claude']    = 'Claude',
-  opencode      = 'opencode',
-  codex         = 'Codex',
-  aider         = 'Aider',
+-- ── Single source of truth for harnesses ────────────────────
+-- Both detect_harness() (process-name → display label) and the
+-- Cmd+Shift+K launcher derive from this one table. To add a harness,
+-- add one row here.
+--   match : substring matched against the foreground process name
+--   name  : display label used in tab titles / HUD
+--   cmd   : command run by the launcher
+--   label : menu label shown in the launcher
+local HARNESSES = {
+  { match = 'kiro',     name = 'Kiro',     cmd = 'kiro-cli chat --trust-all-tools --agent default --effort medium', label = '🤖 kiro  (default, medium effort)' },
+  { match = 'claude',   name = 'Claude',   cmd = 'claude --dangerously-skip-permissions',                           label = '🟣 claude-code  (auto-approve)' },
+  { match = 'opencode', name = 'opencode', cmd = 'opencode',                                                        label = '⚡ opencode' },
+  { match = 'codex',    name = 'Codex',    cmd = 'codex',                                                           label = '🔵 codex' },
 }
+
+-- Launcher choices derived from HARNESSES (id = command to exec)
+local HARNESS_CHOICES = {}
+for _, h in ipairs(HARNESSES) do
+  table.insert(HARNESS_CHOICES, { id = h.cmd, label = h.label })
+end
 
 local function detect_harness(process_name)
   if not process_name then return nil end
-  local base = process_name:match('([^/]+)$') or process_name
-  -- strip common wrappers: node, python, ruby, etc.
-  for key, label in pairs(HARNESS_NAMES) do
-    if base:lower():find(key, 1, true) then return label end
+  local base = (process_name:match('([^/]+)$') or process_name):lower()
+  for _, h in ipairs(HARNESSES) do
+    if base:find(h.match, 1, true) then return h.name end
   end
   return nil
 end
@@ -256,8 +271,8 @@ local function helm_track(pane)
   if not harness then return end  -- only track known harnesses
 
   local t = now_secs()
-  -- cheap content fingerprint of last 12 lines: length + sampled byte sum
-  local text = table.concat(pane:get_lines_as_text(12), '')
+  -- cheap content fingerprint of the trailing HELM_FP_LINES lines: length + sampled byte sum
+  local text = table.concat(pane:get_lines_as_text(HELM_FP_LINES), '')
   local fp = #text
   for i = 1, #text, 64 do fp = fp + text:byte(i) end
 
@@ -281,7 +296,7 @@ local function helm_track(pane)
         s.fp = fp
         s.last_change = t
         s.state = 'working'
-      elseif (t - (s.last_change or t)) > 3 then
+      elseif (t - (s.last_change or t)) > HELM_IDLE_THRESHOLD then
         s.state = 'waiting'
       end
     end
@@ -290,8 +305,9 @@ local function helm_track(pane)
   save_sessions()
 end
 
--- Returns sessions sorted by last_accessed descending (most recent first)
-local function get_lru_sessions()
+-- Returns sessions sorted by last_accessed descending (most recent first).
+-- Pass `limit` to cap the result to the N most-recently-used sessions.
+local function get_lru_sessions(limit)
   local sessions = wezterm.GLOBAL.helm_sessions
   local list = {}
   for pane_id, s in pairs(sessions) do
@@ -300,6 +316,11 @@ local function get_lru_sessions()
   table.sort(list, function(a, b)
     return (a.session.last_accessed or 0) > (b.session.last_accessed or 0)
   end)
+  if limit and #list > limit then
+    local trimmed = {}
+    for i = 1, limit do trimmed[i] = list[i] end
+    return trimmed
+  end
   return list
 end
 
@@ -317,11 +338,18 @@ local function sessions_to_json(sessions)
   return '{' .. table.concat(parts, ',') .. '}'
 end
 
+-- Persist only when the serialized state actually changes. helm_track fires
+-- ~1×/sec per window; previously this wrote runtime.json on every tick. We now
+-- compare the freshly-serialized JSON against the last written value (kept in
+-- GLOBAL so it survives reloads) and skip the file write when nothing changed.
 save_sessions = function()
+  local json = sessions_to_json(wezterm.GLOBAL.helm_sessions or {})
+  if json == wezterm.GLOBAL.helm_last_json then return end
   local f = io.open(RUNTIME_JSON, 'w')
   if not f then return end
-  f:write(sessions_to_json(wezterm.GLOBAL.helm_sessions or {}))
+  f:write(json)
   f:close()
+  wezterm.GLOBAL.helm_last_json = json
 end
 
 restore_sessions = function()
@@ -354,11 +382,6 @@ wezterm.on('gui-startup', function()
   restore_sessions()
 end)
 
--- Hook: update on every right-status tick (fires ~every second per active window)
-wezterm.on('update-right-status', function(_, pane)
-  helm_track(pane)
-end)
-
 -- Hook: clean up closed panes
 wezterm.on('pane-removed', function(pane)
   if pane then helm_untrack(pane:pane_id()) end
@@ -377,7 +400,7 @@ end)
 -- Build InputSelector choices from current sessions (LRU order)
 -- Format: '[kiro] wu (01:23) working'
 local function build_session_choices()
-  local lru = get_lru_sessions()
+  local lru = get_lru_sessions(HELM_LRU_LIMIT)
   local choices = {}
   local t = now_secs()
   for _, entry in ipairs(lru) do
@@ -504,21 +527,18 @@ table.insert(config.keys, {
         end),
         fuzzy = true,
         title = '  Launch Harness',
-        choices = {
-          { id = 'kiro-cli chat --trust-all-tools --agent default --effort medium', label = '🤖 kiro  (default, medium effort)' },
-          { id = 'claude --dangerously-skip-permissions',                           label = '🟣 claude-code  (auto-approve)' },
-          { id = 'opencode',                                                        label = '⚡ opencode' },
-          { id = 'codex',                                                           label = '🔵 codex' },
-        },
+        choices = HARNESS_CHOICES,
       },
       pane
     )
   end),
 })
 
--- Helm Agent Notifications -- detect waiting state + Cmd+Shift+U + HUD overlay
+-- Helm Agent Notifications -- the single update-right-status handler:
+-- (1) tracks/updates this pane's session (working/waiting idle heuristic),
+-- (2) renders the compact HUD + window title from all sessions.
 wezterm.on('update-right-status', function(window, pane)
-  -- (working/waiting state detection is handled in helm_track via idle heuristic)
+  helm_track(pane)
 
   -- Build compact HUD: [kiro 🔵 02:34 | claude 🔵 05:12 | 2 bg]
   local t = now_secs()
