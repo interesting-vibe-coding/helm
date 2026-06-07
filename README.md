@@ -21,7 +21,9 @@ Most terminals assume one human, one session. Helm assumes you are orchestrating
 
 ## Philosophy: less friction
 
-Helm exists to remove the friction between you and your agents. You shouldn't babysit a terminal, hunt for which pane needs your input, or lose your place switching tools. Agents do the work and surface what needs you; you stay at the helm and make the calls.
+**Zero friction · Works out of the box · You focus on shipping tasks, agents do the rest.**
+
+Helm removes the friction between you and your agents. No babysitting a terminal, no hunting for which pane needs your input, no losing your place switching tools. You ship tasks and make the calls; the agents do everything in between.
 
 ---
 
@@ -60,6 +62,18 @@ Press `Cmd+Shift+Return` to toggle between the Brain view and your workers.
 
 ---
 
+## Three views
+
+Helm's UX is three views you flip between instantly — one keystroke each:
+
+- **`Cmd+1` Brain** 🧠 — your First Mate orchestrator. Talk to one mate that watches the whole crew.
+- **`Cmd+2` Workspace** 🛠️ — where you and your agents actually work.
+- **`Cmd+3` Monitor** 📊 — an htop-style overview of every session: state, runtime, tokens.
+
+Press `Cmd+/` to toggle a bottom help bar showing the current key bindings, so you never have to remember them.
+
+---
+
 ## Install
 
 ```bash
@@ -86,9 +100,13 @@ open dist/Helm.app
 
 | Shortcut | Action |
 |----------|--------|
+| `Cmd+1` | Brain view — your First Mate orchestrator |
+| `Cmd+2` | Workspace view — where you and agents work |
+| `Cmd+3` | Monitor view — htop-style list of every session |
+| `Cmd+/` | Toggle the bottom help bar (key bindings) |
+| `Cmd+Shift+Return` | Toggle between the Brain view and your workers |
 | `Cmd+Shift+K` | Launch an agent (kiro / claude-code / opencode / codex) in a new pane |
 | `Cmd+Shift+S` | Session list — all active agents with runtime + state |
-| `Cmd+Shift+U` | Jump to the agent that's waiting for you |
 | `Cmd+Shift+B` | Background the current session |
 | `Cmd+Shift+M` | Toggle model (sonnet ↔ opus) in kiro |
 
