@@ -247,22 +247,26 @@ fn spawn_kaku_update() {
     std::thread::spawn(|| {
         let kaku_gui = std::env::current_exe()
             .ok()
-            .and_then(|exe| exe.parent().map(|p| p.join("kaku-gui")))
+            .and_then(|exe| {
+                exe.parent().map(|p| (p.join("helm-gui"), p.join("kaku-gui")))
+            })
+            .map(|(helm, kaku)| if helm.exists() { helm } else { kaku })
             .filter(|p| p.exists())
             .unwrap_or_else(|| {
-                std::path::PathBuf::from("/Applications/Kaku.app/Contents/MacOS/kaku-gui")
+                std::path::PathBuf::from("/Applications/Helm.app/Contents/MacOS/helm-gui")
             });
 
         let kaku_cli = kaku_gui
             .parent()
-            .map(|p| p.join("kaku"))
+            .map(|p| (p.join("helm"), p.join("kaku")))
+            .map(|(helm, kaku)| if helm.exists() { helm } else { kaku })
             .filter(|p| p.exists())
             .unwrap_or_else(|| {
-                std::path::PathBuf::from("/Applications/Kaku.app/Contents/MacOS/kaku")
+                std::path::PathBuf::from("/Applications/Helm.app/Contents/MacOS/helm")
             });
 
         let result = std::process::Command::new(&kaku_gui)
-            .args(["start", "--", kaku_cli.to_str().unwrap_or("kaku"), "update"])
+            .args(["start", "--", kaku_cli.to_str().unwrap_or("helm"), "update"])
             .spawn();
 
         match result {

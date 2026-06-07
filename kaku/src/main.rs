@@ -563,9 +563,9 @@ fn delegate_to_gui(saver: UmaskSaver) -> anyhow::Result<()> {
     drop(saver);
 
     let exe_name = if cfg!(windows) {
-        "kaku-gui.exe"
+        "helm-gui.exe"
     } else {
-        "kaku-gui"
+        "helm-gui"
     };
 
     let exe = resolve_gui_executable(exe_name)?;
@@ -622,11 +622,11 @@ fn resolve_gui_executable(exe_name: &str) -> anyhow::Result<PathBuf> {
 
     #[cfg(target_os = "macos")]
     {
-        candidates.push(PathBuf::from("/Applications/Kaku.app/Contents/MacOS").join(exe_name));
+        candidates.push(PathBuf::from("/Applications/Helm.app/Contents/MacOS").join(exe_name));
         candidates.push(
             config::HOME_DIR
                 .join("Applications")
-                .join("Kaku.app")
+                .join("Helm.app")
                 .join("Contents")
                 .join("MacOS")
                 .join(exe_name),

@@ -211,7 +211,7 @@ done
 if [[ "$BUILD_ARCH" == "universal" ]]; then
 	BIN_DIR="$TARGET_DIR/universal/$PROFILE_DIR"
 	mkdir -p "$BIN_DIR"
-	for bin in kaku kaku-gui k; do
+	for bin in helm helm-gui k; do
 		lipo -create \
 			-output "$BIN_DIR/$bin" \
 			"$TARGET_DIR/aarch64-apple-darwin/$PROFILE_DIR/$bin" \
@@ -222,7 +222,7 @@ else
 	BIN_DIR="$TARGET_DIR/${BUILD_TARGETS[0]}/$PROFILE_DIR"
 fi
 
-for bin in kaku kaku-gui k; do
+for bin in helm helm-gui k; do
 	echo -n "Built $bin: "
 	lipo -info "$BIN_DIR/$bin"
 done
@@ -299,10 +299,16 @@ if ! tic -xe kaku -o "$APP_BUNDLE_OUT/Contents/Resources/terminfo" termwiz/data/
 	tic -x -o "$APP_BUNDLE_OUT/Contents/Resources/terminfo" termwiz/data/kaku.terminfo
 fi
 
-for bin in kaku kaku-gui k; do
+for bin in helm helm-gui k; do
 	cp "$BIN_DIR/$bin" "$APP_BUNDLE_OUT/Contents/MacOS/$bin"
 	chmod +x "$APP_BUNDLE_OUT/Contents/MacOS/$bin"
 done
+
+# Backward-compat symlinks: legacy callers (shell-integration wrappers, kaku.lua
+# fallbacks, helm-brain/helm-top defaults, toast notifications, old PATH wrappers)
+# still reference the `kaku` / `kaku-gui` names. Relative symlinks inside the
+# bundle keep them all working after the rename to helm / helm-gui.
+( cd "$APP_BUNDLE_OUT/Contents/MacOS" && ln -sfn helm kaku && ln -sfn helm-gui kaku-gui )
 
 # Clean up xattrs to prevent icon caching issues or quarantine
 xattr -cr "$APP_BUNDLE_OUT"
@@ -365,7 +371,7 @@ while IFS= read -r -d '' dylib; do
 	codesign_with_retry "${BASE_SIGN_ARGS[@]}" "$dylib"
 done < <(find "$APP_BUNDLE_OUT/Contents/Frameworks" -type f -name '*.dylib' -print0 | sort -z)
 
-for bin in "$APP_BUNDLE_OUT/Contents/MacOS/kaku" "$APP_BUNDLE_OUT/Contents/MacOS/kaku-gui" "$APP_BUNDLE_OUT/Contents/MacOS/k"; do
+for bin in "$APP_BUNDLE_OUT/Contents/MacOS/helm" "$APP_BUNDLE_OUT/Contents/MacOS/helm-gui" "$APP_BUNDLE_OUT/Contents/MacOS/k"; do
 	codesign_with_retry "${RUNTIME_SIGN_ARGS[@]}" "$bin"
 done
 

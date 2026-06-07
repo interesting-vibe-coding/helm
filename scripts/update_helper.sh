@@ -19,8 +19,8 @@ NEW_APP_NORM=$(strip_trailing_slashes "$NEW_APP")
 TARGET_APP="$TARGET_APP_NORM"
 NEW_APP="$NEW_APP_NORM"
 BACKUP_APP="${TARGET_APP}.backup.$(date +%s)"
-TARGET_GUI="$TARGET_APP/Contents/MacOS/kaku-gui"
-TARGET_CLI="$TARGET_APP/Contents/MacOS/kaku"
+TARGET_GUI="$TARGET_APP/Contents/MacOS/helm-gui"
+TARGET_CLI="$TARGET_APP/Contents/MacOS/helm"
 
 # Validate that paths end with Kaku.app for safety (allow trailing slashes).
 # Final component match mirrors Rust Path::ends_with("Kaku.app") semantics.

@@ -86,10 +86,10 @@ def resolve_kaku():
     env = os.environ.get("HELM_CLI")
     if env and os.path.exists(env):
         return env
-    bundled = "/Applications/Helm.app/Contents/MacOS/kaku"
+    bundled = "/Applications/Helm.app/Contents/MacOS/helm"
     if os.path.exists(bundled):
         return bundled
-    for name in ("kaku", "wezterm"):
+    for name in ("helm", "kaku", "wezterm"):
         found = shutil.which(name)
         if found:
             return found

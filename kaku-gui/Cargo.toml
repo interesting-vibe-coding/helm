@@ -14,7 +14,7 @@ name = "kaku_gui_lib"
 path = "src/lib.rs"
 
 [[bin]]
-name = "kaku-gui"
+name = "helm-gui"
 path = "src/main.rs"
 
 [[bin]]

@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleExecutable</key>
-	<string>kaku-gui</string>
+	<string>helm-gui</string>
 	<key>CFBundleIdentifier</key>
 	<string>dev.helm.app</string>
 	<key>OSAScriptingDefinition</key>

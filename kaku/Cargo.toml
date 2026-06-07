@@ -7,6 +7,13 @@ publish = false
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+# The produced CLI binary is named `helm` (Helm's own identity) even though the
+# crate/package stays `kaku` to keep the rename non-invasive. A compat `kaku`
+# symlink is created in the app bundle so legacy callers keep working.
+[[bin]]
+name = "helm"
+path = "src/main.rs"
+
 [features]
 remote = ["dep:kaku-remote"]
 
