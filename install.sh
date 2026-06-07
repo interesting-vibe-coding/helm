@@ -23,27 +23,41 @@ URL="https://github.com/$REPO/releases/latest/download/Helm.app.zip"
 TMP=$(mktemp -d)
 
 # Spinner — purple dots, writes to /dev/tty so it works in | bash
+# Spinner with percentage — monitors file size during download
 _spin() {
+  local file="$1" total="$2"
   local p=$'\033[0;35m' n=$'\033[0m'
   local frames=("${p}●${n}○○" "○${p}●${n}○" "○○${p}●${n}" "○${p}●${n}○")
-  local i=0
+  local i=0 pct=0
   while true; do
-    printf '\r  → downloading (~80MB)  %s ' "${frames[$((i % 4))]}" > /dev/tty
+    if [[ -f "$file" && "$total" -gt 0 ]]; then
+      local cur
+      cur=$(wc -c < "$file" 2>/dev/null | tr -d ' ')
+      pct=$((cur * 100 / total))
+      [[ $pct -gt 100 ]] && pct=100
+    fi
+    printf '\r  → downloading  %s  %3d%%' "${frames[$((i % 4))]}" "$pct" > /dev/tty
     i=$((i + 1))
-    sleep 0.2
+    sleep 0.15
   done
 }
 
-_spin &
+# Get file size for percentage display
+# Get file size for percentage display (follow redirects, grab Content-Length)
+TOTAL_SIZE=$(curl -fsSLI "$URL" 2>/dev/null | grep -i '^content-length' | tail -1 | tr -dc '0-9')
+[[ -z "$TOTAL_SIZE" || "$TOTAL_SIZE" == "0" ]] && TOTAL_SIZE=84000000  # fallback ~80MB
+
+DL_FILE="$TMP/Helm.app.zip"
+_spin "$DL_FILE" "$TOTAL_SIZE" &
 SPIN_PID=$!
 trap 'kill "$SPIN_PID" 2>/dev/null; wait "$SPIN_PID" 2>/dev/null; printf "\r\033[K" > /dev/tty' EXIT
 
-curl -fLs "$URL" -o "$TMP/Helm.app.zip"
+curl -fLs "$URL" -o "$DL_FILE"
 
 kill "$SPIN_PID" 2>/dev/null; wait "$SPIN_PID" 2>/dev/null || true
 trap - EXIT
 printf '\r\033[K' > /dev/tty
-say "  → downloading (~80MB)  ${PURPLE}✓${NC}"
+say "  → downloaded   ${PURPLE}✓${NC}"
 
 say "  → unpacking"
 ditto -x -k "$TMP/Helm.app.zip" "$TMP"
