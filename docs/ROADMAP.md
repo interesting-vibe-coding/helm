@@ -1,7 +1,7 @@
 # Helm Roadmap
 
 > Agent-native terminal. You steer — agents execute.
-> Last updated: 2026-06-06
+> Last updated: 2026-06-07
 
 ---
 
@@ -41,6 +41,16 @@
 ## Helm Vision: The Agent OS
 
 > Four layers that together make Helm an operating system for AI agents.
+
+### The View Shell (current UX)
+
+The Agent OS layers are driven through **three views** — the navigation shell you live in. Each is one keystroke away, and `Cmd+/` toggles a bottom help bar with the current key bindings:
+
+- **`Cmd+1` Brain** — your First Mate orchestrator (Layer 4). One conversation, N agents.
+- **`Cmd+2` Workspace** — where you and your agents actually work (the panes themselves).
+- **`Cmd+3` Monitor** — an htop-style overview of every session: state, runtime, tokens (the visible face of Layers 1–2).
+
+The views are the UX shell; the four layers below are the machinery they expose. Zero friction, out of the box — you flip between steering (Brain), doing (Workspace), and overseeing (Monitor) without thinking about it.
 
 ```
 ┌─────────────────────────────────────────────────┐
@@ -165,7 +175,7 @@ cmux uses **OSC 9/99/777 terminal sequences** + a sidebar with notification ring
 For Helm (simpler first version):
 - Detect when a pane's agent prints "waiting for input" / prompt appears
 - Flash the tab / add a visual indicator
-- `Cmd+Shift+U` jumps to the pane needing attention
+- Surface it in the Brain (`Cmd+1`) and Monitor (`Cmd+3`) views rather than auto-jumping the user
 
 Kaku already has `Alert::SetUserVar` in mux — this is the hook to build on.
 
