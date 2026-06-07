@@ -22,6 +22,14 @@ Commands (the INTERFACE CONTRACT every downstream stage depends on):
   helm-brain send <pane_id> <text>
       Inject <text> followed by Enter into the given worker pane.
 
+  helm-brain spawn <harness> <cwd> [initial_task...]
+      Spawn a NEW worker session: open a tab in Helm running <harness>
+      (kiro | claude | opencode | codex) in <cwd>. Prints {"pane_id": N} as
+      JSON on success. If an initial_task is given, it is sent to the new pane
+      once the harness has started. On failure (Helm not running, bad harness,
+      bad cwd) prints {"error": ...} to stderr and exits non-zero. This is how
+      the Brain splits work by project: one spawned session per project dir.
+
   helm-brain notify <title> <msg>
       Pop a macOS notification.
 
@@ -50,6 +58,18 @@ QUOTA_PY = REPO_ROOT / "tools" / "helm-quota" / "quota.py"
 # the agent one-shot CLI, NOT the mux CLI — do not use it here. Allow override
 # via $HELM_CLI, and fall back to `wezterm`/`kaku` on PATH.
 HELM_CLI = os.environ.get("HELM_CLI") or "/Applications/Helm.app/Contents/MacOS/kaku"
+
+# harness name -> argv to run in the spawned pane. Mirrors Helm.harnesses.list
+# in kaku.lua so a Brain-spawned session behaves exactly like one started from
+# the Helm launcher (same auto-approve / trust flags). The harness IS the pane
+# process (spawned directly, not under a wrapper shell), so the pane lives for
+# as long as the agent does.
+HARNESS_CMDS = {
+    "kiro": ["kiro-cli", "chat", "--trust-all-tools", "--agent", "default", "--effort", "medium"],
+    "claude": ["claude", "--dangerously-skip-permissions"],
+    "opencode": ["opencode"],
+    "codex": ["codex"],
+}
 
 
 def _helm_cli():
@@ -178,6 +198,21 @@ def cmd_sessions(_args):
 
 # ── send ─────────────────────────────────────────────────────────────────────
 
+def _send_text(cli, pane_id, text):
+    """Inject text + a carriage return into a pane. Returns (rc, errmsg)."""
+    # Inject the text without the auto trailing newline paste behaviour, then
+    # send a carriage return so the agent actually submits the line. Using argv
+    # (not string interpolation) keeps arbitrary text safe.
+    rc, _, err = _run(cli + ["send-text", "--pane-id", str(pane_id), "--no-paste", "--", text])
+    if rc != 0:
+        return rc, (err.strip() or "send-text failed")
+    # Second call: the carriage return to submit.
+    rc2, _, err2 = _run(cli + ["send-text", "--pane-id", str(pane_id), "--no-paste", "--", "\r"])
+    if rc2 != 0:
+        return rc2, (err2.strip() or "send-text (CR) failed")
+    return 0, ""
+
+
 def cmd_send(args):
     if len(args) < 2:
         print("usage: helm-brain send <pane_id> <text>", file=sys.stderr)
@@ -188,18 +223,65 @@ def cmd_send(args):
     if not cli:
         print("helm cli not available (Helm not installed?)", file=sys.stderr)
         return 1
-    # Inject the text without the auto trailing newline paste behaviour, then
-    # send a carriage return so the agent actually submits the line. Using argv
-    # (not string interpolation) keeps arbitrary text safe.
-    rc, _, err = _run(cli + ["send-text", "--pane-id", str(pane_id), "--no-paste", "--", text])
+    rc, err = _send_text(cli, pane_id, text)
     if rc != 0:
-        print(err.strip() or "send-text failed", file=sys.stderr)
-        return rc
-    # Second call: the carriage return to submit.
-    rc2, _, err2 = _run(cli + ["send-text", "--pane-id", str(pane_id), "--no-paste", "--", "\r"])
-    if rc2 != 0:
-        print(err2.strip() or "send-text (CR) failed", file=sys.stderr)
-        return rc2
+        print(err, file=sys.stderr)
+    return rc
+
+
+# ── spawn ─────────────────────────────────────────────────────────────────────
+
+def cmd_spawn(args):
+    if len(args) < 2:
+        print(json.dumps({"error": "usage: helm-brain spawn <harness> <cwd> [task...]"}),
+              file=sys.stderr)
+        return 2
+    harness = (args[0] or "").strip().lower()
+    cwd = args[1]
+    task = " ".join(args[2:]).strip() if len(args) > 2 else ""
+
+    prog = HARNESS_CMDS.get(harness)
+    if not prog:
+        print(json.dumps({"error": "unknown harness: %s" % harness,
+                          "known": sorted(HARNESS_CMDS)}), file=sys.stderr)
+        return 2
+
+    cwd_abs = os.path.abspath(os.path.expanduser(cwd))
+    if not os.path.isdir(cwd_abs):
+        print(json.dumps({"error": "cwd is not a directory: %s" % cwd_abs}), file=sys.stderr)
+        return 2
+
+    cli = _helm_cli()
+    if not cli:
+        print(json.dumps({"error": "helm cli not available (Helm not running?)"}),
+              file=sys.stderr)
+        return 1
+
+    # Spawn a new tab running the harness in cwd. `kaku cli spawn` prints the
+    # new pane id on stdout. The `--` separates spawn's options from the program.
+    rc, out, err = _run(cli + ["spawn", "--cwd", cwd_abs, "--"] + prog)
+    if rc != 0:
+        print(json.dumps({"error": err.strip() or "spawn failed (is Helm running?)"}),
+              file=sys.stderr)
+        return rc or 1
+
+    pane_line = out.strip().splitlines()[-1].strip() if out.strip() else ""
+    try:
+        pane_id = int(pane_line)
+    except Exception:
+        print(json.dumps({"error": "could not parse pane id from spawn output",
+                          "raw": out.strip()}), file=sys.stderr)
+        return 1
+
+    result = {"pane_id": pane_id, "harness": harness, "cwd": cwd_abs}
+    if task:
+        # Give the harness a moment to boot its prompt before sending the task.
+        time.sleep(2.0)
+        srt, serr = _send_text(cli, pane_id, task)
+        result["task_sent"] = (srt == 0)
+        if srt != 0:
+            result["task_error"] = serr
+    print(json.dumps(result))
     return 0
 
 
@@ -250,6 +332,10 @@ USAGE = """helm-brain — the Brain agent's eyes and hands
 usage:
   helm-brain sessions                 print JSON array of worker sessions
   helm-brain send <pane_id> <text>    inject text + Enter into a pane
+  helm-brain spawn <harness> <cwd> [task...]
+                                      open a new worker session (kiro|claude|
+                                      opencode|codex) in <cwd>, optionally
+                                      sending an initial task. Prints {"pane_id":N}.
   helm-brain notify <title> <msg>     pop a macOS notification
   helm-brain watch                    stream session state changes
 """
@@ -257,6 +343,7 @@ usage:
 COMMANDS = {
     "sessions": cmd_sessions,
     "send": cmd_send,
+    "spawn": cmd_spawn,
     "notify": cmd_notify,
     "watch": cmd_watch,
 }
