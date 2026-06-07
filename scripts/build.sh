@@ -260,6 +260,13 @@ cp -R assets/shell-integration/* "$APP_BUNDLE_OUT/Contents/Resources/"
 cp -R assets/shell-completion "$APP_BUNDLE_OUT/Contents/Resources/"
 cp -R assets/fonts "$APP_BUNDLE_OUT/Contents/Resources/"
 cp -R assets/prompts "$APP_BUNDLE_OUT/Contents/Resources/"
+# Helm: bundle the helm-quota usage tool so the bottom status bar can read
+# live per-harness usage even when run from the installed .app (kaku.lua looks
+# for Resources/tools/helm-quota/quota.py first, then the dev repo path).
+if [[ -d "tools/helm-quota" ]]; then
+	mkdir -p "$APP_BUNDLE_OUT/Contents/Resources/tools"
+	cp -R tools/helm-quota "$APP_BUNDLE_OUT/Contents/Resources/tools/"
+fi
 mkdir -p "$APP_BUNDLE_OUT/Contents/Resources/vendor"
 for vendor_item in starship.toml fast-syntax-highlighting zsh-autosuggestions zsh-completions zsh-z; do
 	src_path="assets/vendor/$vendor_item"
