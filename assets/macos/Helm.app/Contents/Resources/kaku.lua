@@ -597,9 +597,8 @@ function Helm.status.render(window, pane)
 
   if wezterm.GLOBAL.helm_help_visible then
     window:set_left_status(wezterm.format({
-      { Foreground = { Color = P.ghost } }, { Text = ' ›_  ' },
-      { Foreground = { Color = P.text } },  { Text = '⌘1 Brain  ⌘2 Work  ⌘3 Monitor  ' },
-      { Foreground = { Color = P.dim } },   { Text = '⌘⇧K Launch  ⌘⇧S Sessions  ⌘/ Help ' },
+      { Foreground = { Color = P.text } }, { Text = ' ⌘1 Brain   ⌘2 Work   ⌘3 Monitor   ' },
+      { Foreground = { Color = P.dim } },  { Text = '⌘, Settings   ⌘/ Help ' },
     }))
   else
     window:set_left_status('')
@@ -876,6 +875,17 @@ function Helm.keys.bind(config)
       wezterm.GLOBAL.helm_help_visible = not wezterm.GLOBAL.helm_help_visible
       Helm.status.render(window, pane)  -- repaint immediately
     end),
+  })
+
+  -- Cmd+,: open Settings — the Helm config file, where every binding and option
+  -- lives. (macOS Preferences convention.) Opens in a new tab with $EDITOR.
+  table.insert(config.keys, {
+    key = ',',
+    mods = 'CMD',
+    action = wezterm.action.SpawnCommandInNewTab {
+      args = { '/bin/bash', '-l', '-c',
+        'exec "${EDITOR:-nano}" "$HOME/.config/kaku/kaku.lua"' },
+    },
   })
 
   -- Cmd+Shift+Return: toggle between the Brain (First Mate) view and the worker
