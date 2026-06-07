@@ -77,6 +77,26 @@ helm-brain notify "pane 3" "claude is waiting for input"
 Polls `sessions` every 3s and prints a line whenever a session's state changes
 (especially `-> waiting`). Ctrl-C to stop.
 
+## Launching the Brain
+
+`BRAIN_PROMPT.md` is the system prompt that turns a Sonnet agent into the Helm
+First Mate. `launch-brain.sh` boots that agent with the prompt loaded and the
+`helm-brain` CLI on its `PATH`:
+
+```sh
+tools/helm-brain/launch-brain.sh
+```
+
+Harness choice (documented in the script):
+
+- **Preferred — `claude`**: `claude --model sonnet --append-system-prompt
+  "$(cat BRAIN_PROMPT.md)"` — a true system prompt on Sonnet.
+- **Fallback — `kiro-cli`**: no system-prompt flag, so the prompt is passed as
+  the initial `[INPUT]` message with `--model claude-sonnet-4.6`.
+
+The script resolves its own directory (following symlinks), so it works both
+from the repo and when bundled in `Helm.app/Contents/Resources/tools/helm-brain/`.
+
 ## Notes
 
 - Brain model = **Sonnet**.
