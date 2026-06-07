@@ -98,6 +98,19 @@ fi
 # The Brain is the First Mate that orchestrates all your agents. Let the user
 # pick which harness powers it; persist to ~/.config/kaku/brain.conf so the
 # launcher (tools/helm-brain/launch-brain.sh) can honor the choice.
+# Read a single keypress into the global REPLY_KEY. Decodes escape sequences
+# (arrow keys arrive as ESC [ A/B). Empty result = Enter. bash 3.2 safe.
+# Guarded with `|| true` so a timed-out/EOF read never trips `set -e`.
+read_key() {
+  local key="" rest=""
+  IFS= read -rsn1 key 2>/dev/null || true
+  if [[ "$key" == $'\x1b' ]]; then
+    read -rsn2 -t 0.01 rest 2>/dev/null || true
+    key+="$rest"
+  fi
+  REPLY_KEY="$key"
+}
+
 choose_brain() {
   local keys=() labels=()
   command -v claude   >/dev/null 2>&1 && { keys+=("claude");   labels+=("Claude Code"); }
@@ -113,34 +126,61 @@ choose_brain() {
 
   echo -e "${BOLD}  Choose your Brain${NC}"
   echo -e "  ${DIM}Your Brain is the First Mate that orchestrates all your agents.${NC}"
-  echo ""
 
-  # Default index: prefer claude, else the first installed harness.
-  local default_idx=1 i
+  # Default selection (0-based): prefer claude, else the first installed harness.
+  local n=${#keys[@]} sel=0 default_idx=0 i
   for i in "${!keys[@]}"; do
-    [[ "${keys[$i]}" == "claude" ]] && default_idx=$(( i + 1 ))
+    [[ "${keys[$i]}" == "claude" ]] && { sel=$i; default_idx=$i; }
   done
 
-  for i in "${!keys[@]}"; do
-    local n=$(( i + 1 )) tag=""
-    [[ "${keys[$i]}" == "claude" ]] && tag=" ${DIM}(recommended)${NC}"
-    echo -e "    ${PURPLE}${n}${NC}  ${labels[$i]}${tag}"
-  done
+  # Persist the choice + report. Shared by the interactive and fallback paths.
+  _brain_commit() {
+    local picked="${keys[$1]}"
+    mkdir -p "$CONFIG_DIR"
+    printf 'BRAIN_HARNESS=%s\n' "$picked" > "$CONFIG_DIR/brain.conf"
+    ok "Brain: ${BOLD}${picked}${NC} ${DIM}(~/.config/kaku/brain.conf)${NC}"
+  }
+
+  # NON-TTY / piped: pick the default silently, no interaction, no hang.
+  if [[ ! -t 0 || ! -t 1 ]]; then
+    _brain_commit "$default_idx"
+    return
+  fi
+
+  echo -e "  ${DIM}↑/↓ move · Enter select · q keep default${NC}"
   echo ""
 
-  local choice=""
-  if [[ -t 0 && -t 1 ]]; then
-    read -r -p "  Pick a number [${default_idx}]: " choice
-    echo ""
-  fi
-  if [[ -z "$choice" || ! "$choice" =~ ^[0-9]+$ || "$choice" -lt 1 || "$choice" -gt ${#keys[@]} ]]; then
-    choice="$default_idx"
-  fi
+  # Hide cursor; restore it even on Ctrl-C.
+  printf '\033[?25l'
+  trap 'printf "\033[?25h"; exit 130' INT
 
-  local picked="${keys[$(( choice - 1 ))]}"
-  mkdir -p "$CONFIG_DIR"
-  printf 'BRAIN_HARNESS=%s\n' "$picked" > "$CONFIG_DIR/brain.conf"
-  ok "Brain: ${BOLD}${picked}${NC} ${DIM}(~/.config/kaku/brain.conf)${NC}"
+  local first=1
+  while true; do
+    [[ $first -eq 0 ]] && printf '\033[%dA' "$n"
+    first=0
+    for i in "${!keys[@]}"; do
+      local tag=""
+      [[ "${keys[$i]}" == "claude" ]] && tag=" ${DIM}(recommended)${NC}"
+      printf '\033[2K'
+      if [[ $i -eq $sel ]]; then
+        echo -e "  ${PURPLE}›${NC} ${PURPLE}${labels[$i]}${NC}${tag}"
+      else
+        echo -e "    ${labels[$i]}${tag}"
+      fi
+    done
+
+    read_key
+    case "$REPLY_KEY" in
+      $'\x1b[A'|k) sel=$(( (sel - 1 + n) % n )) ;;
+      $'\x1b[B'|j) sel=$(( (sel + 1) % n )) ;;
+      q|Q)         sel=$default_idx; break ;;
+      '')          break ;;   # Enter
+    esac
+  done
+
+  trap - INT
+  printf '\033[?25h'
+  _brain_commit "$sel"
 }
 choose_brain
 echo ""
@@ -173,19 +213,84 @@ fi
 ok "Shell ready ${DIM}· starship · zoxide · delta${NC}"
 echo ""
 
+# ── Optional tools ────────────────────────────────────────────────────────────
+# A visible, transparent multi-select. Nothing is pre-checked (opt-in): the user
+# decides what gets installed. SPACE toggles, Enter confirms.
+optional_tools() {
+  local names=("lazygit" "yazi")
+  local descs=("lazygit — terminal git UI" "yazi — terminal file manager")
+  local n=${#names[@]} checked=() i
+  for i in "${!names[@]}"; do checked+=(0); done
+
+  echo -e "${BOLD}  Optional tools${NC}"
+
+  # NON-TTY / piped: skip silently with a one-line hint.
+  if [[ ! -t 0 || ! -t 1 ]]; then
+    echo -e "  ${DIM}Optional: brew install lazygit yazi${NC}"
+    echo ""
+    return
+  fi
+
+  echo -e "  ${DIM}↑/↓ move · Space toggle · Enter confirm${NC}"
+  echo ""
+
+  printf '\033[?25l'
+  trap 'printf "\033[?25h"; exit 130' INT
+
+  local sel=0 first=1
+  while true; do
+    [[ $first -eq 0 ]] && printf '\033[%dA' "$n"
+    first=0
+    for i in "${!names[@]}"; do
+      local box="[ ]"
+      [[ "${checked[$i]}" -eq 1 ]] && box="[x]"
+      printf '\033[2K'
+      if [[ $i -eq $sel ]]; then
+        echo -e "  ${PURPLE}›${NC} ${PURPLE}${box}${NC} ${descs[$i]}"
+      else
+        echo -e "    ${box} ${descs[$i]}"
+      fi
+    done
+
+    read_key
+    case "$REPLY_KEY" in
+      $'\x1b[A'|k) sel=$(( (sel - 1 + n) % n )) ;;
+      $'\x1b[B'|j) sel=$(( (sel + 1) % n )) ;;
+      ' ')         checked[$sel]=$(( 1 - checked[$sel] )) ;;
+      '')          break ;;   # Enter
+      q|Q)         break ;;
+    esac
+  done
+
+  trap - INT
+  printf '\033[?25h'
+
+  # Install each checked tool that's missing; skipped ones stay silent.
+  for i in "${!names[@]}"; do
+    if [[ "${checked[$i]}" -eq 1 ]]; then
+      if command -v "${names[$i]}" >/dev/null 2>&1; then
+        ok "${names[$i]} already installed"
+      else
+        info "installing ${names[$i]}"
+        brew_install "${names[$i]}"
+      fi
+    fi
+  done
+}
+optional_tools
+echo ""
+
 # ── Done ──────────────────────────────────────────────────────────────────────
 if [[ "${HELM_LANG:-en}" == "zh" ]]; then
   echo -e "${GREEN}${BOLD}  ✓ 一切就绪${NC}"
   echo ""
   echo -e "  ${DIM}打开 Helm 直接进入 Brain，告诉它做什么就好。${NC}"
   echo -e "  ${DIM}⌘1 Brain   ⌘2 Work   ⌘3 Monitor   ⌘/ 帮助${NC}"
-  echo -e "  ${DIM}可选：brew install lazygit yazi${NC}"
 else
   echo -e "${GREEN}${BOLD}  ✓ You're all set${NC}"
   echo ""
   echo -e "  ${DIM}Helm opens straight into the Brain — just tell it what to build.${NC}"
   echo -e "  ${DIM}⌘1 Brain   ⌘2 Work   ⌘3 Monitor   ⌘/ Help${NC}"
-  echo -e "  ${DIM}Optional: brew install lazygit yazi${NC}"
 fi
 echo ""
 
