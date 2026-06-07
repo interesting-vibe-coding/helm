@@ -64,7 +64,7 @@ dhat-heap.json
 .idea/
 /winget-pkgs
 /assets/flatpak/generated-sources.json
-/__pycache__/
+__pycache__/
 /nix/result
 /dist/
 /dist-min/
@@ -110,3 +110,4 @@ CONTRIBUTORS.svg
 assets/kaku.jpeg
 assets/kaku.jpg
 assets/card.png
+*.pyc
