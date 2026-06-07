@@ -35,13 +35,26 @@ pub(crate) fn bootstrapped_path() -> PathBuf {
 }
 
 /// XDG-aware config root, matching `config::user_config_path()` parent.
+///
+/// Prefers the Helm config dir; falls back to the legacy Kaku dir only when
+/// Helm's dir does not exist yet (e.g. before the one-time migration ran),
+/// so existing soul files are never orphaned.
 fn kaku_config_dir() -> PathBuf {
-    if let Some(xdg) = std::env::var_os("XDG_CONFIG_HOME") {
-        PathBuf::from(xdg).join("kaku")
+    let base = if let Some(xdg) = std::env::var_os("XDG_CONFIG_HOME") {
+        PathBuf::from(xdg)
     } else {
         let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
-        PathBuf::from(home).join(".config").join("kaku")
+        PathBuf::from(home).join(".config")
+    };
+    let helm = base.join("helm");
+    if helm.exists() {
+        return helm;
     }
+    let legacy = base.join("kaku");
+    if legacy.exists() {
+        return legacy;
+    }
+    helm
 }
 
 // ─── Version sentinel ─────────────────────────────────────────────────────────

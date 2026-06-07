@@ -44,7 +44,14 @@ xattr -dr com.apple.quarantine "$DEST/$APP" 2>/dev/null || true
 # Seed the Helm config on first install. Helm's features (the Brain, 3-view nav,
 # help bar, onboarding) all live in kaku.lua — without this a fresh install would
 # fall back to a bare terminal. Only seeds if the user has no config yet.
-CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/kaku"
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/helm"
+LEGACY_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/kaku"
+# One-time, non-destructive migration from the legacy Kaku config dir so existing
+# users keep their config. Leaves the legacy dir intact.
+if [[ ! -d "$CONFIG_DIR" && -d "$LEGACY_CONFIG_DIR" ]]; then
+  cp -R "$LEGACY_CONFIG_DIR" "$CONFIG_DIR" 2>/dev/null && \
+    say "  → migrated config from ~/.config/kaku to ~/.config/helm"
+fi
 if [[ ! -f "$CONFIG_DIR/kaku.lua" && -f "$DEST/$APP/Contents/Resources/kaku.lua" ]]; then
   mkdir -p "$CONFIG_DIR"
   cp "$DEST/$APP/Contents/Resources/kaku.lua" "$CONFIG_DIR/kaku.lua"

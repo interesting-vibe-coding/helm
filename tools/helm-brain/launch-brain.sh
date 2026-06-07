@@ -49,7 +49,12 @@ cd "$START_DIR" 2>/dev/null || true
 # Read the user's onboarding choice from ~/.config/kaku/brain.conf. Format is a
 # single KEY=VALUE line: `BRAIN_HARNESS=claude` (claude | kiro | opencode |
 # codex). Missing file or unknown value → default to claude.
-BRAIN_CONF="${XDG_CONFIG_HOME:-$HOME/.config}/kaku/brain.conf"
+BRAIN_CONF="${XDG_CONFIG_HOME:-$HOME/.config}/helm/brain.conf"
+# Backward compat: fall back to the legacy Kaku location if Helm's isn't present.
+if [[ ! -f "$BRAIN_CONF" ]]; then
+  LEGACY_BRAIN_CONF="${XDG_CONFIG_HOME:-$HOME/.config}/kaku/brain.conf"
+  [[ -f "$LEGACY_BRAIN_CONF" ]] && BRAIN_CONF="$LEGACY_BRAIN_CONF"
+fi
 BRAIN_HARNESS="claude"
 if [[ -f "$BRAIN_CONF" ]]; then
   conf_val="$(sed -nE 's/^[[:space:]]*BRAIN_HARNESS[[:space:]]*=[[:space:]]*([A-Za-z]+).*/\1/p' "$BRAIN_CONF" | head -n1)"

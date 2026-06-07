@@ -542,7 +542,7 @@ pub fn user_config_path() -> PathBuf {
     CONFIG_DIRS
         .first()
         .cloned()
-        .unwrap_or_else(|| HOME_DIR.join(".config").join("kaku"))
+        .unwrap_or_else(|| HOME_DIR.join(".config").join(CONFIG_DIR_NAME))
         .join("kaku.lua")
 }
 
@@ -564,13 +564,13 @@ fn effective_config_file_path_from(
 ///
 /// Priority:
 /// 1) explicit `--config-file` override
-/// 2) path of the loaded config (`KAKU_CONFIG_FILE`)
+/// 2) path of the loaded config (`HELM_CONFIG_FILE`, or legacy `KAKU_CONFIG_FILE`)
 /// 3) default user config path
 pub fn effective_config_file_path() -> PathBuf {
     let config_file_override = CONFIG_FILE_OVERRIDE.lock().unwrap().clone();
     effective_config_file_path_from(
         config_file_override,
-        std::env::var_os("KAKU_CONFIG_FILE"),
+        std::env::var_os("HELM_CONFIG_FILE").or_else(|| std::env::var_os("KAKU_CONFIG_FILE")),
         user_config_path(),
     )
 }
@@ -813,13 +813,97 @@ return config
 "#
 }
 
-fn xdg_config_home_from(home_dir: &Path, xdg_config_home: Option<OsString>) -> PathBuf {
+/// Primary config directory name for Helm.
+pub const CONFIG_DIR_NAME: &str = "helm";
+/// Legacy config directory name inherited from upstream Kaku.
+/// Retained for backward-compatible auto-migration / fallback so existing
+/// installs do not lose their configuration when upgrading to Helm.
+pub const LEGACY_CONFIG_DIR_NAME: &str = "kaku";
+
+/// Returns the `$XDG_CONFIG_HOME` (or `~/.config`) base directory, before the
+/// app-specific subdirectory is appended.
+fn xdg_config_base(home_dir: &Path, xdg_config_home: Option<OsString>) -> PathBuf {
     // Normalize empty env values to "unset" to preserve HOME/.config fallback behavior.
     xdg_config_home
         .filter(|value| !value.is_empty())
         .map(PathBuf::from)
         .unwrap_or_else(|| home_dir.join(".config"))
-        .join("kaku")
+}
+
+fn xdg_config_home_from(home_dir: &Path, xdg_config_home: Option<OsString>) -> PathBuf {
+    xdg_config_base(home_dir, xdg_config_home).join(CONFIG_DIR_NAME)
+}
+
+/// One-time, non-destructive migration of an existing upstream Kaku config
+/// directory to the new Helm directory.
+///
+/// If the Helm config dir does not yet exist but a sibling Kaku config dir
+/// does, copy its contents into the Helm dir. The Kaku directory is left
+/// untouched so a real, separate Kaku install is never disturbed. This only
+/// runs when the Helm dir is absent, so it naturally happens at most once.
+fn migrate_legacy_config_dir(helm_dir: &Path) {
+    if helm_dir.exists() {
+        return;
+    }
+    let Some(base) = helm_dir.parent() else {
+        return;
+    };
+    let legacy_dir = base.join(LEGACY_CONFIG_DIR_NAME);
+    if !legacy_dir.is_dir() {
+        return;
+    }
+
+    match copy_dir_recursive(&legacy_dir, helm_dir) {
+        Ok(()) => {
+            log::info!(
+                "migrated existing config from {} to {} (legacy dir left intact)",
+                legacy_dir.display(),
+                helm_dir.display()
+            );
+        }
+        Err(err) => {
+            log::warn!(
+                "failed to migrate config from {} to {}: {:#} (will fall back to legacy dir)",
+                legacy_dir.display(),
+                helm_dir.display(),
+                err
+            );
+            // Best-effort cleanup of a partial copy so we don't end up with a
+            // half-migrated Helm dir that masks the intact legacy config.
+            let _ = std::fs::remove_dir_all(helm_dir);
+        }
+    }
+}
+
+/// Recursively copy `src` into `dst`, preserving symlinks (so dev-linked
+/// `kaku.lua` symlinks keep pointing at their target rather than being
+/// dereferenced into a copy).
+fn copy_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
+    create_user_owned_dirs(dst).map_err(|e| std::io::Error::other(e.to_string()))?;
+    for entry in std::fs::read_dir(src)? {
+        let entry = entry?;
+        let from = entry.path();
+        let to = dst.join(entry.file_name());
+        let file_type = entry.file_type()?;
+        if file_type.is_symlink() {
+            #[cfg(unix)]
+            {
+                let target = std::fs::read_link(&from)?;
+                std::os::unix::fs::symlink(target, &to)?;
+            }
+            #[cfg(not(unix))]
+            {
+                // Fall back to copying the dereferenced content on platforms
+                // without straightforward symlink creation.
+                std::fs::copy(&from, &to)?;
+            }
+        } else if file_type.is_dir() {
+            copy_dir_recursive(&from, &to)?;
+        } else {
+            std::fs::copy(&from, &to)?;
+        }
+    }
+    Ok(())
 }
 
 fn config_dirs_from(
@@ -827,7 +911,9 @@ fn config_dirs_from(
     xdg_config_home: Option<OsString>,
     #[cfg(unix)] xdg_config_dirs: Option<OsString>,
 ) -> Vec<PathBuf> {
-    let mut dirs = vec![xdg_config_home_from(home_dir, xdg_config_home)];
+    let primary = xdg_config_home_from(home_dir, xdg_config_home);
+
+    let mut dirs = vec![primary];
 
     #[cfg(unix)]
     if let Some(d) = xdg_config_dirs.filter(|value| !value.is_empty()) {
@@ -835,7 +921,7 @@ fn config_dirs_from(
             std::env::split_paths(&d)
                 // `XDG_CONFIG_DIRS` may contain empty segments (e.g. `::`).
                 .filter(|path| !path.as_os_str().is_empty())
-                .map(|path| path.join("kaku")),
+                .map(|path| path.join(CONFIG_DIR_NAME)),
         );
     }
 
@@ -843,12 +929,19 @@ fn config_dirs_from(
 }
 
 fn config_dirs() -> Vec<PathBuf> {
-    config_dirs_from(
+    let dirs = config_dirs_from(
         &HOME_DIR,
         std::env::var_os("XDG_CONFIG_HOME"),
         #[cfg(unix)]
         std::env::var_os("XDG_CONFIG_DIRS"),
-    )
+    );
+
+    // Auto-migrate an existing upstream Kaku config into the Helm dir once.
+    if let Some(primary) = dirs.first() {
+        migrate_legacy_config_dir(primary);
+    }
+
+    dirs
 }
 
 #[cfg(test)]
@@ -859,21 +952,21 @@ mod tests {
     fn empty_xdg_config_home_uses_default_home_config_dir() {
         let home = PathBuf::from("/tmp/kaku-home");
         let path = xdg_config_home_from(&home, Some(OsString::new()));
-        assert_eq!(path, home.join(".config").join("kaku"));
+        assert_eq!(path, home.join(".config").join(CONFIG_DIR_NAME));
     }
 
     #[test]
     fn missing_xdg_config_home_uses_default_home_config_dir() {
         let home = PathBuf::from("/tmp/kaku-home");
         let path = xdg_config_home_from(&home, None);
-        assert_eq!(path, home.join(".config").join("kaku"));
+        assert_eq!(path, home.join(".config").join(CONFIG_DIR_NAME));
     }
 
     #[test]
     fn valid_xdg_config_home_is_used() {
         let home = PathBuf::from("/tmp/kaku-home");
         let path = xdg_config_home_from(&home, Some(OsString::from("/custom/config")));
-        assert_eq!(path, PathBuf::from("/custom/config").join("kaku"));
+        assert_eq!(path, PathBuf::from("/custom/config").join(CONFIG_DIR_NAME));
     }
 
     #[cfg(unix)]
@@ -888,9 +981,9 @@ mod tests {
         assert_eq!(
             dirs,
             vec![
-                home.join(".config").join("kaku"),
-                PathBuf::from("/etc/xdg").join("kaku"),
-                PathBuf::from("/usr/local/etc/xdg").join("kaku"),
+                home.join(".config").join(CONFIG_DIR_NAME),
+                PathBuf::from("/etc/xdg").join(CONFIG_DIR_NAME),
+                PathBuf::from("/usr/local/etc/xdg").join(CONFIG_DIR_NAME),
             ]
         );
     }
@@ -900,7 +993,7 @@ mod tests {
     fn missing_xdg_config_dirs_returns_primary_only() {
         let home = PathBuf::from("/tmp/kaku-home");
         let dirs = config_dirs_from(&home, Some(OsString::from("/custom/config")), None);
-        assert_eq!(dirs, vec![PathBuf::from("/custom/config").join("kaku")]);
+        assert_eq!(dirs, vec![PathBuf::from("/custom/config").join(CONFIG_DIR_NAME)]);
     }
 
     #[cfg(unix)]
@@ -912,7 +1005,64 @@ mod tests {
             Some(OsString::from("/custom/config")),
             Some(OsString::new()),
         );
-        assert_eq!(dirs, vec![PathBuf::from("/custom/config").join("kaku")]);
+        assert_eq!(dirs, vec![PathBuf::from("/custom/config").join(CONFIG_DIR_NAME)]);
+    }
+
+    #[test]
+    fn migrate_copies_legacy_kaku_dir_when_helm_absent() {
+        let tmp = std::env::temp_dir().join(format!(
+            "helm-migrate-test-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        ));
+        let base = tmp.join(".config");
+        let legacy = base.join(LEGACY_CONFIG_DIR_NAME);
+        let helm = base.join(CONFIG_DIR_NAME);
+        std::fs::create_dir_all(legacy.join("soul")).unwrap();
+        std::fs::write(legacy.join("kaku.lua"), b"-- legacy config").unwrap();
+        std::fs::write(legacy.join("soul").join("SOUL.md"), b"soul").unwrap();
+
+        migrate_legacy_config_dir(&helm);
+
+        // Helm dir now has the copied content...
+        assert_eq!(
+            std::fs::read(helm.join("kaku.lua")).unwrap(),
+            b"-- legacy config"
+        );
+        assert!(helm.join("soul").join("SOUL.md").is_file());
+        // ...and the legacy dir is left untouched.
+        assert!(legacy.join("kaku.lua").is_file());
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn migrate_is_noop_when_helm_exists() {
+        let tmp = std::env::temp_dir().join(format!(
+            "helm-migrate-noop-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        ));
+        let base = tmp.join(".config");
+        let legacy = base.join(LEGACY_CONFIG_DIR_NAME);
+        let helm = base.join(CONFIG_DIR_NAME);
+        std::fs::create_dir_all(&legacy).unwrap();
+        std::fs::write(legacy.join("kaku.lua"), b"legacy").unwrap();
+        std::fs::create_dir_all(&helm).unwrap();
+        std::fs::write(helm.join("kaku.lua"), b"helm").unwrap();
+
+        migrate_legacy_config_dir(&helm);
+
+        // Existing helm config must not be overwritten by the legacy copy.
+        assert_eq!(std::fs::read(helm.join("kaku.lua")).unwrap(), b"helm");
+
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 
     #[test]
