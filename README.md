@@ -1,6 +1,6 @@
 <div align="center">
   <img src="assets/helm-logo.png" width="128" alt="Helm" />
-  <h1>Helm 🎯</h1>
+  <h1>Helm</h1>
   <p><em>The first agent-native terminal. You steer — agents execute.</em></p>
 
   <p>
