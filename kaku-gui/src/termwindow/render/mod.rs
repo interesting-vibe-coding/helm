@@ -113,7 +113,7 @@ pub(crate) fn forces_opaque_kaku_tui_background(pane: &Arc<dyn Pane>) -> bool {
         .executable
         .file_name()
         .map(|name| name.to_string_lossy().into_owned());
-    if executable.as_deref() != Some("kaku") {
+    if !matches!(executable.as_deref(), Some("helm") | Some("kaku")) {
         return false;
     }
 

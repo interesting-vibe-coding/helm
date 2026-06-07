@@ -67,17 +67,22 @@ fn resolve_bundled_kaku_bin() -> anyhow::Result<PathBuf> {
 
     let mut candidates = Vec::new();
 
+    if let Some(path) = std::env::var_os("HELM_BIN") {
+        add_candidate(&mut candidates, PathBuf::from(path));
+    }
     if let Some(path) = std::env::var_os("KAKU_BIN") {
         add_candidate(&mut candidates, PathBuf::from(path));
     }
 
     let current_exe = std::env::current_exe().context("resolve executable path")?;
     if let Some(parent) = current_exe.parent() {
+        add_candidate(&mut candidates, parent.join("helm"));
         add_candidate(&mut candidates, parent.join("kaku"));
     }
 
     if let Ok(resolved_exe) = std::fs::canonicalize(&current_exe) {
         if let Some(parent) = resolved_exe.parent() {
+            add_candidate(&mut candidates, parent.join("helm"));
             add_candidate(&mut candidates, parent.join("kaku"));
         }
     }
@@ -94,6 +99,10 @@ fn resolve_bundled_kaku_bin() -> anyhow::Result<PathBuf> {
 
     #[cfg(target_os = "macos")]
     {
+        add_candidate(
+            &mut candidates,
+            PathBuf::from("/Applications/Helm.app/Contents/MacOS/helm"),
+        );
         add_candidate(
             &mut candidates,
             PathBuf::from("/Applications/Helm.app/Contents/MacOS/kaku"),
@@ -114,7 +123,7 @@ fn resolve_bundled_kaku_bin() -> anyhow::Result<PathBuf> {
     }
 
     anyhow::bail!(
-        "could not find kaku binary; checked: {}",
+        "could not find helm/kaku binary; checked: {}",
         candidates
             .iter()
             .map(|p| p.display().to_string())
@@ -129,8 +138,8 @@ pub(crate) fn kaku_cli_program_for_spawn() -> String {
         Err(err) => {
             // Finder-launched apps can have a minimal PATH; fall back only when
             // we cannot resolve the bundled companion binary.
-            log::warn!("Falling back to PATH lookup for `kaku`: {err:#}");
-            "kaku".to_string()
+            log::warn!("Falling back to PATH lookup for `helm`: {err:#}");
+            "helm".to_string()
         }
     }
 }

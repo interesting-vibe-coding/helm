@@ -57,7 +57,7 @@ QUOTA_PY = REPO_ROOT / "tools" / "helm-quota" / "quota.py"
 # binary (the fork of wezterm's main binary). Note: the sibling `k` binary is
 # the agent one-shot CLI, NOT the mux CLI — do not use it here. Allow override
 # via $HELM_CLI, and fall back to `wezterm`/`kaku` on PATH.
-HELM_CLI = os.environ.get("HELM_CLI") or "/Applications/Helm.app/Contents/MacOS/kaku"
+HELM_CLI = os.environ.get("HELM_CLI") or "/Applications/Helm.app/Contents/MacOS/helm"
 
 # harness name -> argv to run in the spawned pane. Mirrors Helm.harnesses.list
 # in kaku.lua so a Brain-spawned session behaves exactly like one started from
@@ -76,7 +76,7 @@ def _helm_cli():
     """Return the argv prefix for the Helm/wezterm mux cli, or None if missing."""
     if os.path.exists(HELM_CLI):
         return [HELM_CLI, "cli", "--no-auto-start"]
-    for name in ("kaku", "wezterm"):
+    for name in ("helm", "kaku", "wezterm"):
         found = shutil.which(name)
         if found:
             return [found, "cli", "--no-auto-start"]
