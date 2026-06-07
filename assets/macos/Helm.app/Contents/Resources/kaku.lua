@@ -243,9 +243,9 @@ config.native_macos_fullscreen_mode = true
 config.send_composed_key_when_left_alt_is_pressed = false
 config.send_composed_key_when_right_alt_is_pressed = true
 
--- Rendering backend + smoothness (Kaku uses WebGpu / LowPower)
-config.front_end = 'WebGpu'
-config.webgpu_power_preference = 'LowPower'
+-- Rendering smoothness. NOTE: we deliberately do NOT set front_end='WebGpu'
+-- here — scrolling worked on the default front end before this change and
+-- WebGpu appeared to break mouse-wheel scrolling on this build. Leave default.
 config.animation_fps = 60
 config.max_fps = 60
 config.enable_scroll_bar = false
