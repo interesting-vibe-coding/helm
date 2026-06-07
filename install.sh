@@ -10,7 +10,7 @@ PURPLE='\033[0;35m'; BOLD='\033[1m'; DIM='\033[2m'; NC='\033[0m'
 say() { printf "%b\n" "$@"; }
 
 say ""
-say "${BOLD}  Installing Helm${NC}"
+say "${PURPLE}${BOLD}  ᗣ  Installing Helm${NC}"
 say ""
 
 # macOS only
@@ -22,14 +22,15 @@ fi
 URL="https://github.com/$REPO/releases/latest/download/Helm.app.zip"
 TMP=$(mktemp -d)
 
-# Spinner — uses /dev/tty so it works even through | bash
+# Spinner — purple dots, writes to /dev/tty so it works in | bash
 _spin() {
-  local frames=('  ▓░░░' '  ▓▓░░' '  ▓▓▓░' '  ▓▓▓▓' '  ░▓▓▓' '  ░░▓▓' '  ░░░▓' '  ░░░░')
+  local p=$'\033[0;35m' n=$'\033[0m'
+  local frames=("${p}●${n}○○" "○${p}●${n}○" "○○${p}●${n}" "○${p}●${n}○")
   local i=0
   while true; do
-    printf '\r  → downloading (~80MB) %s' "${frames[$((i % 8))]}" > /dev/tty
+    printf '\r  → downloading (~80MB)  %s ' "${frames[$((i % 4))]}" > /dev/tty
     i=$((i + 1))
-    sleep 0.12
+    sleep 0.2
   done
 }
 
