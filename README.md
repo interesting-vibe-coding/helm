@@ -19,6 +19,10 @@ Helm is the **first agent-native terminal** for macOS. Run many AI agents in par
 
 Most terminals assume one human, one session. Helm assumes you are orchestrating a fleet of agents: they do the work, surface what needs you, and wait. You review and sign off. Zero friction.
 
+## Philosophy: less friction
+
+Helm exists to remove the friction between you and your agents. You shouldn't babysit a terminal, hunt for which pane needs your input, or lose your place switching tools. Agents do the work and surface what needs you; you stay at the helm and make the calls.
+
 ---
 
 ## The Agent OS
