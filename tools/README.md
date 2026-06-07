@@ -13,11 +13,10 @@ export PATH="$PATH:$(pwd)/tools/helm-watch"
 export PATH="$PATH:$(pwd)/tools/helm-telemetry"
 ```
 
-Or add to your shell config after installing Helm:
+Or, after installing Helm, the tools are bundled inside the app:
 ```bash
 export PATH="$PATH:/Applications/Helm.app/Contents/Resources/tools"
 ```
-(Tools will be bundled in a future release)
 
 ## Available Tools
 

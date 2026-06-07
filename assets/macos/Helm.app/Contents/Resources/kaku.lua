@@ -187,10 +187,6 @@ config.restore_previous_session = true
 -- ════════════════════════════════════════════════════════════
 local Helm = {}
 
--- Ghost glyph: placeholder logo for the bottom status bar (swap for a custom
--- mark later). Used at the head of the LEFT zone.
-Helm.GHOST = '👻'
-
 -- ── Tuning constants ────────────────────────────────────────
 --   IDLE_THRESHOLD : secs of stable pane content before a session is 'waiting'
 --   LRU_LIMIT      : max sessions shown in the Cmd+Shift+S overlay (most-recent first)
@@ -491,89 +487,11 @@ end
 -- ════════════════════════════════════════════════════════════
 Helm.status = {}
 
--- Calm, low-saturation palette for the bottom bar.
+-- Calm, low-saturation palette for the bottom help bar.
 Helm.status.palette = {
-  working = '#7aa2f7',  -- blue   — agent actively producing output
-  waiting = '#e0af68',  -- orange — agent finished, awaiting input
-  dim     = '#565f73',  -- gray   — separators, background count, idle
-  usage   = '#8a7faa',  -- muted purple/gray — per-harness token usage
-  ghost   = '#8a8fa3',  -- ghost glyph
-  text    = '#a9b1d6',  -- harness/project label
+  dim  = '#565f73',  -- gray — separators / secondary hints
+  text = '#a9b1d6',  -- primary cheat-sheet text
 }
-
--- Format a token count compactly: 142k / 1.2M.
-function Helm.status.fmt_tokens(n)
-  if not n or n == 0 then return '0' end
-  if n >= 1000000 then
-    local m = n / 1000000
-    return (m >= 10 and string.format('%dM', math.floor(m + 0.5))) or string.format('%.1fM', m)
-  end
-  if n >= 1000 then return math.floor(n / 1000) .. 'k' end
-  return tostring(n)
-end
-
--- ── Live per-harness usage (quota.py --json), throttled + cached ──
--- quota.py reads local session/message files. We call it via
--- run_child_process at most once / 60s and stash the result in
--- wezterm.GLOBAL.helm_quota_cache = { ts=, data= }. render() reads the cache
--- and kicks a refresh when stale; the fetch guard prevents re-entry.
-
--- Resolve quota.py path once (bundle Resources, then dev repo), cache in GLOBAL.
-function Helm.status.quota_script()
-  if wezterm.GLOBAL.helm_quota_path ~= nil then
-    return wezterm.GLOBAL.helm_quota_path or nil
-  end
-  local home = os.getenv('HOME') or ''
-  local candidates = {
-    wezterm.executable_dir:gsub('MacOS/?$', 'Resources') .. '/tools/helm-quota/quota.py',
-    home .. '/workspace/helm-terminal/tools/helm-quota/quota.py',
-    home .. '/.config/kaku/tools/helm-quota/quota.py',
-  }
-  for _, p in ipairs(candidates) do
-    local f = io.open(p, 'r')
-    if f then f:close(); wezterm.GLOBAL.helm_quota_path = p; return p end
-  end
-  wezterm.GLOBAL.helm_quota_path = false  -- remember "not found"
-  return nil
-end
-
--- Blocking call, but invoked at most once per 60s (quota.py runs in ~100ms).
-function Helm.status.refresh_quota()
-  local script = Helm.status.quota_script()
-  if not script then
-    wezterm.GLOBAL.helm_quota_fetching = false
-    return
-  end
-  local ok, stdout = pcall(wezterm.run_child_process, { 'python3', script, '--json' })
-  if ok and stdout and stdout ~= '' then
-    local ok2, data = pcall(wezterm.json_parse, stdout)
-    if ok2 and type(data) == 'table' then
-      wezterm.GLOBAL.helm_quota_cache = { ts = Helm.util.now(), data = data }
-    end
-  end
-  wezterm.GLOBAL.helm_quota_fetching = false
-end
-
--- Returns formatted usage strings like { 'kiro 142k', 'claude 1.2M' };
--- kicks a background-ish refresh when the cache is stale (>60s).
-function Helm.status.usage_summary()
-  local now = Helm.util.now()
-  local cache = wezterm.GLOBAL.helm_quota_cache
-  if (not cache or (now - (cache.ts or 0)) > 60) and not wezterm.GLOBAL.helm_quota_fetching then
-    wezterm.GLOBAL.helm_quota_fetching = true
-    Helm.status.refresh_quota()
-    cache = wezterm.GLOBAL.helm_quota_cache
-  end
-  if not cache or type(cache.data) ~= 'table' then return {} end
-  local parts = {}
-  for _, name in ipairs({ 'kiro', 'claude', 'opencode' }) do
-    local d = cache.data[name]
-    if type(d) == 'table' and (d.tokens_today or 0) > 0 then
-      table.insert(parts, name .. ' ' .. Helm.status.fmt_tokens(d.tokens_today))
-    end
-  end
-  return parts
-end
 
 -- format-tab-title: the bar is now a single clean status line, so tabs shrink
 -- to a tiny marker (active ● / inactive ·) instead of boxy browser tabs.
@@ -582,15 +500,13 @@ function Helm.status.tab_title(tab)
   return tab.is_active and ' ● ' or ' · '
 end
 
--- update-right-status render: paint the bottom bar in two zones.
---   LEFT  (set_left_status)  : current pane's agent → 👻 kiro · proj ▶ working 2m34s
---   RIGHT (set_right_status) : globals + live usage → ○ 2 bg · ◐ 1 waiting   kiro 142k · claude 1.2M
--- The bottom bar is a toggleable HELP BAR (a key-bindings cheat-sheet), not a
--- per-agent HUD. Philosophy: zero friction, out of the box, focus on shipping —
--- the keys you need are always one glance away, and one keystroke (⌘/) away from
--- getting out of your way. Per-agent status now lives in the Brain (⌘1) and the
--- Monitor (⌘3) layers, so the bottom bar no longer duplicates it.
---   visible (default) → calm one-line cheat-sheet
+-- update-right-status render: the bottom bar is a toggleable HELP BAR (a
+-- key-bindings cheat-sheet), not a per-agent HUD. Philosophy: zero friction,
+-- out of the box, focus on shipping — the keys you need are one glance away,
+-- and one keystroke (⌘/) away from getting out of your way. Per-agent status
+-- lives in the Brain (⌘1) and the Monitor (⌘3) layers. We also keep an
+-- at-a-glance agent count in the window title even when the bar is hidden.
+--   visible (default) → calm one-line cheat-sheet (set_left_status)
 --   hidden  (⌘/)      → empty, nothing at the bottom
 function Helm.status.render(window, pane)
   local P = Helm.status.palette
