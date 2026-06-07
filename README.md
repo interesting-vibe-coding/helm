@@ -80,8 +80,9 @@ Press `Cmd+/` to toggle a bottom help bar showing the current key bindings, so y
 curl -fsSL https://raw.githubusercontent.com/interesting-vibe-coding/helm/main/install.sh | bash
 ```
 
-That's it. On first launch, Helm guides you through shell integration and sets up
-cross-harness memory automatically. Then press `Cmd+Shift+K` to launch your first agent.
+That's it. On first launch, Helm runs a quick guided setup — shell integration,
+cross-harness memory, and picking which harness powers your **Brain** — then drops
+you straight into the Brain. From there, just tell it what to work on.
 
 <details>
 <summary>Build from source</summary>
