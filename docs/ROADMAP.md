@@ -19,22 +19,29 @@
 
 ---
 
-## Current State (2026-06-06)
+## Current State — v0.3.1 (2026-06-07)
 
-### ✅ Done
-- Helm.app builds and runs (`PROFILE=debug ./scripts/build.sh --app-only`)
-- Kaku strings replaced with Helm branding
-- `Cmd+Shift+M` injects `/model` slash command → toggles sonnet ↔ opus in kiro chat
-- `kc` abbr → `kiro-cli chat --trust-all-tools --agent default --effort medium`
-- Ship helm-output-style skill (terminal output design spec)
-- Cross-harness memory via symlink:
-  - `~/.claude/CLAUDE.md → ~/.kiro/AGENTS.md` (Claude Code reads this)
-  - `~/.kiro/AGENTS.md` = master memory file (steering/memory.md also symlinks here)
-- **Brain plumbing** — `helm-brain` CLI (`sessions` / `send` / `notify` / `watch`) wiring the Sonnet First Mate to worker state + tokens
+Helm is in **V0 — daily-usable, actively iterating**. Public repo, CI green.
 
-### 🟡 In Progress
-- Logo (geometric gold helm wheel — needs more refinement)
-- CI green on GitHub
+### ✅ Shipped
+- **The Brain (First Mate)** — a Sonnet orchestrator. Watches all workers (state + token usage), reports only when something needs you, routes instructions with a confirm gate, and can **spawn worker sessions itself** (split work by project). Backend harness is picked during onboarding (claude / kiro / opencode / codex; claude is the default).
+- **3-view shell** — `Cmd+1` Brain · `Cmd+2` Workspace · `Cmd+3` Monitor (htop-style session list). `Cmd+/` toggles the help bar.
+- **Boot into the Brain** on launch + **session restore** (rebuilds last run's panes: same dirs + harnesses; `claude --continue` where supported).
+- **Guided onboarding** that actually runs on first launch: animated ghost mascot, shell setup, cross-harness memory symlink, and the Choose-your-Brain picker.
+- **One-line install** — `curl … | bash` from the latest release.
+- **Ghost logo** (terminal-prompt face) + clean namespaced `kaku.lua`.
+- **Tools** (all bundled in the .app): `helm-brain` (sessions/send/notify/spawn), `helm-top` (monitor), `helm-quota`, plus CLI utilities.
+
+### 🛣️ Road to V1
+V1 ships when Helm is something we use **daily and comfortably** — then we tag it, announce, and promote. Criteria:
+- [ ] Brain day-to-day: spawn / report / route confirm-gate all smooth, zero noise
+- [ ] 3-view navigation feels natural in real use
+- [ ] Session restore reliable across reboots
+- [ ] Onboarding polished and truly out-of-the-box
+- [ ] No visible bugs or terminal noise
+- [ ] Several days of comfortable daily driving
+
+Until then we keep iterating in the **V0.x** series.
 
 ---
 
