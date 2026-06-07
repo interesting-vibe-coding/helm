@@ -94,6 +94,57 @@ if [[ -f "$MASTER_MEMORY" ]]; then
   ok "Cross-harness memory linked ($(ls -1 $HOME/.claude $HOME/.config/opencode $HOME/.codex 2>/dev/null | grep -c AGENTS)/${MASTER_MEMORY:+3} harnesses)"
 fi
 
+# ── Choose your Brain ─────────────────────────────────────────────────────────
+# The Brain is the First Mate that orchestrates all your agents. Let the user
+# pick which harness powers it; persist to ~/.config/kaku/brain.conf so the
+# launcher (tools/helm-brain/launch-brain.sh) can honor the choice.
+choose_brain() {
+  local keys=() labels=()
+  command -v claude   >/dev/null 2>&1 && { keys+=("claude");   labels+=("Claude Code"); }
+  command -v kiro-cli >/dev/null 2>&1 && { keys+=("kiro");     labels+=("Kiro"); }
+  command -v opencode >/dev/null 2>&1 && { keys+=("opencode"); labels+=("opencode"); }
+  command -v codex    >/dev/null 2>&1 && { keys+=("codex");    labels+=("Codex"); }
+
+  if [[ ${#keys[@]} -eq 0 ]]; then
+    info "No agent harness found — install one later, then it powers your Brain:"
+    echo -e "    ${DIM}brew install claude · npm i -g opencode-ai${NC}"
+    return
+  fi
+
+  echo -e "${BOLD}  Choose your Brain${NC}"
+  echo -e "  ${DIM}Your Brain is the First Mate that orchestrates all your agents.${NC}"
+  echo ""
+
+  # Default index: prefer claude, else the first installed harness.
+  local default_idx=1 i
+  for i in "${!keys[@]}"; do
+    [[ "${keys[$i]}" == "claude" ]] && default_idx=$(( i + 1 ))
+  done
+
+  for i in "${!keys[@]}"; do
+    local n=$(( i + 1 )) tag=""
+    [[ "${keys[$i]}" == "claude" ]] && tag=" ${DIM}(recommended)${NC}"
+    echo -e "    ${PURPLE}${n}${NC}  ${labels[$i]}${tag}"
+  done
+  echo ""
+
+  local choice=""
+  if [[ -t 0 && -t 1 ]]; then
+    read -r -p "  Pick a number [${default_idx}]: " choice
+    echo ""
+  fi
+  if [[ -z "$choice" || ! "$choice" =~ ^[0-9]+$ || "$choice" -lt 1 || "$choice" -gt ${#keys[@]} ]]; then
+    choice="$default_idx"
+  fi
+
+  local picked="${keys[$(( choice - 1 ))]}"
+  mkdir -p "$CONFIG_DIR"
+  printf 'BRAIN_HARNESS=%s\n' "$picked" > "$CONFIG_DIR/brain.conf"
+  ok "Brain: ${BOLD}${picked}${NC} ${DIM}(~/.config/kaku/brain.conf)${NC}"
+}
+choose_brain
+echo ""
+
 # ── Shell integration ─────────────────────────────────────────────────────────
 echo -e "${BOLD}  Setting up shell integration...${NC}"
 if [[ "$DETECTED_SHELL" == "fish" ]]; then
