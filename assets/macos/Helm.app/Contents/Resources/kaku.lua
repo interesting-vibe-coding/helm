@@ -597,7 +597,7 @@ function Helm.status.render(window, pane)
 
   if wezterm.GLOBAL.helm_help_visible then
     window:set_left_status(wezterm.format({
-      { Foreground = { Color = P.ghost } }, { Text = ' ' .. Helm.GHOST .. '  ' },
+      { Foreground = { Color = P.ghost } }, { Text = ' ›_  ' },
       { Foreground = { Color = P.text } },  { Text = '⌘1 Brain  ⌘2 Work  ⌘3 Monitor  ' },
       { Foreground = { Color = P.dim } },   { Text = '⌘⇧K Launch  ⌘⇧S Sessions  ⌘/ Help ' },
     }))
