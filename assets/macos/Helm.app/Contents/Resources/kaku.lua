@@ -520,93 +520,33 @@ end
 -- update-right-status render: paint the bottom bar in two zones.
 --   LEFT  (set_left_status)  : current pane's agent → 👻 kiro · proj ▶ working 2m34s
 --   RIGHT (set_right_status) : globals + live usage → ○ 2 bg · ◐ 1 waiting   kiro 142k · claude 1.2M
+-- The bottom bar is a toggleable HELP BAR (a key-bindings cheat-sheet), not a
+-- per-agent HUD. Philosophy: zero friction, out of the box, focus on shipping —
+-- the keys you need are always one glance away, and one keystroke (⌘/) away from
+-- getting out of your way. Per-agent status now lives in the Brain (⌘1) and the
+-- Monitor (⌘3) layers, so the bottom bar no longer duplicates it.
+--   visible (default) → calm one-line cheat-sheet
+--   hidden  (⌘/)      → empty, nothing at the bottom
 function Helm.status.render(window, pane)
-  -- Cmd+/ help bar: turn the whole bottom bar into a key-bindings cheat-sheet.
-  if wezterm.GLOBAL.helm_help_visible then
-    local HP = Helm.status.palette
-    window:set_left_status(wezterm.format({
-      { Foreground = { Color = HP.text } }, { Text = ' ⌘1 Brain  ⌘2 Workspace  ⌘3 Monitor  ' },
-      { Foreground = { Color = HP.dim } },  { Text = '· ⌘⇧↵ flip  ⌘⇧K launch  ⌘⇧S sessions  ⌘⇧B background  ⌘⇧M model  ⌘/ close help ' },
-    }))
-    window:set_right_status('')
-    return
-  end
-  local t = Helm.util.now()
   local P = Helm.status.palette
 
-  -- ── LEFT: current pane's agent ──────────────────────────────
-  local proc = pane:get_foreground_process_name()
-  local harness = Helm.harnesses.detect(proc)
-  local left
-  if harness then
-    local project = Helm.util.cwd_basename(pane:get_current_working_dir())
-    local sess = (wezterm.GLOBAL.helm_sessions or {})[tostring(pane:pane_id())]
-    local state = (sess and sess.state) or 'working'
-    local scolor, sicon, slabel
-    if state == 'waiting' then
-      scolor, sicon, slabel = P.waiting, '◐', 'waiting'
-    elseif state == 'background' then
-      scolor, sicon, slabel = P.dim, '⏸', 'background'
-    else
-      scolor, sicon, slabel = P.working, '▶', 'working'
-    end
-    local runtime = sess and Helm.util.fmt_short(t - (sess.start_time or t)) or ''
-    left = {
-      { Foreground = { Color = P.ghost } }, { Text = ' ' .. Helm.GHOST .. ' ' },
-      { Foreground = { Color = P.text } },  { Text = harness:lower() },
-      { Foreground = { Color = P.dim } },   { Text = ' · ' },
-      { Foreground = { Color = P.text } },  { Text = project .. '  ' },
-      { Foreground = { Color = scolor } },  { Text = sicon .. ' ' .. slabel .. ' ' .. runtime .. ' ' },
-    }
+  if wezterm.GLOBAL.helm_help_visible then
+    window:set_left_status(wezterm.format({
+      { Foreground = { Color = P.ghost } }, { Text = ' ' .. Helm.GHOST .. '  ' },
+      { Foreground = { Color = P.text } },  { Text = '⌘1 Brain  ⌘2 Work  ⌘3 Monitor  ' },
+      { Foreground = { Color = P.dim } },   { Text = '⌘⇧K Launch  ⌘⇧S Sessions  ⌘/ Help ' },
+    }))
   else
-    left = {
-      { Foreground = { Color = P.ghost } }, { Text = ' ' .. Helm.GHOST .. ' ' },
-      { Foreground = { Color = P.dim } },   { Text = 'helm · idle ' },
-    }
+    window:set_left_status('')
   end
-  window:set_left_status(wezterm.format(left))
+  window:set_right_status('')
 
-  -- ── RIGHT: global summary + live usage ──────────────────────
-  local bg_count, waiting_count, total = 0, 0, 0
+  -- Window title keeps an at-a-glance agent count even when the bar is hidden.
+  local waiting_count, total = 0, 0
   for _, entry in ipairs(Helm.sessions.lru()) do
     total = total + 1
-    local st = entry.session.state
-    if st == 'background' then bg_count = bg_count + 1
-    elseif st == 'waiting' then waiting_count = waiting_count + 1 end
+    if entry.session.state == 'waiting' then waiting_count = waiting_count + 1 end
   end
-
-  local right = {}
-  local function sep()
-    table.insert(right, { Foreground = { Color = P.dim } })
-    table.insert(right, { Text = ' · ' })
-  end
-  if bg_count > 0 then
-    table.insert(right, { Foreground = { Color = P.dim } })
-    table.insert(right, { Text = '○ ' .. bg_count .. ' bg' })
-  end
-  if waiting_count > 0 then
-    if bg_count > 0 then sep() else table.insert(right, { Text = '' }) end
-    table.insert(right, { Foreground = { Color = P.waiting } })
-    table.insert(right, { Text = '◐ ' .. waiting_count .. ' waiting' })
-  end
-
-  local usage = Helm.status.usage_summary()
-  if #usage > 0 then
-    table.insert(right, { Foreground = { Color = P.dim } })
-    table.insert(right, { Text = '    ' })  -- gap between counts and usage
-    for i, u in ipairs(usage) do
-      if i > 1 then
-        table.insert(right, { Foreground = { Color = P.dim } })
-        table.insert(right, { Text = ' · ' })
-      end
-      table.insert(right, { Foreground = { Color = P.usage } })
-      table.insert(right, { Text = u })
-    end
-  end
-  table.insert(right, { Text = ' ' })
-  window:set_right_status(wezterm.format(right))
-
-  -- ── Window title: "Helm — N agents (M waiting)" ─────────────
   if total > 0 then
     local title = 'Helm \xe2\x80\x94 ' .. total .. ' agent' .. (total == 1 and '' or 's')
     if waiting_count > 0 then title = title .. ' (' .. waiting_count .. ' waiting)' end
@@ -967,6 +907,11 @@ end
 function Helm.apply(config)
   -- Session state lives in GLOBAL so it survives config reloads.
   wezterm.GLOBAL.helm_sessions = wezterm.GLOBAL.helm_sessions or {}
+
+  -- The help bar (bottom cheat-sheet) is VISIBLE by default; ⌘/ toggles it.
+  if wezterm.GLOBAL.helm_help_visible == nil then
+    wezterm.GLOBAL.helm_help_visible = true
+  end
 
   -- The single update-right-status handler: (1) track this pane's session
   -- (working/waiting idle heuristic), (2) render the HUD + window title.
