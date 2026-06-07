@@ -270,6 +270,13 @@ if [[ -d "tools" ]]; then
 	# strip any local python caches that may have been copied
 	find "$APP_BUNDLE_OUT/Contents/Resources/tools" -name __pycache__ -type d -exec rm -rf {} + 2>/dev/null || true
 fi
+# Helm: bundle cross-harness skills (e.g. helm-first-mate) so first_run.sh can
+# symlink them into the user's ~/.kiro/skills. The skill is the single source
+# of truth for the Helm Brain / First Mate persona.
+if [[ -d "assets/skills" ]]; then
+	mkdir -p "$APP_BUNDLE_OUT/Contents/Resources/skills"
+	cp -R assets/skills/* "$APP_BUNDLE_OUT/Contents/Resources/skills/"
+fi
 mkdir -p "$APP_BUNDLE_OUT/Contents/Resources/vendor"
 for vendor_item in starship.toml fast-syntax-highlighting zsh-autosuggestions zsh-completions zsh-z; do
 	src_path="assets/vendor/$vendor_item"

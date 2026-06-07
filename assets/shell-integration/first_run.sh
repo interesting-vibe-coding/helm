@@ -94,6 +94,21 @@ if [[ -f "$MASTER_MEMORY" ]]; then
   ok "Cross-harness memory linked ($(ls -1 $HOME/.claude $HOME/.config/opencode $HOME/.codex 2>/dev/null | grep -c AGENTS)/${MASTER_MEMORY:+3} harnesses)"
 fi
 
+# ── Cross-harness skills ──────────────────────────────────────────────────────
+# Symlink the bundled helm-first-mate skill into the user's skills dir so any
+# harness (Kiro, Claude Code, …) can load the Brain / First Mate persona. The
+# bundled skill is the single source of truth.
+FIRST_MATE_SKILL="$RESOURCES_DIR/skills/helm-first-mate"
+if [[ -d "$FIRST_MATE_SKILL" ]]; then
+  mkdir -p "$HOME/.kiro/skills"
+  if [[ -L "$HOME/.kiro/skills/helm-first-mate" && "$(readlink "$HOME/.kiro/skills/helm-first-mate")" == "$FIRST_MATE_SKILL" ]]; then
+    :  # already linked
+  else
+    ln -sfn "$FIRST_MATE_SKILL" "$HOME/.kiro/skills/helm-first-mate"
+    ok "First Mate skill linked (~/.kiro/skills/helm-first-mate)"
+  fi
+fi
+
 # ── Choose your Brain ─────────────────────────────────────────────────────────
 # The Brain is the First Mate that orchestrates all your agents. Let the user
 # pick which harness powers it; persist to ~/.config/kaku/brain.conf so the

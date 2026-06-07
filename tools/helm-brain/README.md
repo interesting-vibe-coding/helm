@@ -79,20 +79,24 @@ Polls `sessions` every 3s and prints a line whenever a session's state changes
 
 ## Launching the Brain
 
-`BRAIN_PROMPT.md` is the system prompt that turns a Sonnet agent into the Helm
-First Mate. `launch-brain.sh` boots that agent with the prompt loaded and the
-`helm-brain` CLI on its `PATH`:
+The cross-harness **`helm-first-mate` skill** is the persona that turns a Sonnet
+agent into the Helm First Mate. It is bundled in `Helm.app` (under
+`Contents/Resources/skills/helm-first-mate`) and symlinked into
+`~/.kiro/skills/helm-first-mate` by `first_run.sh`, so any harness can load it.
+`launch-brain.sh` boots the chosen harness with a short activation message that
+loads the skill, and the `helm-brain` CLI on its `PATH`:
 
 ```sh
 tools/helm-brain/launch-brain.sh
 ```
 
-Harness choice (documented in the script):
+Harness choice (documented in the script) — each gets the same short activation
+("Use the helm-first-mate skill, then run 'helm-brain sessions' and greet me"):
 
-- **Preferred — `claude`**: `claude --model sonnet --append-system-prompt
-  "$(cat BRAIN_PROMPT.md)"` — a true system prompt on Sonnet.
-- **Fallback — `kiro-cli`**: no system-prompt flag, so the prompt is passed as
-  the initial `[INPUT]` message with `--model claude-sonnet-4.6`.
+- **Preferred — `claude`**: `claude --model sonnet --dangerously-skip-permissions`.
+- **`kiro-cli`**: `--model claude-sonnet-4.6`, loads the skill from
+  `~/.kiro/skills/helm-first-mate`.
+- **`opencode` / `codex`**: best-effort, same short activation.
 
 The script resolves its own directory (following symlinks), so it works both
 from the repo and when bundled in `Helm.app/Contents/Resources/tools/helm-brain/`.

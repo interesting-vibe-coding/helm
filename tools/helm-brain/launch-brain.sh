@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # launch-brain.sh — start the Helm "First Mate", a Sonnet orchestrator agent.
 #
-# The Brain is a normal coding-agent session given the BRAIN_PROMPT.md system
-# prompt and the `helm-brain` CLI on its PATH. It watches every worker session
-# (via `helm-brain sessions`) and relays the captain's orders to worker panes.
+# The Brain is a normal coding-agent session pointed at the cross-harness
+# `helm-first-mate` skill (single source of truth for the persona; bundled in
+# Helm.app and symlinked to ~/.kiro/skills by first_run.sh) and given the
+# `helm-brain` CLI on its PATH. It watches every worker session (via
+# `helm-brain sessions`) and relays the captain's orders to worker panes.
 #
 # HARNESS CHOICE (documented decision):
 #   The user picks which harness powers the Brain during first-run onboarding
@@ -14,28 +16,15 @@
 #   if the chosen harness isn't on PATH we fall back to the first available
 #   (preferring claude) and note the substitution on stderr.
 #
-#   Per-harness launch (all need an interactive chat that takes BRAIN_PROMPT.md):
-#     claude   — true system prompt via `--append-system-prompt`, `--model sonnet`.
-#                Cleanest fit (real system prompt, not a faked first message).
-#     kiro     — `kiro-cli chat` has no system-prompt flag; its only positional
-#                is [INPUT] ("the first question to ask"). Rather than pass the
-#                whole prompt as a giant positional arg, we pass a short INPUT
-#                telling kiro to read BRAIN_PROMPT.md via its fs tool (enabled by
-#                --trust-all-tools) and adopt it. Pinned to Sonnet
-#                `claude-sonnet-4.6` used elsewhere in kaku.lua.
-#     opencode — best-effort: no system-prompt flag. opencode loads instructions
-#                from AGENTS.md (first_run.sh symlinks the master memory into
-#                ~/.config/opencode), so the prompt is passed via `--prompt` and
-#                a Sonnet model is pinned (openrouter/anthropic/claude-sonnet-4.6).
-#     codex    — best-effort: no system-prompt flag. codex reads AGENTS.md
-#                (~/.codex/AGENTS.md, symlinked by first_run.sh); the prompt is
-#                passed as the initial message and it runs low-friction. Model
-#                is left to codex's configured default.
+#   Per-harness launch: each gets a SHORT activation message telling it to load
+#   the `helm-first-mate` skill, run `helm-brain sessions`, and greet the
+#   captain. No more multi-KB --append-system-prompt — the skill carries the
+#   full operating brief, so the launch arg stays tiny across all harnesses.
 #   The picked harness is echoed to stderr before exec.
 #
 # PATH RESOLUTION: works both from the repo (tools/helm-brain/) and when bundled
 # in Helm.app/Contents/Resources/tools/helm-brain/. We resolve the script's own
-# directory and locate BRAIN_PROMPT.md + the helm-brain CLI next to it.
+# directory and locate the helm-brain CLI next to it.
 
 set -euo pipefail
 
@@ -48,12 +37,6 @@ while [ -h "$SOURCE" ]; do
 done
 SCRIPT_DIR="$(cd -P "$(dirname "$SOURCE")" >/dev/null 2>&1 && pwd)"
 
-PROMPT_FILE="$SCRIPT_DIR/BRAIN_PROMPT.md"
-if [[ ! -f "$PROMPT_FILE" ]]; then
-  echo "launch-brain: BRAIN_PROMPT.md not found next to launcher ($PROMPT_FILE)" >&2
-  exit 1
-fi
-
 # Put the helm-brain CLI on PATH so the agent can call `helm-brain ...`.
 export PATH="$SCRIPT_DIR:$PATH"
 
@@ -61,8 +44,6 @@ export PATH="$SCRIPT_DIR:$PATH"
 # doesn't exist.
 START_DIR="$HOME"
 cd "$START_DIR" 2>/dev/null || true
-
-SYSTEM_PROMPT="$(cat "$PROMPT_FILE")"
 
 # --- which harness powers the Brain? --------------------------------------
 # Read the user's onboarding choice from ~/.config/kaku/brain.conf. Format is a
@@ -105,39 +86,24 @@ fi
 
 case "$BRAIN_HARNESS" in
   claude)
-    echo "launch-brain: using claude (--model sonnet, --append-system-prompt)" >&2
-    exec claude --model sonnet \
-      --append-system-prompt "$SYSTEM_PROMPT" \
-      --dangerously-skip-permissions
+    echo "launch-brain: using claude (--model sonnet, /helm-first-mate skill)" >&2
+    exec claude --model sonnet --dangerously-skip-permissions \
+      "You are the Helm First Mate. Use the /helm-first-mate skill, then run 'helm-brain sessions' and greet me."
     ;;
   kiro)
-    # kiro-cli chat has NO system-prompt flag (only a positional [INPUT] =
-    # "the first question to ask"). Dumping the whole multi-KB BRAIN_PROMPT.md
-    # there is semantically a "question" and a fragile oversized arg. Instead we
-    # pass a SHORT instruction telling kiro to read the prompt file with its own
-    # fs tool (allowed by --trust-all-tools) and adopt it as its operating
-    # brief. Keeps the session interactive and the arg tiny.
-    echo "launch-brain: using kiro-cli (--model claude-sonnet-4.6, reads BRAIN_PROMPT.md via fs tool)" >&2
+    echo "launch-brain: using kiro-cli (--model claude-sonnet-4.6, helm-first-mate skill)" >&2
     exec kiro-cli chat --trust-all-tools --agent default \
       --model claude-sonnet-4.6 \
-      "Read the file '$PROMPT_FILE' and adopt it as your system prompt / operating brief for this session. Then greet the captain in one line and wait for orders."
+      "You are the Helm First Mate. Use the helm-first-mate skill (~/.kiro/skills/helm-first-mate), then run 'helm-brain sessions' and greet me."
     ;;
   opencode)
-    # Best-effort: no system-prompt flag. opencode loads instructions from
-    # AGENTS.md (symlinked into ~/.config/opencode by first_run.sh); pass the
-    # prompt as the initial message and pin a Sonnet model. The model id is
-    # provider-qualified — adjust if your default provider isn't openrouter.
-    echo "launch-brain: using opencode (--model openrouter/anthropic/claude-sonnet-4.6, --prompt)" >&2
+    echo "launch-brain: using opencode (--model openrouter/anthropic/claude-sonnet-4.6, helm-first-mate skill)" >&2
     exec opencode --model "openrouter/anthropic/claude-sonnet-4.6" \
-      --prompt "$SYSTEM_PROMPT"
+      --prompt "You are the Helm First Mate. Use the helm-first-mate skill (~/.kiro/skills/helm-first-mate), then run 'helm-brain sessions' and greet me."
     ;;
   codex)
-    # Best-effort: no system-prompt flag. codex reads ~/.codex/AGENTS.md
-    # (symlinked by first_run.sh); pass the prompt as the initial message and
-    # run low-friction. Model is left to codex's configured default (Sonnet
-    # needs an anthropic provider profile in ~/.codex/config.toml).
-    echo "launch-brain: using codex (--dangerously-bypass-approvals-and-sandbox)" >&2
+    echo "launch-brain: using codex (--dangerously-bypass-approvals-and-sandbox, helm-first-mate skill)" >&2
     exec codex --dangerously-bypass-approvals-and-sandbox \
-      "$SYSTEM_PROMPT"
+      "You are the Helm First Mate. Use the helm-first-mate skill (~/.kiro/skills/helm-first-mate), then run 'helm-brain sessions' and greet me."
     ;;
 esac
