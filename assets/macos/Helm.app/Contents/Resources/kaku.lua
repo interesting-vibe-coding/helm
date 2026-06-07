@@ -1028,9 +1028,38 @@ function Helm.apply(config)
     -- create the initial window running the Brain as its first tab (falls back
     -- to a plain shell if the Brain launcher can't be found)
     local launcher = Helm.brain.launcher()
-    local spawn_args = launcher
-      and { args = { '/bin/bash', '-l', '-c', "exec '" .. launcher .. "'" } }
-      or (cmd or {})
+
+    -- First-run onboarding: if there's no state.json yet, run first_run.sh once
+    -- in the Brain's tab *before* the Brain takes over. first_run.sh writes
+    -- ~/.config/kaku/state.json (and brain.conf, picking the Brain harness) on
+    -- exit, so subsequent launches skip onboarding and land straight in the Brain.
+    local home = os.getenv('HOME') or ''
+    local state_file = home .. '/.config/kaku/state.json'
+    local sf = io.open(state_file, 'r')
+    local is_first_run = (sf == nil)
+    if sf then sf:close() end
+    local first_run_script = nil
+    if is_first_run then
+      local candidates = {
+        wezterm.executable_dir:gsub('MacOS/?$', 'Resources') .. '/first_run.sh',
+        home .. '/workspace/helm-terminal/assets/shell-integration/first_run.sh',
+      }
+      for _, p in ipairs(candidates) do
+        local f = io.open(p, 'r')
+        if f then f:close(); first_run_script = p; break end
+      end
+    end
+
+    local spawn_args
+    if launcher and first_run_script then
+      -- run onboarding, then hand the same tab over to the Brain
+      spawn_args = { args = { '/bin/bash', '-l', '-c',
+        "bash '" .. first_run_script .. "'; exec '" .. launcher .. "'" } }
+    elseif launcher then
+      spawn_args = { args = { '/bin/bash', '-l', '-c', "exec '" .. launcher .. "'" } }
+    else
+      spawn_args = (cmd or {})
+    end
     local ok, brain_tab, _brain_pane, mux_window = pcall(wezterm.mux.spawn_window, spawn_args)
     if not ok or not mux_window then return end
     if launcher then
