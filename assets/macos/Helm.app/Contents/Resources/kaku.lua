@@ -177,68 +177,72 @@ table.insert(config.keys, {
   end),
 })
 
--- CMD+SHIFT+M: 轮转 kiro 模型 sonnet ↔ opus
-table.insert(config.keys, {
-  key = 'M',
-  mods = 'CMD|SHIFT',
-  action = wezterm.action_callback(function(_, pane)
-    local f = io.open(os.getenv('HOME') .. '/.kiro/settings/cli.json', 'r')
-    local current = f and f:read('*a') or ''
-    if f then f:close() end
-    local next_model = current:find('opus') and 'claude-sonnet-4.6' or 'claude-opus-4.8'
-    pane:inject_output('')  -- noop, use SendString
-    wezterm.GLOBAL.kiro_next_model = next_model
-    -- SendString 无法从 callback 直接调，用 MultiplexedPane:send_text
-    pane:send_text('/model ' .. next_model .. '\r')
-  end),
-})
-
 config.restore_previous_session = true
 
 -- ════════════════════════════════════════════════════════════
--- Helm Sessions 🪖 — Layer 1: session tracker + Cmd+Shift+S overlay
+-- Helm 🎯 — agent-native terminal layer (on top of WezTerm/Kaku)
+-- Organized as one namespace; sub-tables map to the 3 layers.
+-- To add a harness: add a row to Helm.harnesses.list
+-- To add a keybind:  add to Helm.keys.bind(config)
 -- ════════════════════════════════════════════════════════════
+local Helm = {}
 
--- ── Helm tuning constants ───────────────────────────────────
-local HELM_IDLE_THRESHOLD = 3   -- secs of stable pane content before a session is 'waiting'
-local HELM_LRU_LIMIT      = 6   -- max sessions shown in the Cmd+Shift+S overlay (most-recent first)
-local HELM_FP_LINES       = 12  -- trailing lines hashed for the content-change fingerprint
+-- ── Tuning constants ────────────────────────────────────────
+--   IDLE_THRESHOLD : secs of stable pane content before a session is 'waiting'
+--   LRU_LIMIT      : max sessions shown in the Cmd+Shift+S overlay (most-recent first)
+--   FP_LINES       : trailing lines hashed for the content-change fingerprint
+--   RUNTIME_JSON   : where session state is persisted across restarts
+Helm.cfg = {
+  IDLE_THRESHOLD = 3,
+  LRU_LIMIT      = 6,
+  FP_LINES       = 12,
+  RUNTIME_JSON   = (os.getenv('HOME') or '/tmp') .. '/.helm/sessions/runtime.json',
+}
 
--- helm_sessions[pane_id] = { harness, cwd, start_time, state }
--- Stored in wezterm.GLOBAL so it survives config reloads.
-wezterm.GLOBAL.helm_sessions = wezterm.GLOBAL.helm_sessions or {}
-
--- ── Single source of truth for harnesses ────────────────────
--- Both detect_harness() (process-name → display label) and the
--- Cmd+Shift+K launcher derive from this one table. To add a harness,
--- add one row here.
+-- ════════════════════════════════════════════════════════════
+-- Layer 0: harness registry (single source of truth)
+-- Both detect() (process-name → display label) and the Cmd+Shift+K
+-- launcher derive from this one list. To add a harness, add one row.
 --   match : substring matched against the foreground process name
 --   name  : display label used in tab titles / HUD
 --   cmd   : command run by the launcher
 --   label : menu label shown in the launcher
-local HARNESSES = {
+-- ════════════════════════════════════════════════════════════
+Helm.harnesses = {}
+Helm.harnesses.list = {
   { match = 'kiro',     name = 'Kiro',     cmd = 'kiro-cli chat --trust-all-tools --agent default --effort medium', label = '🤖 kiro  (default, medium effort)' },
   { match = 'claude',   name = 'Claude',   cmd = 'claude --dangerously-skip-permissions',                           label = '🟣 claude-code  (auto-approve)' },
   { match = 'opencode', name = 'opencode', cmd = 'opencode',                                                        label = '⚡ opencode' },
   { match = 'codex',    name = 'Codex',    cmd = 'codex',                                                           label = '🔵 codex' },
 }
 
--- Launcher choices derived from HARNESSES (id = command to exec)
-local HARNESS_CHOICES = {}
-for _, h in ipairs(HARNESSES) do
-  table.insert(HARNESS_CHOICES, { id = h.cmd, label = h.label })
-end
-
-local function detect_harness(process_name)
+-- process name → harness display name (nil if unknown)
+function Helm.harnesses.detect(process_name)
   if not process_name then return nil end
   local base = (process_name:match('([^/]+)$') or process_name):lower()
-  for _, h in ipairs(HARNESSES) do
+  for _, h in ipairs(Helm.harnesses.list) do
     if base:find(h.match, 1, true) then return h.name end
   end
   return nil
 end
 
-local function cwd_basename(cwd_url)
+-- launcher choices derived from the list (id = command to exec)
+function Helm.harnesses.choices()
+  local out = {}
+  for _, h in ipairs(Helm.harnesses.list) do
+    table.insert(out, { id = h.cmd, label = h.label })
+  end
+  return out
+end
+
+-- ── Utilities ───────────────────────────────────────────────
+Helm.util = {}
+
+function Helm.util.now()
+  return tonumber(wezterm.strftime('%s')) or 0
+end
+
+function Helm.util.cwd_basename(cwd_url)
   if not cwd_url then return '?' end
   local path = tostring(cwd_url)
   -- strip file:// prefix
@@ -248,38 +252,51 @@ local function cwd_basename(cwd_url)
   return path:match('([^/]+)$') or path
 end
 
-local function now_secs()
-  return tonumber(wezterm.strftime('%s')) or 0
-end
-
-local function fmt_duration(secs)
+function Helm.util.fmt_duration(secs)
   local s = math.floor(secs)
   return string.format('%02d:%02d:%02d', math.floor(s/3600), math.floor((s%3600)/60), s%60)
 end
 
--- forward declarations (defined later, referenced by helm_track)
-local save_sessions, restore_sessions
+-- ════════════════════════════════════════════════════════════
+-- Layer 1: Session Scheduler
+-- State lives in wezterm.GLOBAL.helm_sessions so it survives reloads:
+--   helm_sessions[pane_id] = { harness, cwd, start_time, last_accessed, state, fp, last_change }
+-- ════════════════════════════════════════════════════════════
+Helm.sessions = {}
 
--- Update or insert a session record for this pane
+-- internal: serialize the session table to JSON
+local function sessions_to_json(sessions)
+  local parts = {}
+  for id, s in pairs(sessions) do
+    local entry = string.format(
+      '"%s":{"harness":%q,"cwd":%q,"start_time":%d,"last_accessed":%d,"state":%q}',
+      id, s.harness or '', s.cwd or '', s.start_time or 0, s.last_accessed or 0, s.state or 'working'
+    )
+    table.insert(parts, entry)
+  end
+  return '{' .. table.concat(parts, ',') .. '}'
+end
+
+-- Update or insert a session record for this pane.
 -- State detection via idle heuristic: content changing = working,
--- content stable > 3s = waiting (agent finished, awaiting input).
-local function helm_track(pane)
+-- content stable > IDLE_THRESHOLD = waiting (agent finished, awaiting input).
+function Helm.sessions.track(pane)
   local sessions = wezterm.GLOBAL.helm_sessions
   local id = tostring(pane:pane_id())
   local proc = pane:get_foreground_process_name()
-  local harness = detect_harness(proc)
+  local harness = Helm.harnesses.detect(proc)
   if not harness then return end  -- only track known harnesses
 
-  local t = now_secs()
-  -- cheap content fingerprint of the trailing HELM_FP_LINES lines: length + sampled byte sum
-  local text = table.concat(pane:get_lines_as_text(HELM_FP_LINES), '')
+  local t = Helm.util.now()
+  -- cheap content fingerprint of the trailing FP_LINES lines: length + sampled byte sum
+  local text = table.concat(pane:get_lines_as_text(Helm.cfg.FP_LINES), '')
   local fp = #text
   for i = 1, #text, 64 do fp = fp + text:byte(i) end
 
   if not sessions[id] then
     sessions[id] = {
       harness       = harness,
-      cwd           = cwd_basename(pane:get_current_working_dir()),
+      cwd           = Helm.util.cwd_basename(pane:get_current_working_dir()),
       start_time    = t,
       last_accessed = t,
       state         = 'working',
@@ -289,25 +306,25 @@ local function helm_track(pane)
   else
     local s = sessions[id]
     s.harness = harness
-    s.cwd     = cwd_basename(pane:get_current_working_dir())
+    s.cwd     = Helm.util.cwd_basename(pane:get_current_working_dir())
     -- idle detection (skip if user backgrounded it)
     if s.state ~= 'background' then
       if fp ~= s.fp then
         s.fp = fp
         s.last_change = t
         s.state = 'working'
-      elseif (t - (s.last_change or t)) > HELM_IDLE_THRESHOLD then
+      elseif (t - (s.last_change or t)) > Helm.cfg.IDLE_THRESHOLD then
         s.state = 'waiting'
       end
     end
   end
   wezterm.GLOBAL.helm_sessions = sessions
-  save_sessions()
+  Helm.sessions.save()
 end
 
 -- Returns sessions sorted by last_accessed descending (most recent first).
 -- Pass `limit` to cap the result to the N most-recently-used sessions.
-local function get_lru_sessions(limit)
+function Helm.sessions.lru(limit)
   local sessions = wezterm.GLOBAL.helm_sessions
   local list = {}
   for pane_id, s in pairs(sessions) do
@@ -324,42 +341,36 @@ local function get_lru_sessions(limit)
   return list
 end
 
-local RUNTIME_JSON = (os.getenv('HOME') or '/tmp') .. '/.helm/sessions/runtime.json'
-
-local function sessions_to_json(sessions)
-  local parts = {}
-  for id, s in pairs(sessions) do
-    local entry = string.format(
-      '"%s":{"harness":%q,"cwd":%q,"start_time":%d,"last_accessed":%d,"state":%q}',
-      id, s.harness or '', s.cwd or '', s.start_time or 0, s.last_accessed or 0, s.state or 'working'
-    )
-    table.insert(parts, entry)
-  end
-  return '{' .. table.concat(parts, ',') .. '}'
+-- Remove a session record
+function Helm.sessions.untrack(pane_id)
+  local sessions = wezterm.GLOBAL.helm_sessions
+  sessions[tostring(pane_id)] = nil
+  wezterm.GLOBAL.helm_sessions = sessions
+  Helm.sessions.save()
 end
 
--- Persist only when the serialized state actually changes. helm_track fires
+-- Persist only when the serialized state actually changes. track() fires
 -- ~1×/sec per window; previously this wrote runtime.json on every tick. We now
 -- compare the freshly-serialized JSON against the last written value (kept in
 -- GLOBAL so it survives reloads) and skip the file write when nothing changed.
-save_sessions = function()
+function Helm.sessions.save()
   local json = sessions_to_json(wezterm.GLOBAL.helm_sessions or {})
   if json == wezterm.GLOBAL.helm_last_json then return end
-  local f = io.open(RUNTIME_JSON, 'w')
+  local f = io.open(Helm.cfg.RUNTIME_JSON, 'w')
   if not f then return end
   f:write(json)
   f:close()
   wezterm.GLOBAL.helm_last_json = json
 end
 
-restore_sessions = function()
-  local f = io.open(RUNTIME_JSON, 'r')
+function Helm.sessions.restore()
+  local f = io.open(Helm.cfg.RUNTIME_JSON, 'r')
   if not f then return end
   local raw = f:read('*a'); f:close()
   if not raw or raw == '' then return end
   local ok, decoded = pcall(wezterm.json_parse, raw)
   if not ok or type(decoded) ~= 'table' then return end
-  local cutoff = now_secs() - 86400
+  local cutoff = Helm.util.now() - 86400
   local restored = {}
   for id, s in pairs(decoded) do
     if type(s) == 'table' and (s.last_accessed or 0) > cutoff then
@@ -369,40 +380,12 @@ restore_sessions = function()
   wezterm.GLOBAL.helm_sessions = restored
 end
 
--- Remove a session record
-local function helm_untrack(pane_id)
-  local sessions = wezterm.GLOBAL.helm_sessions
-  sessions[tostring(pane_id)] = nil
-  wezterm.GLOBAL.helm_sessions = sessions
-  save_sessions()
-end
-
--- Restore on startup
-wezterm.on('gui-startup', function()
-  restore_sessions()
-end)
-
--- Hook: clean up closed panes
-wezterm.on('pane-removed', function(pane)
-  if pane then helm_untrack(pane:pane_id()) end
-end)
-
--- Hook: update last_accessed on pane focus
-wezterm.on('pane-focused', function(pane)
-  local sessions = wezterm.GLOBAL.helm_sessions
-  local id = tostring(pane:pane_id())
-  if sessions[id] then
-    sessions[id].last_accessed = now_secs()
-    wezterm.GLOBAL.helm_sessions = sessions
-  end
-end)
-
--- Build InputSelector choices from current sessions (LRU order)
+-- internal: build InputSelector choices from current sessions (LRU order)
 -- Format: '[kiro] wu (01:23) working'
 local function build_session_choices()
-  local lru = get_lru_sessions(HELM_LRU_LIMIT)
+  local lru = Helm.sessions.lru(Helm.cfg.LRU_LIMIT)
   local choices = {}
-  local t = now_secs()
+  local t = Helm.util.now()
   for _, entry in ipairs(lru) do
     local s = entry.session
     local elapsed = t - (s.start_time or t)
@@ -421,79 +404,19 @@ local function build_session_choices()
   return choices
 end
 
--- Handle selection: focus the chosen pane
-wezterm.on('helm-session-selected', function(window, pane, id)
-  if not id or id == '' then return end
-  local pane_id = tonumber(id)
-  if not pane_id then return end
-  local ok, target = pcall(wezterm.mux.get_pane, pane_id)
-  if ok and target then
-    -- Find the tab containing this pane and activate it
-    for _, win in ipairs(wezterm.mux.all_windows()) do
-      for _, tab in ipairs(win:tabs()) do
-        for _, p in ipairs(tab:panes()) do
-          if p:pane_id() == pane_id then
-            tab:activate()
-            -- Also activate the specific pane within the tab
-            local gui_wins = wezterm.gui.gui_windows()
-            for _, gw in ipairs(gui_wins) do
-              if gw:mux_window():window_id() == win:window_id() then
-                gw:focus()
-                break
-              end
-            end
-            return
-          end
-        end
-      end
-    end
-  end
-end)
-
--- Cmd+Shift+B: mark current pane as 'background'
-table.insert(config.keys, {
-  key  = 'B',
-  mods = 'CMD|SHIFT',
-  action = wezterm.action_callback(function(_, pane)
-    local sessions = wezterm.GLOBAL.helm_sessions
-    local id = tostring(pane:pane_id())
-    if sessions[id] then
-      sessions[id].state = 'background'
-      wezterm.GLOBAL.helm_sessions = sessions
-      save_sessions()
-    end
-  end),
-})
-
--- Cmd+Shift+S: show session overlay
-table.insert(config.keys, {
-  key   = 'S',
-  mods  = 'CMD|SHIFT',
-  action = wezterm.action_callback(function(window, pane)
-    window:perform_action(
-      wezterm.action.InputSelector {
-        action      = wezterm.action.EmitEvent 'helm-session-selected',
-        title       = '  Helm Sessions',
-        choices     = build_session_choices(),
-        fuzzy       = true,
-        description = 'Select a session to focus',
-      },
-      pane
-    )
-  end),
-})
-
 -- ════════════════════════════════════════════════════════════
--- Layer 2: agent status in tab title
--- Active harness → '🔵 kiro:wu'  (harness:project_name)
--- Shell/other   → default tab title
+-- Layer 2: Status Awareness (tab title + HUD + window title)
 -- ════════════════════════════════════════════════════════════
-wezterm.on('format-tab-title', function(tab, _, _, _, _, _)
+Helm.status = {}
+
+-- format-tab-title: active harness → '🔵 kiro:wu' (harness:project),
+-- shell/other → default tab title.
+function Helm.status.tab_title(tab)
   local pane = tab:active_pane()
   local proc = pane:get_foreground_process_name()
-  local harness = detect_harness(proc)
+  local harness = Helm.harnesses.detect(proc)
   if harness then
-    local project = cwd_basename(pane:get_current_working_dir())
+    local project = Helm.util.cwd_basename(pane:get_current_working_dir())
     local sess = (wezterm.GLOBAL.helm_sessions or {})[tostring(pane:pane_id())]
     local icon = '🔵'
     if sess then
@@ -504,53 +427,22 @@ wezterm.on('format-tab-title', function(tab, _, _, _, _, _)
   end
   -- fallback: pane title set by shell/app
   return tab:get_title()
-end)
+end
 
--- Helm Harness Launcher 🚀 — Cmd+Shift+K
-table.insert(config.keys, {
-  key = 'K',
-  mods = 'CMD|SHIFT',
-  action = wezterm.action_callback(function(window, pane)
-    window:perform_action(
-      wezterm.action.InputSelector {
-        action = wezterm.action_callback(function(w, p, id, label)
-          if not id then return end
-          w:perform_action(
-            wezterm.action.SplitPane {
-              direction = 'Right',
-              -- exec so the agent takes over the shell process; without exec
-              -- bash exits when the command ends and the pane closes (looks like a crash)
-              command = { args = { '/bin/bash', '-l', '-c', 'exec ' .. id } },
-            },
-            p
-          )
-        end),
-        fuzzy = true,
-        title = '  Launch Harness',
-        choices = HARNESS_CHOICES,
-      },
-      pane
-    )
-  end),
-})
-
--- Helm Agent Notifications -- the single update-right-status handler:
--- (1) tracks/updates this pane's session (working/waiting idle heuristic),
--- (2) renders the compact HUD + window title from all sessions.
-wezterm.on('update-right-status', function(window, pane)
-  helm_track(pane)
-
+-- update-right-status render half: build the compact HUD + window title
+-- from all sessions. (Session tracking happens separately in Helm.apply.)
+function Helm.status.render(window, pane)
   -- Build compact HUD: [kiro 🔵 02:34 | claude 🔵 05:12 | 2 bg]
-  local t = now_secs()
+  local t = Helm.util.now()
   local working_parts = {}
   local bg_count = 0
-  for _, entry in ipairs(get_lru_sessions()) do
+  for _, entry in ipairs(Helm.sessions.lru()) do
     local sess = entry.session
     if sess.state == 'background' then
       bg_count = bg_count + 1
     else
       local icon = sess.state == 'waiting' and '🟠' or '🔵'
-      local runtime = fmt_duration(t - (sess.start_time or t))
+      local runtime = Helm.util.fmt_duration(t - (sess.start_time or t))
       table.insert(working_parts, sess.harness .. ' ' .. icon .. ' ' .. runtime)
     end
   end
@@ -566,7 +458,7 @@ wezterm.on('update-right-status', function(window, pane)
   -- Window title: "Helm — N agents (M waiting)" or just "Helm"
   local total_agents = #working_parts + bg_count
   local waiting_count = 0
-  for _, entry in ipairs(get_lru_sessions()) do
+  for _, entry in ipairs(Helm.sessions.lru()) do
     if entry.session.state == 'waiting' then waiting_count = waiting_count + 1 end
   end
   if total_agents > 0 then
@@ -583,36 +475,197 @@ wezterm.on('update-right-status', function(window, pane)
     { Foreground = { Color = '#a89070' } },
     { Text = ' [' .. hud .. '] ' },
   }))
-end)
+end
 
-table.insert(config.keys, {
-  key = 'U', mods = 'CMD|SHIFT',
-  action = wezterm.action_callback(function(window, pane)
-    local sessions = wezterm.GLOBAL.helm_sessions or {}
-    local best_id, best_t = nil, 0
-    for id, s in pairs(sessions) do
-      if s.state == 'waiting' and (s.last_accessed or 0) > best_t then
-        best_id = tonumber(id); best_t = s.last_accessed or 0
+-- Layer 3 lives in tools/ (cross-harness memory via symlinks) — no Lua needed here
+
+-- ════════════════════════════════════════════════════════════
+-- Keybindings — all Cmd+Shift+* binds + the Cmd+L / Cmd+Shift+M overrides
+-- ════════════════════════════════════════════════════════════
+Helm.keys = {}
+
+function Helm.keys.bind(config)
+  config.keys = config.keys or {}
+
+  -- Cmd+Shift+M: 轮转 kiro 模型 sonnet ↔ opus
+  table.insert(config.keys, {
+    key = 'M',
+    mods = 'CMD|SHIFT',
+    action = wezterm.action_callback(function(_, pane)
+      local f = io.open(os.getenv('HOME') .. '/.kiro/settings/cli.json', 'r')
+      local current = f and f:read('*a') or ''
+      if f then f:close() end
+      local next_model = current:find('opus') and 'claude-sonnet-4.6' or 'claude-opus-4.8'
+      pane:inject_output('')  -- noop, use SendString
+      wezterm.GLOBAL.kiro_next_model = next_model
+      -- SendString 无法从 callback 直接调，用 MultiplexedPane:send_text
+      pane:send_text('/model ' .. next_model .. '\r')
+    end),
+  })
+
+  -- Cmd+Shift+K: Helm Harness Launcher 🚀
+  table.insert(config.keys, {
+    key = 'K',
+    mods = 'CMD|SHIFT',
+    action = wezterm.action_callback(function(window, pane)
+      window:perform_action(
+        wezterm.action.InputSelector {
+          action = wezterm.action_callback(function(w, p, id, label)
+            if not id then return end
+            w:perform_action(
+              wezterm.action.SplitPane {
+                direction = 'Right',
+                -- exec so the agent takes over the shell process; without exec
+                -- bash exits when the command ends and the pane closes (looks like a crash)
+                command = { args = { '/bin/bash', '-l', '-c', 'exec ' .. id } },
+              },
+              p
+            )
+          end),
+          fuzzy = true,
+          title = '  Launch Harness',
+          choices = Helm.harnesses.choices(),
+        },
+        pane
+      )
+    end),
+  })
+
+  -- Cmd+Shift+S: show session overlay
+  table.insert(config.keys, {
+    key   = 'S',
+    mods  = 'CMD|SHIFT',
+    action = wezterm.action_callback(function(window, pane)
+      window:perform_action(
+        wezterm.action.InputSelector {
+          action      = wezterm.action.EmitEvent 'helm-session-selected',
+          title       = '  Helm Sessions',
+          choices     = build_session_choices(),
+          fuzzy       = true,
+          description = 'Select a session to focus',
+        },
+        pane
+      )
+    end),
+  })
+
+  -- Cmd+Shift+B: mark current pane as 'background'
+  table.insert(config.keys, {
+    key  = 'B',
+    mods = 'CMD|SHIFT',
+    action = wezterm.action_callback(function(_, pane)
+      local sessions = wezterm.GLOBAL.helm_sessions
+      local id = tostring(pane:pane_id())
+      if sessions[id] then
+        sessions[id].state = 'background'
+        wezterm.GLOBAL.helm_sessions = sessions
+        Helm.sessions.save()
       end
+    end),
+  })
+
+  -- Cmd+Shift+U: jump to the most-recent waiting session
+  table.insert(config.keys, {
+    key = 'U', mods = 'CMD|SHIFT',
+    action = wezterm.action_callback(function(window, pane)
+      local sessions = wezterm.GLOBAL.helm_sessions or {}
+      local best_id, best_t = nil, 0
+      for id, s in pairs(sessions) do
+        if s.state == 'waiting' and (s.last_accessed or 0) > best_t then
+          best_id = tonumber(id); best_t = s.last_accessed or 0
+        end
+      end
+      if best_id then
+        for _, mux_win in ipairs(wezterm.mux.all_windows()) do
+          for _, tab in ipairs(mux_win:tabs()) do
+            for _, p in ipairs(tab:panes()) do
+              if p:pane_id() == best_id then tab:activate(); mux_win:gui_window():focus(); return end
+            end
+          end
+        end
+      end
+    end),
+  })
+
+  -- Override Cmd+L: Helm doesn't need the built-in AI chat (use your own harness).
+  -- Remap to clear screen (send Ctrl+L to the shell), the conventional terminal behavior.
+  table.insert(config.keys, {
+    key = 'l',
+    mods = 'CMD',
+    action = wezterm.action.SendKey { key = 'l', mods = 'CTRL' },
+  })
+end
+
+-- ════════════════════════════════════════════════════════════
+-- Hooks + wiring — call once with the config table to activate Helm.
+-- ════════════════════════════════════════════════════════════
+function Helm.apply(config)
+  -- Session state lives in GLOBAL so it survives config reloads.
+  wezterm.GLOBAL.helm_sessions = wezterm.GLOBAL.helm_sessions or {}
+
+  -- The single update-right-status handler: (1) track this pane's session
+  -- (working/waiting idle heuristic), (2) render the HUD + window title.
+  wezterm.on('update-right-status', function(win, pane)
+    Helm.sessions.track(pane)
+    Helm.status.render(win, pane)
+  end)
+
+  -- clean up closed panes
+  wezterm.on('pane-removed', function(pane)
+    if pane then Helm.sessions.untrack(pane:pane_id()) end
+  end)
+
+  -- update last_accessed on pane focus
+  wezterm.on('pane-focused', function(pane)
+    local sessions = wezterm.GLOBAL.helm_sessions
+    local id = tostring(pane:pane_id())
+    if sessions[id] then
+      sessions[id].last_accessed = Helm.util.now()
+      wezterm.GLOBAL.helm_sessions = sessions
     end
-    if best_id then
-      for _, mux_win in ipairs(wezterm.mux.all_windows()) do
-        for _, tab in ipairs(mux_win:tabs()) do
+  end)
+
+  -- restore persisted sessions on startup
+  wezterm.on('gui-startup', function()
+    Helm.sessions.restore()
+  end)
+
+  -- agent status in tab title
+  wezterm.on('format-tab-title', function(tab, _, _, _, _, _)
+    return Helm.status.tab_title(tab)
+  end)
+
+  -- session overlay selection: focus the chosen pane
+  wezterm.on('helm-session-selected', function(window, pane, id)
+    if not id or id == '' then return end
+    local pane_id = tonumber(id)
+    if not pane_id then return end
+    local ok, target = pcall(wezterm.mux.get_pane, pane_id)
+    if ok and target then
+      -- Find the tab containing this pane and activate it
+      for _, win in ipairs(wezterm.mux.all_windows()) do
+        for _, tab in ipairs(win:tabs()) do
           for _, p in ipairs(tab:panes()) do
-            if p:pane_id() == best_id then tab:activate(); mux_win:gui_window():focus(); return end
+            if p:pane_id() == pane_id then
+              tab:activate()
+              -- Also activate the specific pane within the tab
+              local gui_wins = wezterm.gui.gui_windows()
+              for _, gw in ipairs(gui_wins) do
+                if gw:mux_window():window_id() == win:window_id() then
+                  gw:focus()
+                  break
+                end
+              end
+              return
+            end
           end
         end
       end
     end
-  end),
-})
+  end)
 
--- Override Cmd+L: Helm doesn't need the built-in AI chat (use your own harness).
--- Remap to clear screen (send Ctrl+L to the shell), the conventional terminal behavior.
-table.insert(config.keys, {
-  key = 'l',
-  mods = 'CMD',
-  action = wezterm.action.SendKey { key = 'l', mods = 'CTRL' },
-})
+  Helm.keys.bind(config)
+end
 
+Helm.apply(config)
 return config
