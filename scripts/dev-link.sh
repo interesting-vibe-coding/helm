@@ -20,9 +20,11 @@ green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
 mkdir -p "$HOME/.config/helm"
 ln -sfn "$BREPO/kaku.lua" "$HOME/.config/helm/kaku.lua"
 green "✓ ~/.config/helm/kaku.lua → repo  (edit repo, Cmd+R to hot-reload)"
-if [[ -d "$HOME/.config/kaku" ]]; then
+# Only touch ~/.config/kaku if there is NO real Kaku.app — otherwise we'd
+# overwrite the real Kaku's config and break it.
+if [[ -d "$HOME/.config/kaku" && ! -d "/Applications/Kaku.app" ]]; then
   ln -sfn "$BREPO/kaku.lua" "$HOME/.config/kaku/kaku.lua"
-  green "✓ ~/.config/kaku/kaku.lua → repo  (legacy dir, kept for compat)"
+  green "✓ ~/.config/kaku/kaku.lua → repo  (legacy dir, no real Kaku.app found)"
 fi
 
 # 2) App bundle resources → repo (scripts/tools/skills resolve from the bundle first).
