@@ -207,18 +207,35 @@ Helm.cfg = {
 -- Layer 0: harness registry (single source of truth)
 -- Both detect() (process-name → display label) and the Cmd+Shift+K
 -- launcher derive from this one list. To add a harness, add one row.
---   match : substring matched against the foreground process name
---   name  : display label used in tab titles / HUD
---   cmd   : command run by the launcher
---   label : menu label shown in the launcher
+--   match  : substring matched against the foreground process name
+--   name   : display label used in tab titles / HUD
+--   cmd    : command run by the launcher
+--   label  : menu label shown in the launcher
+--   resume : (optional) flag appended on session-rebuild to resume the last
+--            conversation in that cwd. Only set where the harness supports it.
 -- ════════════════════════════════════════════════════════════
 Helm.harnesses = {}
 Helm.harnesses.list = {
   { match = 'kiro',     name = 'Kiro',     cmd = 'kiro-cli chat --trust-all-tools --agent default --effort medium', label = '🤖 kiro  (default, medium effort)' },
-  { match = 'claude',   name = 'Claude',   cmd = 'claude --dangerously-skip-permissions',                           label = '🟣 claude-code  (auto-approve)' },
+  { match = 'claude',   name = 'Claude',   cmd = 'claude --dangerously-skip-permissions', resume = '--continue',    label = '🟣 claude-code  (auto-approve)' },
   { match = 'opencode', name = 'opencode', cmd = 'opencode',                                                        label = '⚡ opencode' },
   { match = 'codex',    name = 'Codex',    cmd = 'codex',                                                           label = '🔵 codex' },
 }
+
+-- Resolve the launch command for a harness by its display name. When `resume`
+-- is true and the harness declares a resume flag, append it so the previous
+-- conversation in that cwd comes back; otherwise relaunch clean. Returns nil
+-- for unknown harnesses.
+function Helm.harnesses.spawn_cmd(name, resume)
+  if not name then return nil end
+  for _, h in ipairs(Helm.harnesses.list) do
+    if h.name == name then
+      if resume and h.resume then return h.cmd .. ' ' .. h.resume end
+      return h.cmd
+    end
+  end
+  return nil
+end
 
 -- process name → harness display name (nil if unknown)
 function Helm.harnesses.detect(process_name)
@@ -256,6 +273,17 @@ function Helm.util.cwd_basename(cwd_url)
   return path:match('([^/]+)$') or path
 end
 
+-- Full filesystem path of a cwd Url (strips file://host prefix + trailing slash).
+-- Returns nil when unavailable — used to rebuild a session in its real dir.
+function Helm.util.cwd_path(cwd_url)
+  if not cwd_url then return nil end
+  local path = tostring(cwd_url)
+  path = path:gsub('^file://[^/]*', '')
+  path = path:gsub('/$', '')
+  if path == '' then return nil end
+  return path
+end
+
 function Helm.util.fmt_duration(secs)
   local s = math.floor(secs)
   return string.format('%02d:%02d:%02d', math.floor(s/3600), math.floor((s%3600)/60), s%60)
@@ -281,8 +309,8 @@ local function sessions_to_json(sessions)
   local parts = {}
   for id, s in pairs(sessions) do
     local entry = string.format(
-      '"%s":{"harness":%q,"cwd":%q,"start_time":%d,"last_accessed":%d,"state":%q}',
-      id, s.harness or '', s.cwd or '', s.start_time or 0, s.last_accessed or 0, s.state or 'working'
+      '"%s":{"harness":%q,"cwd":%q,"cwd_full":%q,"start_time":%d,"last_accessed":%d,"state":%q}',
+      id, s.harness or '', s.cwd or '', s.cwd_full or '', s.start_time or 0, s.last_accessed or 0, s.state or 'working'
     )
     table.insert(parts, entry)
   end
@@ -309,6 +337,7 @@ function Helm.sessions.track(pane)
     sessions[id] = {
       harness       = harness,
       cwd           = Helm.util.cwd_basename(pane:get_current_working_dir()),
+      cwd_full      = Helm.util.cwd_path(pane:get_current_working_dir()),
       start_time    = t,
       last_accessed = t,
       state         = 'working',
@@ -319,6 +348,7 @@ function Helm.sessions.track(pane)
     local s = sessions[id]
     s.harness = harness
     s.cwd     = Helm.util.cwd_basename(pane:get_current_working_dir())
+    s.cwd_full = Helm.util.cwd_path(pane:get_current_working_dir()) or s.cwd_full
     -- idle detection (skip if user backgrounded it)
     if s.state ~= 'background' then
       if fp ~= s.fp then
@@ -395,6 +425,41 @@ function Helm.sessions.restore()
     end
   end
   wezterm.GLOBAL.helm_sessions = restored
+end
+
+-- Rebuild last run's worker panes into `mux_window` as fresh tabs.
+-- For each DISTINCT (harness, cwd_full) recorded last time, spawn a tab running
+-- that harness in that dir, appending its resume flag when known so the
+-- conversation context comes back (agent process itself is fresh).
+-- Guardrails: skips entries without a full path / unknown harness / the Brain
+-- and Monitor; de-dups (harness,cwd); each spawn is pcall'd so one failure
+-- doesn't abort the rest. `snapshot` is the metadata table from restore().
+function Helm.sessions.rebuild(mux_window, snapshot)
+  if not mux_window or type(snapshot) ~= 'table' then return 0 end
+  local seen = {}
+  local count = 0
+  for _, s in pairs(snapshot) do
+    local harness = s and s.harness
+    local cwd = s and s.cwd_full
+    local hl = (harness or ''):lower()
+    if harness and cwd and cwd ~= '' and hl ~= 'brain' and hl ~= 'monitor' then
+      local key = harness .. '\0' .. cwd
+      if not seen[key] then
+        seen[key] = true
+        local cmd = Helm.harnesses.spawn_cmd(harness, true)
+        if cmd then
+          local ok = pcall(function()
+            mux_window:spawn_tab {
+              cwd  = cwd,
+              args = { '/bin/bash', '-l', '-c', 'cd ' .. ("%q"):format(cwd) .. ' && exec ' .. cmd },
+            }
+          end)
+          if ok then count = count + 1 end
+        end
+      end
+    end
+  end
+  return count
 end
 
 -- internal: build InputSelector choices from current sessions (LRU order)
@@ -617,18 +682,26 @@ function Helm.brain.focus_pane(pane_id)
   return false
 end
 
--- Spawn the Brain in a dedicated tab; remember its tab + pane id. Returns pane or nil.
-function Helm.brain.spawn(window)
+-- Spawn the Brain in a dedicated tab of `mux_window`; remember its tab + pane
+-- id and activate it. Returns pane or nil. Used at gui-startup (no gui window
+-- exists yet) and by Helm.brain.spawn(window).
+function Helm.brain.spawn_in(mux_window)
   local launcher = Helm.brain.launcher()
-  if not launcher then return nil end
+  if not launcher or not mux_window then return nil end
   -- exec so the agent takes over the shell (pane won't close when it exits cleanly)
-  local tab, pane = window:mux_window():spawn_tab {
+  local tab, pane = mux_window:spawn_tab {
     args = { '/bin/bash', '-l', '-c', "exec '" .. launcher .. "'" },
   }
   wezterm.GLOBAL.helm_brain_tab  = tab:tab_id()
   wezterm.GLOBAL.helm_brain_pane = pane:pane_id()
   tab:activate()
   return pane
+end
+
+-- Spawn the Brain in a dedicated tab; remember its tab + pane id. Returns pane or nil.
+function Helm.brain.spawn(window)
+  if not window then return nil end
+  return Helm.brain.spawn_in(window:mux_window())
 end
 
 -- Cmd+Shift+Return action: toggle Brain <-> last worker. Spawns Brain on first use.
@@ -935,9 +1008,41 @@ function Helm.apply(config)
     end
   end)
 
-  -- restore persisted sessions on startup
-  wezterm.on('gui-startup', function()
+  -- Boot sequence: rebuild last run's worker tabs, then land in the Brain.
+  -- We own window creation here (registering gui-startup suppresses wezterm's
+  -- default window), so we spawn ONE window whose first tab IS the Brain, add
+  -- the rebuilt workers as further tabs, then re-activate the Brain so the user
+  -- opens straight into the Brain view (Layer 1).
+  wezterm.on('gui-startup', function(cmd)
+    -- guard against a double run (gui-startup should fire once, but be safe)
+    if wezterm.GLOBAL.helm_restored then return end
+    wezterm.GLOBAL.helm_restored = true
+
+    -- load last run's metadata into GLOBAL, then snapshot it for the rebuild
     Helm.sessions.restore()
+    local snapshot = wezterm.GLOBAL.helm_sessions or {}
+    -- start live tracking from a clean slate: the snapshot's pane ids are stale,
+    -- live panes re-register via update-right-status.
+    wezterm.GLOBAL.helm_sessions = {}
+
+    -- create the initial window running the Brain as its first tab (falls back
+    -- to a plain shell if the Brain launcher can't be found)
+    local launcher = Helm.brain.launcher()
+    local spawn_args = launcher
+      and { args = { '/bin/bash', '-l', '-c', "exec '" .. launcher .. "'" } }
+      or (cmd or {})
+    local ok, brain_tab, _brain_pane, mux_window = pcall(wezterm.mux.spawn_window, spawn_args)
+    if not ok or not mux_window then return end
+    if launcher then
+      wezterm.GLOBAL.helm_brain_tab  = brain_tab:tab_id()
+      wezterm.GLOBAL.helm_brain_pane = _brain_pane:pane_id()
+    end
+
+    -- rebuild workers in the background (best-effort, each spawn pcall'd)
+    Helm.sessions.rebuild(mux_window, snapshot)
+
+    -- land on the Brain tab last so it's the front/active view
+    pcall(function() brain_tab:activate() end)
   end)
 
   -- agent status in tab title
