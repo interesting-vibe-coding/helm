@@ -1,52 +1,12 @@
 local wezterm = require 'wezterm'
 
-local function resolve_bundled_config()
-  local resource_dir = wezterm.executable_dir:gsub('MacOS/?$', 'Resources')
-  local bundled = resource_dir .. '/kaku.lua'
-  local f = io.open(bundled, 'r')
-  if f then
-    f:close()
-    return bundled
-  end
-
-  local dev_bundled = wezterm.executable_dir .. '/../../assets/macos/Kaku.app/Contents/Resources/kaku.lua'
-  f = io.open(dev_bundled, 'r')
-  if f then
-    f:close()
-    return dev_bundled
-  end
-
-  local app_bundled = '/Applications/Kaku.app/Contents/Resources/kaku.lua'
-  f = io.open(app_bundled, 'r')
-  if f then
-    f:close()
-    return app_bundled
-  end
-
-  local home = os.getenv('HOME') or ''
-  local home_bundled = home .. '/Applications/Kaku.app/Contents/Resources/kaku.lua'
-  f = io.open(home_bundled, 'r')
-  if f then
-    f:close()
-    return home_bundled
-  end
-
-  return nil
-end
-
+-- Helm is a standalone, self-contained config (like upstream Kaku's). It does
+-- NOT load a separate "bundled" file: doing so caused the bundled copy to go
+-- stale vs. the dev-linked / user copy, and the loader could recurse into
+-- itself. Everything Helm needs is defined directly in this file; the
+-- 'Kaku Dark' color scheme is built into the binary.
 local config = {}
-local bundled = resolve_bundled_config()
 
-if bundled then
-  local ok, loaded = pcall(dofile, bundled)
-  if ok and type(loaded) == 'table' then
-    config = loaded
-  else
-    wezterm.log_error('Kaku: failed to load bundled defaults from ' .. bundled)
-  end
-else
-  wezterm.log_error('Kaku: bundled defaults not found')
-end
 
 -- Kaku follows macOS appearance by default. Uncomment one line to force a theme:
 -- config.color_scheme = 'Kaku Dark'
@@ -108,7 +68,192 @@ end
 
 config.color_scheme = 'Kaku Dark'
 config.window_decorations = 'INTEGRATED_BUTTONS|RESIZE'
-config.font_size = 16
+
+-- ════════════════════════════════════════════════════════════
+-- Rendering / typography — aligned with Kaku's bundled config so glyphs,
+-- spacing and font weights match the Kaku aesthetic. (The 'Kaku Dark' color
+-- scheme itself is built into the binary; this block is the font + render
+-- polish that Helm's rewritten kaku.lua had dropped.)
+-- Helm is dark-only, so we use Kaku's dark-theme weights statically:
+--   base = Regular, bold = Medium.
+-- ════════════════════════════════════════════════════════════
+
+-- Low-resolution screen detection drives font size + window padding (like Kaku).
+local function helm_is_low_res()
+  local ok, screens = pcall(function() return wezterm.gui.screens() end)
+  if ok and screens and screens.main then
+    local m = screens.main
+    local short_edge = math.min(tonumber(m.width or 0) or 0, tonumber(m.height or 0) or 0)
+    local name = string.lower(tostring(m.name or ''))
+    local builtin = name == 'color lcd'
+      or string.find(name, 'built-in', 1, true)
+      or string.find(name, 'built in', 1, true)
+      or string.find(name, '内建', 1, true)
+    if short_edge > 0 then
+      if builtin then return short_edge <= 1700 end
+      return short_edge < 1800
+    end
+  end
+  return false
+end
+local helm_low_res = helm_is_low_res()
+
+-- Font stack: JetBrains Mono (bundled) + Nerd symbols + PingFang SC (CJK) + emoji
+config.font = wezterm.font_with_fallback({
+  { family = 'JetBrains Mono', weight = 'Regular' },
+  { family = 'Symbols Nerd Font Mono' },
+  { family = 'PingFang SC', weight = 'Regular' },
+  'Apple Color Emoji',
+})
+config.font_rules = {
+  -- Half intensity: keep base weight (avoid thin)
+  { intensity = 'Half', font = wezterm.font_with_fallback({
+    { family = 'JetBrains Mono', weight = 'Regular' },
+    { family = 'Symbols Nerd Font Mono' },
+    { family = 'PingFang SC', weight = 'Regular' },
+    'Apple Color Emoji',
+  })},
+  -- Italic: disable real italics (keep upright, like Kaku)
+  { intensity = 'Normal', italic = true, font = wezterm.font_with_fallback({
+    { family = 'JetBrains Mono', weight = 'Regular', italic = false },
+    { family = 'Symbols Nerd Font Mono' },
+    { family = 'PingFang SC', weight = 'Regular' },
+    'Apple Color Emoji',
+  })},
+  -- Bold: heavier weight
+  { intensity = 'Bold', font = wezterm.font_with_fallback({
+    { family = 'JetBrains Mono', weight = 'Medium' },
+    { family = 'Symbols Nerd Font Mono' },
+    { family = 'PingFang SC', weight = 'Medium' },
+    'Apple Color Emoji',
+  })},
+}
+
+-- Auto font size by screen DPI (Kaku: 15 on low-res, 17 otherwise)
+config.font_size = helm_low_res and 15.0 or 17.0
+config.line_height = 1.28
+config.cell_width = 1.0
+config.bold_brightens_ansi_colors = false
+config.use_cap_height_to_scale_fallback_fonts = false
+config.harfbuzz_features = { 'calt=0', 'clig=0', 'liga=0' }
+config.custom_block_glyphs = true
+config.unicode_version = 14
+
+-- Cursor (Kaku: sharp blinking bar)
+config.default_cursor_style = 'BlinkingBar'
+config.cursor_thickness = '2px'
+config.cursor_blink_rate = 500
+config.cursor_blink_ease_in = 'Constant'
+config.cursor_blink_ease_out = 'Constant'
+
+-- Scrollback / selection / window
+config.scrollback_lines = 10000
+config.selection_word_boundary = ' \t\n{}[]()"\'-'
+config.use_resize_increments = false
+config.window_background_opacity = 1.0
+config.text_background_opacity = 1.0
+config.window_padding = helm_low_res
+  and { left = '26px', right = '26px', top = '26px', bottom = '0px' }
+  or  { left = '40px', right = '40px', top = '40px', bottom = '0px' }
+
+-- Initial window size (Kaku defaults)
+config.initial_cols = 110
+config.initial_rows = 22
+
+-- ════════════════════════════════════════════════════════════
+-- Color scheme — 'Kaku Dark' palette ported from Kaku so the background and
+-- ANSI colors match exactly (soft charcoal #15141b, not pure black). Helm's
+-- rewritten config had dropped this, leaving a flat pure-black fallback.
+-- ════════════════════════════════════════════════════════════
+local KAKU = {
+  BLACK = '#15141b',
+  ANSI_BLACK = '#110f18',
+  WHITE = '#d5d4d6',
+  GRAY = '#6d6d6d',
+  PURPLE = '#8e6ad9',
+  PURPLE_FADING = 'rgba(61,55,94,0.5)',
+  SURFACE = '#1f1d28',
+  SURFACE_ACTIVE = '#29263c',
+  GREEN = '#58d8ad',
+  ORANGE = '#daae76',
+  PINK = '#d383da',
+  BLUE = '#68afda',
+  BRIGHT_BLUE = '#90c9e6',
+  RED = '#d85d5d',
+}
+
+local kaku_theme = {
+  foreground = KAKU.WHITE,
+  background = KAKU.BLACK,
+  cursor_bg = KAKU.PURPLE,
+  cursor_fg = KAKU.BLACK,
+  cursor_border = KAKU.PURPLE,
+  selection_bg = KAKU.PURPLE_FADING,
+  selection_fg = 'none',
+  ansi = {
+    KAKU.ANSI_BLACK, KAKU.RED, KAKU.GREEN, KAKU.ORANGE,
+    KAKU.BLUE, KAKU.PURPLE, KAKU.GREEN, KAKU.WHITE,
+  },
+  brights = {
+    KAKU.GRAY, KAKU.RED, KAKU.GREEN, KAKU.ORANGE,
+    KAKU.BRIGHT_BLUE, KAKU.PURPLE, KAKU.GREEN, KAKU.WHITE,
+  },
+  split = KAKU.SURFACE_ACTIVE,
+  color_overrides = {
+    ['#6d6d6d'] = '#3A3942',
+    ['#6E6E6E'] = '#3A3942',
+    ['#8EC3FF'] = '#3A3942',
+  },
+}
+
+config.color_schemes = config.color_schemes or {}
+config.color_schemes['Kaku Dark'] = kaku_theme
+config.color_schemes['Kaku Theme'] = kaku_theme
+
+-- ════════════════════════════════════════════════════════════
+-- Behaviour / window settings — ported from Kaku so Helm matches its feel:
+-- dark title bar, no close prompts, WebGpu rendering, macOS key handling.
+-- ════════════════════════════════════════════════════════════
+
+-- Title bar (dark theme): blends into the terminal, no visible borders.
+config.window_frame = {
+  font = wezterm.font({ family = 'JetBrains Mono', weight = 'Regular' }),
+  font_size = 14.0,
+  active_titlebar_bg = KAKU.BLACK,
+  inactive_titlebar_bg = KAKU.BLACK,
+  active_titlebar_fg = KAKU.WHITE,
+  inactive_titlebar_fg = KAKU.GRAY,
+  active_titlebar_border_bottom = KAKU.BLACK,
+  inactive_titlebar_border_bottom = KAKU.BLACK,
+  border_left_width = 0,
+  border_right_width = 0,
+  border_top_height = 0,
+  border_bottom_height = 0,
+}
+
+-- Close protection: never prompt (Kaku's smart-skip behaviour). This also
+-- removes the close-confirmation overlay that used to reference the old name.
+config.window_close_confirmation = 'NeverPrompt'
+config.tab_close_confirmation = false
+config.pane_close_confirmation = false
+config.quit_when_all_windows_are_closed = false
+
+-- macOS behaviour
+config.native_macos_fullscreen_mode = true
+config.send_composed_key_when_left_alt_is_pressed = false
+config.send_composed_key_when_right_alt_is_pressed = true
+
+-- Rendering smoothness. NOTE: we deliberately do NOT set front_end='WebGpu'
+-- here — scrolling worked on the default front end before this change and
+-- WebGpu appeared to break mouse-wheel scrolling on this build. Leave default.
+config.animation_fps = 60
+config.max_fps = 60
+config.enable_scroll_bar = false
+config.status_update_interval = 1000
+
+-- Environment: COLORFGBG hints dark background to TUI apps
+config.set_environment_variables = config.set_environment_variables or {}
+config.set_environment_variables['COLORFGBG'] = '15;0'
 
 -- ════════════════════════════════════════════════════════════
 -- Paws 🐾 — terminal companion (fully native, no external scripts)
@@ -177,7 +322,10 @@ table.insert(config.keys, {
   end),
 })
 
-config.restore_previous_session = true
+-- NOTE: we deliberately do NOT set config.restore_previous_session = true.
+-- WezTerm's native session restore fights Helm's own gui-startup (which boots
+-- into the Brain and rebuilds Helm-tracked worker sessions from runtime.json),
+-- causing stale plain-shell tabs to cover the Brain on launch. Helm owns startup.
 
 -- ════════════════════════════════════════════════════════════
 -- Helm 🎯 — agent-native terminal layer (on top of WezTerm/Kaku)
@@ -513,7 +661,7 @@ function Helm.status.render(window, pane)
 
   if wezterm.GLOBAL.helm_help_visible then
     window:set_left_status(wezterm.format({
-      { Foreground = { Color = P.text } }, { Text = ' ⌘1 Brain   ⌘2 Work   ⌘3 Monitor   ' },
+      { Foreground = { Color = P.text } }, { Text = ' ⌘1 Brain   ⌘2 Work   ⌘3 Monitor   ⌘4 Terminal   ' },
       { Foreground = { Color = P.dim } },  { Text = '⌘, Settings   ⌘/ Help ' },
     }))
   else
@@ -712,9 +860,31 @@ end
 -- ════════════════════════════════════════════════════════════
 Helm.workspace = {}
 
+-- Spawn a plain login-shell terminal tab. `banner` (optional) is printed once
+-- before dropping into the interactive shell — used by Cmd+2 to surface the
+-- "No active session" hint when there are no workers yet.
+function Helm.workspace.spawn_terminal(window, banner)
+  local shell = os.getenv('SHELL') or '/bin/sh'
+  local args
+  if banner and banner ~= '' then
+    -- print banner, then replace the process with an interactive login shell
+    local cmd = string.format('printf "%%s\\n\\n" %q; exec %q -l', banner, shell)
+    args = { shell, '-l', '-c', cmd }
+  else
+    args = { shell, '-l' }
+  end
+  local tab = window:mux_window():spawn_tab { args = args }
+  local p = tab:active_pane()
+  wezterm.GLOBAL.helm_last_worker = p:pane_id()
+  tab:activate()
+  return p
+end
+
 -- Focus the worker you were last on; else the first pane that is neither the
 -- Brain nor the Monitor. This is "get me back to the work".
-function Helm.workspace.focus(_window, _pane)
+-- When there are no workers at all, open a fresh terminal showing a hint
+-- (the Workspace should always be reachable, even when empty).
+function Helm.workspace.focus(window, _pane)
   local bp = wezterm.GLOBAL.helm_brain_pane
   local tp = wezterm.GLOBAL.helm_top_pane
   local last = wezterm.GLOBAL.helm_last_worker
@@ -732,6 +902,8 @@ function Helm.workspace.focus(_window, _pane)
       end
     end
   end
+  -- No worker panes exist → open a terminal with a "no active session" hint.
+  Helm.workspace.spawn_terminal(window, 'No active session — this is your workspace. Run an agent or just use the shell.')
 end
 
 -- Remember the current pane as "the worker" if it isn't the Brain/Monitor, so
@@ -783,6 +955,16 @@ function Helm.keys.bind(config)
     end),
   })
 
+  -- Cmd+4: open a plain Terminal (a fresh login shell in its own tab).
+  table.insert(config.keys, {
+    key = '4',
+    mods = 'CMD',
+    action = wezterm.action_callback(function(window, pane)
+      Helm.workspace.remember(pane)
+      Helm.workspace.spawn_terminal(window)
+    end),
+  })
+
   -- Cmd+/: toggle the bottom help bar (key bindings cheat-sheet).
   table.insert(config.keys, {
     key = '/',
@@ -800,7 +982,7 @@ function Helm.keys.bind(config)
     mods = 'CMD',
     action = wezterm.action.SpawnCommandInNewTab {
       args = { '/bin/bash', '-l', '-c',
-        'exec "${EDITOR:-nano}" "$HOME/.config/kaku/kaku.lua"' },
+        'exec "${EDITOR:-nano}" "$HOME/.config/helm/kaku.lua"' },
     },
   })
 
@@ -912,6 +1094,12 @@ function Helm.apply(config)
     wezterm.GLOBAL.helm_help_visible = true
   end
 
+  -- Register event handlers ONCE per process. wezterm.on ACCUMULATES handlers
+  -- on every config reload (Cmd+R) — without this guard, after N reloads each
+  -- event fires N times, which degrades input/scroll responsiveness badly.
+  if not wezterm.GLOBAL.helm_handlers_registered then
+    wezterm.GLOBAL.helm_handlers_registered = true
+
   -- The single update-right-status handler: (1) track this pane's session
   -- (working/waiting idle heuristic), (2) render the HUD + window title.
   wezterm.on('update-right-status', function(win, pane)
@@ -986,6 +1174,14 @@ function Helm.apply(config)
     else
       spawn_args = (cmd or {})
     end
+    -- Size the startup window explicitly to the configured initial dimensions.
+    -- Without this, the gui-startup-spawned window does NOT inherit
+    -- config.initial_cols/initial_rows (unlike Cmd+N), so the first window came
+    -- up at a different size than every subsequent window.
+    if type(spawn_args) == 'table' then
+      spawn_args.width  = config.initial_cols
+      spawn_args.height = config.initial_rows
+    end
     local ok, brain_tab, _brain_pane, mux_window = pcall(wezterm.mux.spawn_window, spawn_args)
     if not ok or not mux_window then return end
     if launcher then
@@ -1033,6 +1229,8 @@ function Helm.apply(config)
       end
     end
   end)
+
+  end  -- end helm_handlers_registered guard
 
   Helm.keys.bind(config)
 end

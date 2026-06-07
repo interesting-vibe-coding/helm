@@ -240,9 +240,6 @@ collect_missing_tools() {
 	if should_install_formula "lazygit" "lazygit" 0; then
 		MISSING_TOOLS+=("lazygit")
 	fi
-	if should_install_formula "yazi" "yazi" 0; then
-		MISSING_TOOLS+=("yazi")
-	fi
 	# zoxide is only used by fish shell integration; zsh uses zsh-z instead
 	case "${KAKU_TARGET_SHELL:-${SHELL:-/bin/zsh}}" in
 	*fish|fish)

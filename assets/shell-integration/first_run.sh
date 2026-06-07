@@ -253,8 +253,8 @@ echo ""
 # A visible, transparent multi-select. Nothing is pre-checked (opt-in): the user
 # decides what gets installed. SPACE toggles, Enter confirms.
 optional_tools() {
-  local names=("lazygit" "yazi")
-  local descs=("lazygit — terminal git UI" "yazi — terminal file manager")
+  local names=("lazygit")
+  local descs=("lazygit — terminal git UI")
   local n=${#names[@]} checked=() i
   for i in "${!names[@]}"; do checked+=(0); done
 
@@ -262,7 +262,7 @@ optional_tools() {
 
   # NON-TTY / piped: skip silently with a one-line hint.
   if [[ ! -t 0 || ! -t 1 ]]; then
-    echo -e "  ${DIM}Optional: brew install lazygit yazi${NC}"
+    echo -e "  ${DIM}Optional: brew install lazygit${NC}"
     echo ""
     return
   fi
