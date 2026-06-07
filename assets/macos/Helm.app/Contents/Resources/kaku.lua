@@ -326,7 +326,12 @@ function Helm.sessions.track(pane)
         s.last_change = t
         s.state = 'working'
       elseif (t - (s.last_change or t)) > Helm.cfg.IDLE_THRESHOLD then
-        s.state = 'waiting'
+        -- working → waiting transition: fire the Brain event exactly ONCE
+        -- (the guard `s.state ~= 'waiting'` prevents re-firing every idle tick).
+        if s.state ~= 'waiting' then
+          s.state = 'waiting'
+          Helm.brain.notify_waiting(id, s.harness, s.cwd)
+        end
       end
     end
   end
@@ -604,12 +609,127 @@ end
 -- Layer 3 lives in tools/ (cross-harness memory via symlinks) — no Lua needed here
 
 -- ════════════════════════════════════════════════════════════
+-- Layer 2.5: Brain 🧠 — the "First Mate" orchestrator (Sonnet)
+-- An optional coordination agent that lives in its OWN tab. Cmd+Shift+Return
+-- toggles between the Brain and the worker you were last on. When a worker
+-- transitions into 'waiting', we inject a one-line event into the Brain pane
+-- so the First Mate notices and can report / route on your behalf.
+-- ════════════════════════════════════════════════════════════
+Helm.brain = {}
+
+-- Resolve launch-brain.sh once (bundle Resources, then dev repo, then ~/.config),
+-- cached in GLOBAL. Same resolution strategy as quota_script().
+function Helm.brain.launcher()
+  if wezterm.GLOBAL.helm_brain_path ~= nil then
+    return wezterm.GLOBAL.helm_brain_path or nil
+  end
+  local home = os.getenv('HOME') or ''
+  local candidates = {
+    wezterm.executable_dir:gsub('MacOS/?$', 'Resources') .. '/tools/helm-brain/launch-brain.sh',
+    home .. '/workspace/helm-terminal/tools/helm-brain/launch-brain.sh',
+    home .. '/.config/kaku/tools/helm-brain/launch-brain.sh',
+  }
+  for _, p in ipairs(candidates) do
+    local f = io.open(p, 'r')
+    if f then f:close(); wezterm.GLOBAL.helm_brain_path = p; return p end
+  end
+  wezterm.GLOBAL.helm_brain_path = false  -- remember "not found"
+  return nil
+end
+
+-- Return the live Brain pane (mux pane object) or nil if it's gone. Clears the
+-- stale id so a fresh Cmd+Shift+Return re-spawns the Brain.
+function Helm.brain.pane()
+  local id = wezterm.GLOBAL.helm_brain_pane
+  if not id then return nil end
+  local ok, p = pcall(wezterm.mux.get_pane, id)
+  if ok and p then return p end
+  wezterm.GLOBAL.helm_brain_pane = nil
+  return nil
+end
+
+-- Focus a pane by id: activate its tab + focus its gui window. Returns true if found.
+function Helm.brain.focus_pane(pane_id)
+  if not pane_id then return false end
+  for _, win in ipairs(wezterm.mux.all_windows()) do
+    for _, tab in ipairs(win:tabs()) do
+      for _, p in ipairs(tab:panes()) do
+        if p:pane_id() == pane_id then
+          tab:activate()
+          for _, gw in ipairs(wezterm.gui.gui_windows()) do
+            if gw:mux_window():window_id() == win:window_id() then gw:focus(); break end
+          end
+          return true
+        end
+      end
+    end
+  end
+  return false
+end
+
+-- Spawn the Brain in a dedicated tab; remember its tab + pane id. Returns pane or nil.
+function Helm.brain.spawn(window)
+  local launcher = Helm.brain.launcher()
+  if not launcher then return nil end
+  -- exec so the agent takes over the shell (pane won't close when it exits cleanly)
+  local tab, pane = window:mux_window():spawn_tab {
+    args = { '/bin/bash', '-l', '-c', "exec '" .. launcher .. "'" },
+  }
+  wezterm.GLOBAL.helm_brain_tab  = tab:tab_id()
+  wezterm.GLOBAL.helm_brain_pane = pane:pane_id()
+  tab:activate()
+  return pane
+end
+
+-- Cmd+Shift+Return action: toggle Brain <-> last worker. Spawns Brain on first use.
+function Helm.brain.toggle(window, pane)
+  local bpane = Helm.brain.pane()
+  if bpane then
+    if pane:pane_id() == bpane:pane_id() then
+      -- currently on the Brain → flip back to the worker we came from
+      local last = wezterm.GLOBAL.helm_last_worker
+      if last then Helm.brain.focus_pane(last) end
+    else
+      -- currently on a worker → remember it, jump to the Brain
+      wezterm.GLOBAL.helm_last_worker = pane:pane_id()
+      Helm.brain.focus_pane(bpane:pane_id())
+    end
+  else
+    -- no Brain yet → remember the current worker and spawn one
+    wezterm.GLOBAL.helm_last_worker = pane:pane_id()
+    Helm.brain.spawn(window)
+  end
+end
+
+-- Inject a one-line event into the Brain pane when a worker starts WAITING.
+-- No-op if no Brain exists, and never injects into the Brain pane itself.
+function Helm.brain.notify_waiting(worker_id, harness, project)
+  local bpane = Helm.brain.pane()
+  if not bpane then return end
+  if bpane:pane_id() == tonumber(worker_id) then return end
+  bpane:send_text(string.format(
+    '\n[helm-event] session %s (%s · %s) is now WAITING for input.\n',
+    tostring(worker_id), harness or '?', project or '?'
+  ))
+end
+
+-- ════════════════════════════════════════════════════════════
 -- Keybindings — all Cmd+Shift+* binds + the Cmd+L / Cmd+Shift+M overrides
 -- ════════════════════════════════════════════════════════════
 Helm.keys = {}
 
 function Helm.keys.bind(config)
   config.keys = config.keys or {}
+
+  -- Cmd+Shift+Return: toggle between the Brain (First Mate) view and the worker
+  -- pane you were last on. On first use, spawns the Brain in its own tab.
+  table.insert(config.keys, {
+    key  = 'Return',
+    mods = 'CMD|SHIFT',
+    action = wezterm.action_callback(function(window, pane)
+      Helm.brain.toggle(window, pane)
+    end),
+  })
 
   -- Cmd+Shift+M: 轮转 kiro 模型 sonnet ↔ opus
   table.insert(config.keys, {
@@ -684,29 +804,6 @@ function Helm.keys.bind(config)
         sessions[id].state = 'background'
         wezterm.GLOBAL.helm_sessions = sessions
         Helm.sessions.save()
-      end
-    end),
-  })
-
-  -- Cmd+Shift+U: jump to the most-recent waiting session
-  table.insert(config.keys, {
-    key = 'U', mods = 'CMD|SHIFT',
-    action = wezterm.action_callback(function(window, pane)
-      local sessions = wezterm.GLOBAL.helm_sessions or {}
-      local best_id, best_t = nil, 0
-      for id, s in pairs(sessions) do
-        if s.state == 'waiting' and (s.last_accessed or 0) > best_t then
-          best_id = tonumber(id); best_t = s.last_accessed or 0
-        end
-      end
-      if best_id then
-        for _, mux_win in ipairs(wezterm.mux.all_windows()) do
-          for _, tab in ipairs(mux_win:tabs()) do
-            for _, p in ipairs(tab:panes()) do
-              if p:pane_id() == best_id then tab:activate(); mux_win:gui_window():focus(); return end
-            end
-          end
-        end
       end
     end),
   })
