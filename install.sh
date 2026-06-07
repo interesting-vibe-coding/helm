@@ -19,20 +19,10 @@ if [[ "$(uname)" != "Darwin" ]]; then
   exit 1
 fi
 
-# Resolve latest release asset URL
-say "  → fetching latest release"
-URL=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" \
-  | grep '"browser_download_url"' \
-  | grep 'Helm.app.zip' \
-  | head -1 \
-  | cut -d'"' -f4)
-
-if [[ -z "${URL:-}" ]]; then
-  say "  ${YELLOW}No release asset found. Build from source instead:${NC}"
-  say "    git clone https://github.com/$REPO && cd helm"
-  say "    PROFILE=debug ./scripts/build.sh --app-only && open dist/Helm.app"
-  exit 1
-fi
+# Latest-release asset via GitHub's stable redirect — NO api.github.com call,
+# so no unauthenticated rate-limit 403s. /releases/latest/download/<asset>
+# always redirects to the newest release's asset.
+URL="https://github.com/$REPO/releases/latest/download/Helm.app.zip"
 
 # Download + unpack
 TMP=$(mktemp -d)
