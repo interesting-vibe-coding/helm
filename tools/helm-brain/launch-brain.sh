@@ -17,9 +17,12 @@
 #   Per-harness launch (all need an interactive chat that takes BRAIN_PROMPT.md):
 #     claude   — true system prompt via `--append-system-prompt`, `--model sonnet`.
 #                Cleanest fit (real system prompt, not a faked first message).
-#     kiro     — `kiro-cli chat` has no system-prompt flag, so BRAIN_PROMPT.md
-#                is passed as the initial [INPUT] message; pinned to the Sonnet
-#                id `claude-sonnet-4.6` used elsewhere in kaku.lua.
+#     kiro     — `kiro-cli chat` has no system-prompt flag; its only positional
+#                is [INPUT] ("the first question to ask"). Rather than pass the
+#                whole prompt as a giant positional arg, we pass a short INPUT
+#                telling kiro to read BRAIN_PROMPT.md via its fs tool (enabled by
+#                --trust-all-tools) and adopt it. Pinned to Sonnet
+#                `claude-sonnet-4.6` used elsewhere in kaku.lua.
 #     opencode — best-effort: no system-prompt flag. opencode loads instructions
 #                from AGENTS.md (first_run.sh symlinks the master memory into
 #                ~/.config/opencode), so the prompt is passed via `--prompt` and
@@ -108,10 +111,16 @@ case "$BRAIN_HARNESS" in
       --dangerously-skip-permissions
     ;;
   kiro)
-    echo "launch-brain: using kiro-cli (--model claude-sonnet-4.6)" >&2
+    # kiro-cli chat has NO system-prompt flag (only a positional [INPUT] =
+    # "the first question to ask"). Dumping the whole multi-KB BRAIN_PROMPT.md
+    # there is semantically a "question" and a fragile oversized arg. Instead we
+    # pass a SHORT instruction telling kiro to read the prompt file with its own
+    # fs tool (allowed by --trust-all-tools) and adopt it as its operating
+    # brief. Keeps the session interactive and the arg tiny.
+    echo "launch-brain: using kiro-cli (--model claude-sonnet-4.6, reads BRAIN_PROMPT.md via fs tool)" >&2
     exec kiro-cli chat --trust-all-tools --agent default \
       --model claude-sonnet-4.6 \
-      "$SYSTEM_PROMPT"
+      "Read the file '$PROMPT_FILE' and adopt it as your system prompt / operating brief for this session. Then greet the captain in one line and wait for orders."
     ;;
   opencode)
     # Best-effort: no system-prompt flag. opencode loads instructions from
