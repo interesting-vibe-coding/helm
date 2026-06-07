@@ -1,0 +1,410 @@
+#!/usr/bin/env python3
+"""helm-top — an htop-style monitor for Helm worker agent sessions.
+
+This is Helm's Layer-3 "Monitor" view. It shows every agent session Helm is
+tracking, refreshes live, and lets you browse with the arrow keys and jump
+straight to a pane with Enter — zero friction, works out of the box (Python 3
+stdlib `curses` only, no external dependencies).
+
+It does NOT track sessions itself. It is a thin viewer over the existing
+interface contract:
+
+    helm-brain sessions   ->  JSON array of
+        { pane_id, harness, project, state, runtime_secs, tokens_today }
+
+Jumping to a pane shells out to Helm's wezterm-compatible mux CLI:
+
+    kaku cli activate-pane --pane-id <id>
+
+(The mux binary is `kaku`, not the sibling `k` agent CLI — see helm-brain.)
+
+Keys:
+    ↑/↓ or j/k   move the selection
+    Enter        jump to (focus) the selected pane
+    ?            toggle the bottom help bar
+    r            refresh now
+    q            quit
+
+Run `helm-top --selftest` for a non-interactive, plain-text dump of the parsed
+table (handy for tests / CI — no curses, no TTY required).
+
+Robustness contract: never crash. If helm-brain is missing, returns [], or
+errors, we show a calm empty state.
+"""
+
+import json
+import os
+import shutil
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+REFRESH_SECS = 1.5
+POLL_MS = 200
+
+# ── palette (mirrors Helm.status.palette in kaku.lua) ────────────────────────
+#   working = blue, waiting = orange/yellow, background = gray.
+C_WORKING = 1
+C_WAITING = 2
+C_DIM = 3
+C_HEADER = 4
+C_SEL = 5
+C_TEXT = 6
+
+STATE_GLYPH = {
+    "working": "▶",
+    "waiting": "◐",
+    "background": "⏸",
+}
+
+
+# ── binary resolution ────────────────────────────────────────────────────────
+
+def resolve_brain():
+    """Locate the helm-brain CLI. Returns a path str or None."""
+    here = Path(__file__).resolve().parent
+    candidates = [
+        here.parent / "helm-brain" / "helm-brain",
+        Path("/Applications/Helm.app/Contents/Resources/tools/helm-brain/helm-brain"),
+        Path.home() / "workspace" / "helm-terminal" / "tools" / "helm-brain" / "helm-brain",
+    ]
+    for c in candidates:
+        try:
+            if c.exists():
+                return str(c)
+        except Exception:
+            continue
+    return None
+
+
+def resolve_kaku():
+    """Locate Helm's wezterm-compatible mux CLI (`kaku`). Returns path or None.
+
+    NOTE: this is the `kaku` binary, NOT the sibling `k` one-shot agent CLI.
+    """
+    env = os.environ.get("HELM_CLI")
+    if env and os.path.exists(env):
+        return env
+    bundled = "/Applications/Helm.app/Contents/MacOS/kaku"
+    if os.path.exists(bundled):
+        return bundled
+    for name in ("kaku", "wezterm"):
+        found = shutil.which(name)
+        if found:
+            return found
+    return None
+
+
+# ── data ──────────────────────────────────────────────────────────────────────
+
+def fetch_sessions():
+    """Return the list of session dicts from helm-brain, or [] on any failure."""
+    brain = resolve_brain()
+    if not brain:
+        return []
+    try:
+        p = subprocess.run(
+            [brain, "sessions"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=8,
+        )
+        out = p.stdout.decode("utf-8", "replace").strip()
+        if not out:
+            return []
+        data = json.loads(out)
+        return data if isinstance(data, list) else []
+    except Exception:
+        return []
+
+
+def jump_to_pane(pane_id):
+    """Focus the given pane via the mux CLI. Returns True on success."""
+    kaku = resolve_kaku()
+    if not kaku:
+        return False
+    try:
+        p = subprocess.run(
+            [kaku, "cli", "--no-auto-start", "activate-pane", "--pane-id", str(pane_id)],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=8,
+        )
+        return p.returncode == 0
+    except Exception:
+        return False
+
+
+# ── formatting ─────────────────────────────────────────────────────────────────
+
+def fmt_runtime(secs):
+    """mm:ss under an hour, else h:mm."""
+    try:
+        secs = int(secs)
+    except Exception:
+        return "--"
+    if secs < 0:
+        secs = 0
+    if secs < 3600:
+        return "%d:%02d" % (secs // 60, secs % 60)
+    return "%d:%02d" % (secs // 3600, (secs % 3600) // 60)
+
+
+def fmt_tokens(n):
+    """Compact token count: 0 / 142k / 1.2M."""
+    try:
+        n = int(n)
+    except Exception:
+        return "0"
+    if n <= 0:
+        return "0"
+    if n >= 1_000_000:
+        m = n / 1_000_000
+        return ("%dM" % round(m)) if m >= 10 else ("%.1fM" % m)
+    if n >= 1000:
+        return "%dk" % (n // 1000)
+    return str(n)
+
+
+def state_of(s):
+    st = (s.get("state") or "working").lower()
+    if st not in STATE_GLYPH:
+        # unknown states render as working-ish but keep their label
+        return st, STATE_GLYPH.get(st, "▶")
+    return st, STATE_GLYPH[st]
+
+
+def summarize(sessions):
+    working = sum(1 for s in sessions if (s.get("state") or "").lower() == "working")
+    waiting = sum(1 for s in sessions if (s.get("state") or "").lower() == "waiting")
+    return working, waiting
+
+
+# ── selftest (non-interactive) ──────────────────────────────────────────────────
+
+def run_selftest():
+    """Print the parsed table once, as plain text, then exit. No curses/TTY."""
+    sessions = fetch_sessions()
+    n = len(sessions)
+    working, waiting = summarize(sessions)
+    print("helm-top — %d sessions · %d working · %d waiting" % (n, working, waiting))
+    print("brain: %s" % (resolve_brain() or "(not found)"))
+    print("kaku:  %s" % (resolve_kaku() or "(not found)"))
+    if not sessions:
+        print("No active sessions. Launch one with Cmd+Shift+K.")
+        return 0
+    hdr = "%-12s %-10s %-20s %-8s %-8s %-6s" % (
+        "STATE", "HARNESS", "PROJECT", "RUNTIME", "TOKENS", "PANE")
+    print(hdr)
+    print("-" * len(hdr))
+    for s in sessions:
+        st, glyph = state_of(s)
+        print("%-12s %-10s %-20s %-8s %-8s %-6s" % (
+            ("%s %s" % (glyph, st))[:12],
+            str(s.get("harness", "?"))[:10],
+            str(s.get("project", "?"))[:20],
+            fmt_runtime(s.get("runtime_secs", 0)),
+            fmt_tokens(s.get("tokens_today", 0)),
+            str(s.get("pane_id", "?")),
+        ))
+    return 0
+
+
+# ── curses UI ─────────────────────────────────────────────────────────────────
+
+def init_colors():
+    if not curses.has_colors():
+        return
+    curses.start_color()
+    try:
+        curses.use_default_colors()
+        bg = -1
+    except Exception:
+        bg = curses.COLOR_BLACK
+    curses.init_pair(C_WORKING, curses.COLOR_BLUE, bg)
+    curses.init_pair(C_WAITING, curses.COLOR_YELLOW, bg)
+    curses.init_pair(C_DIM, curses.COLOR_WHITE, bg)
+    curses.init_pair(C_HEADER, curses.COLOR_CYAN, bg)
+    curses.init_pair(C_SEL, curses.COLOR_BLACK, curses.COLOR_WHITE)
+    curses.init_pair(C_TEXT, curses.COLOR_WHITE, bg)
+
+
+def attr(pair, dim=False, bold=False):
+    a = curses.color_pair(pair) if curses.has_colors() else 0
+    if dim:
+        a |= curses.A_DIM
+    if bold:
+        a |= curses.A_BOLD
+    return a
+
+
+def safe_addstr(win, y, x, text, a=0):
+    """addstr that never raises on overflow / tiny windows."""
+    if y < 0 or x < 0:
+        return
+    h, w = win.getmaxyx()
+    if y >= h or x >= w:
+        return
+    text = text[: max(0, w - x)]
+    try:
+        win.addstr(y, x, text, a)
+    except curses.error:
+        # writing to the bottom-right cell raises; ignore.
+        pass
+
+
+def state_color(st):
+    if st == "waiting":
+        return C_WAITING
+    if st == "background":
+        return C_DIM
+    return C_WORKING
+
+
+def draw(stdscr, sessions, sel, show_help, last_jump):
+    stdscr.erase()
+    h, w = stdscr.getmaxyx()
+
+    if h < 2 or w < 16:
+        safe_addstr(stdscr, 0, 0, "helm-top", attr(C_HEADER, bold=True))
+        stdscr.noutrefresh()
+        return
+
+    n = len(sessions)
+    working, waiting = summarize(sessions)
+    title = "helm-top — %d session%s · %d working · %d waiting" % (
+        n, "" if n == 1 else "s", working, waiting)
+    clock = time.strftime("%H:%M:%S")
+    safe_addstr(stdscr, 0, 0, title[: max(0, w - len(clock) - 1)], attr(C_HEADER, bold=True))
+    safe_addstr(stdscr, 0, max(0, w - len(clock)), clock, attr(C_DIM))
+
+    # column header
+    cols = "%-11s %-9s %-*s %-7s %-8s %-6s"
+    proj_w = max(8, w - (11 + 1 + 9 + 1 + 1 + 7 + 1 + 8 + 1 + 6))
+    header = cols % ("STATE", "HARNESS", proj_w, "PROJECT", "RUNTIME", "TOKENS", "PANE")
+    safe_addstr(stdscr, 1, 0, header[:w], attr(C_DIM, bold=True))
+
+    help_lines = 1 if show_help else 0
+    footer_y = h - 1 - help_lines
+    first_row = 2
+    visible = max(0, footer_y - first_row)
+
+    if n == 0:
+        msg = "No active sessions. Launch one with Cmd+Shift+K."
+        cy = first_row + max(0, visible // 2)
+        safe_addstr(stdscr, cy, max(0, (w - len(msg)) // 2), msg, attr(C_DIM))
+    else:
+        # scroll window so the selection stays visible
+        top = 0
+        if sel >= visible:
+            top = sel - visible + 1
+        for i in range(top, min(n, top + visible)):
+            s = sessions[i]
+            st, glyph = state_of(s)
+            row_y = first_row + (i - top)
+            selected = (i == sel)
+            line = cols % (
+                ("%s %s" % (glyph, st))[:11],
+                str(s.get("harness", "?"))[:9],
+                proj_w, str(s.get("project", "?"))[:proj_w],
+                fmt_runtime(s.get("runtime_secs", 0)),
+                fmt_tokens(s.get("tokens_today", 0)),
+                str(s.get("pane_id", "?")),
+            )
+            if selected:
+                # full-width highlight bar
+                safe_addstr(stdscr, row_y, 0, line.ljust(w)[:w], attr(C_SEL, bold=True))
+            else:
+                safe_addstr(stdscr, row_y, 0, line[:w], attr(C_TEXT))
+                # recolor just the state glyph+label
+                safe_addstr(stdscr, row_y, 0, ("%s %s" % (glyph, st))[:11],
+                            attr(state_color(st), bold=True))
+
+    # transient jump feedback / footer status
+    if last_jump and (time.time() - last_jump[1] < 2.5):
+        safe_addstr(stdscr, footer_y, 0, last_jump[0][:w], attr(C_WAITING))
+    elif show_help:
+        help_text = " ↑↓/jk move · Enter jump · ? help · r refresh · q quit "
+        safe_addstr(stdscr, h - 1, 0, help_text.ljust(w)[:w], attr(C_SEL))
+
+    stdscr.noutrefresh()
+    curses.doupdate()
+
+
+def curses_main(stdscr):
+    curses.curs_set(0)
+    init_colors()
+    stdscr.timeout(POLL_MS)
+
+    sessions = fetch_sessions()
+    sel = 0
+    show_help = False
+    last_fetch = time.time()
+    last_jump = None
+
+    while True:
+        if sessions:
+            sel = max(0, min(sel, len(sessions) - 1))
+        else:
+            sel = 0
+
+        draw(stdscr, sessions, sel, show_help, last_jump)
+
+        try:
+            ch = stdscr.getch()
+        except KeyboardInterrupt:
+            return
+
+        if ch != -1:
+            if ch in (ord("q"), ord("Q")):
+                return
+            elif ch in (curses.KEY_UP, ord("k")):
+                sel = max(0, sel - 1)
+            elif ch in (curses.KEY_DOWN, ord("j")):
+                if sessions:
+                    sel = min(len(sessions) - 1, sel + 1)
+            elif ch in (curses.KEY_HOME, ord("g")):
+                sel = 0
+            elif ch in (curses.KEY_END, ord("G")):
+                sel = max(0, len(sessions) - 1)
+            elif ch in (ord("?"), ord("/")):
+                show_help = not show_help
+            elif ch in (ord("r"), ord("R")):
+                sessions = fetch_sessions()
+                last_fetch = time.time()
+            elif ch in (curses.KEY_ENTER, 10, 13):
+                if sessions:
+                    pid = sessions[sel].get("pane_id")
+                    ok = jump_to_pane(pid)
+                    msg = (" → jumped to pane %s " % pid) if ok else \
+                          (" ✗ could not jump to pane %s (mux CLI?) " % pid)
+                    last_jump = (msg, time.time())
+            elif ch == curses.KEY_RESIZE:
+                pass  # next draw() re-reads getmaxyx()
+
+        now = time.time()
+        if now - last_fetch >= REFRESH_SECS:
+            sessions = fetch_sessions()
+            last_fetch = now
+
+
+def main(argv):
+    if argv and argv[0] in ("--selftest", "-t"):
+        return run_selftest()
+    if argv and argv[0] in ("-h", "--help", "help"):
+        sys.stdout.write(__doc__)
+        return 0
+    try:
+        curses.wrapper(curses_main)
+    except KeyboardInterrupt:
+        pass
+    return 0
+
+
+# curses imported late so --selftest works even on odd TERMs without a TTY.
+import curses  # noqa: E402
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

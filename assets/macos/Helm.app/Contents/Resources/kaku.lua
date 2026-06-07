@@ -521,6 +521,16 @@ end
 --   LEFT  (set_left_status)  : current pane's agent → 👻 kiro · proj ▶ working 2m34s
 --   RIGHT (set_right_status) : globals + live usage → ○ 2 bg · ◐ 1 waiting   kiro 142k · claude 1.2M
 function Helm.status.render(window, pane)
+  -- Cmd+/ help bar: turn the whole bottom bar into a key-bindings cheat-sheet.
+  if wezterm.GLOBAL.helm_help_visible then
+    local HP = Helm.status.palette
+    window:set_left_status(wezterm.format({
+      { Foreground = { Color = HP.text } }, { Text = ' ⌘1 Brain  ⌘2 Workspace  ⌘3 Monitor  ' },
+      { Foreground = { Color = HP.dim } },  { Text = '· ⌘⇧↵ flip  ⌘⇧K launch  ⌘⇧S sessions  ⌘⇧B background  ⌘⇧M model  ⌘/ close help ' },
+    }))
+    window:set_right_status('')
+    return
+  end
   local t = Helm.util.now()
   local P = Helm.status.palette
 
@@ -714,12 +724,146 @@ function Helm.brain.notify_waiting(worker_id, harness, project)
 end
 
 -- ════════════════════════════════════════════════════════════
+-- Helm.top — the Monitor layer (helm-top, an htop-style session list)
+-- ════════════════════════════════════════════════════════════
+-- Philosophy: zero friction, out of the box, focus on shipping. helm-top is a
+-- stdlib-only Python viewer over `helm-brain sessions` — no deps, no state of
+-- its own. You stay at the helm; this just shows who's working / waiting so you
+-- can jump to the one that needs you and get back to shipping.
+Helm.top = {}
+
+-- Resolve the helm-top script once (bundle Resources, dev repo, ~/.config),
+-- cached in GLOBAL. Same strategy as Helm.brain.launcher().
+function Helm.top.launcher()
+  if wezterm.GLOBAL.helm_top_path ~= nil then
+    return wezterm.GLOBAL.helm_top_path or nil
+  end
+  local home = os.getenv('HOME') or ''
+  local candidates = {
+    wezterm.executable_dir:gsub('MacOS/?$', 'Resources') .. '/tools/helm-top/helm-top',
+    home .. '/workspace/helm-terminal/tools/helm-top/helm-top',
+    home .. '/.config/kaku/tools/helm-top/helm-top',
+  }
+  for _, p in ipairs(candidates) do
+    local f = io.open(p, 'r')
+    if f then f:close(); wezterm.GLOBAL.helm_top_path = p; return p end
+  end
+  wezterm.GLOBAL.helm_top_path = false  -- remember "not found"
+  return nil
+end
+
+-- Return the live Monitor pane, or nil (clearing the stale id).
+function Helm.top.pane()
+  local id = wezterm.GLOBAL.helm_top_pane
+  if not id then return nil end
+  local ok, p = pcall(wezterm.mux.get_pane, id)
+  if ok and p then return p end
+  wezterm.GLOBAL.helm_top_pane = nil
+  return nil
+end
+
+-- Focus the Monitor, spawning helm-top in its own tab on first use.
+function Helm.top.focus(window)
+  local tp = Helm.top.pane()
+  if tp then
+    Helm.brain.focus_pane(tp:pane_id())
+    return
+  end
+  local launcher = Helm.top.launcher()
+  if not launcher then return end
+  local tab, pane = window:mux_window():spawn_tab {
+    args = { '/bin/bash', '-l', '-c', "exec '" .. launcher .. "'" },
+  }
+  wezterm.GLOBAL.helm_top_tab  = tab:tab_id()
+  wezterm.GLOBAL.helm_top_pane = pane:pane_id()
+  tab:activate()
+end
+
+-- ════════════════════════════════════════════════════════════
+-- Helm.workspace — the Workspace layer (the worker panes you actually drive)
+-- ════════════════════════════════════════════════════════════
+Helm.workspace = {}
+
+-- Focus the worker you were last on; else the first pane that is neither the
+-- Brain nor the Monitor. This is "get me back to the work".
+function Helm.workspace.focus(_window, _pane)
+  local bp = wezterm.GLOBAL.helm_brain_pane
+  local tp = wezterm.GLOBAL.helm_top_pane
+  local last = wezterm.GLOBAL.helm_last_worker
+  if last and last ~= bp and last ~= tp and Helm.brain.focus_pane(last) then
+    return
+  end
+  for _, win in ipairs(wezterm.mux.all_windows()) do
+    for _, tab in ipairs(win:tabs()) do
+      for _, p in ipairs(tab:panes()) do
+        local id = p:pane_id()
+        if id ~= bp and id ~= tp then
+          Helm.brain.focus_pane(id)
+          return
+        end
+      end
+    end
+  end
+end
+
+-- Remember the current pane as "the worker" if it isn't the Brain/Monitor, so
+-- Cmd+2 can return to it. Called by the layer-nav binds.
+function Helm.workspace.remember(pane)
+  local id = pane:pane_id()
+  if id ~= wezterm.GLOBAL.helm_brain_pane and id ~= wezterm.GLOBAL.helm_top_pane then
+    wezterm.GLOBAL.helm_last_worker = id
+  end
+end
+
+-- ════════════════════════════════════════════════════════════
 -- Keybindings — all Cmd+Shift+* binds + the Cmd+L / Cmd+Shift+M overrides
 -- ════════════════════════════════════════════════════════════
 Helm.keys = {}
 
 function Helm.keys.bind(config)
   config.keys = config.keys or {}
+
+  -- ── Helm's three-layer view navigation ──────────────────────
+  --   Cmd+1 Brain (First Mate)  ·  Cmd+2 Workspace (workers)  ·  Cmd+3 Monitor (helm-top)
+  -- Cmd+1: jump to the Brain (spawn it on first use).
+  table.insert(config.keys, {
+    key = '1',
+    mods = 'CMD',
+    action = wezterm.action_callback(function(window, pane)
+      Helm.workspace.remember(pane)
+      local b = Helm.brain.pane()
+      if b then Helm.brain.focus_pane(b:pane_id()) else Helm.brain.spawn(window) end
+    end),
+  })
+
+  -- Cmd+2: back to the Workspace (the worker pane you were last on).
+  table.insert(config.keys, {
+    key = '2',
+    mods = 'CMD',
+    action = wezterm.action_callback(function(window, pane)
+      Helm.workspace.focus(window, pane)
+    end),
+  })
+
+  -- Cmd+3: open the Monitor (helm-top, htop-style session list).
+  table.insert(config.keys, {
+    key = '3',
+    mods = 'CMD',
+    action = wezterm.action_callback(function(window, pane)
+      Helm.workspace.remember(pane)
+      Helm.top.focus(window)
+    end),
+  })
+
+  -- Cmd+/: toggle the bottom help bar (key bindings cheat-sheet).
+  table.insert(config.keys, {
+    key = '/',
+    mods = 'CMD',
+    action = wezterm.action_callback(function(window, pane)
+      wezterm.GLOBAL.helm_help_visible = not wezterm.GLOBAL.helm_help_visible
+      Helm.status.render(window, pane)  -- repaint immediately
+    end),
+  })
 
   -- Cmd+Shift+Return: toggle between the Brain (First Mate) view and the worker
   -- pane you were last on. On first use, spawns the Brain in its own tab.
