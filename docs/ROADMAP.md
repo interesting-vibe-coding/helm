@@ -30,6 +30,7 @@
 - Cross-harness memory via symlink:
   - `~/.claude/CLAUDE.md → ~/.kiro/AGENTS.md` (Claude Code reads this)
   - `~/.kiro/AGENTS.md` = master memory file (steering/memory.md also symlinks here)
+- **Brain plumbing** — `helm-brain` CLI (`sessions` / `send` / `notify` / `watch`) wiring the Sonnet First Mate to worker state + tokens
 
 ### 🟡 In Progress
 - Logo (geometric gold helm wheel — needs more refinement)
@@ -39,10 +40,13 @@
 
 ## Helm Vision: The Agent OS
 
-> Three layers that together make Helm an operating system for AI agents.
+> Four layers that together make Helm an operating system for AI agents.
 
 ```
 ┌─────────────────────────────────────────────────┐
+│  Layer 4: The Brain (First Mate)  ⭐ headline    │
+│  Sonnet orchestrator — 1 conversation, N agents │
+├─────────────────────────────────────────────────┤
 │  Layer 3: Shared Context                        │
 │  chat history + memory + skills across harnesses│
 ├─────────────────────────────────────────────────┤
@@ -54,7 +58,23 @@
 └─────────────────────────────────────────────────┘
 ```
 
-### Layer 1 — Session Scheduler (novel, no competitor does this)
+### Layer 4 — The Brain / First Mate (current headline feature)
+
+**The idea**: You shouldn't have to watch N panes. Talk to one Sonnet orchestrator — the **First Mate** — and let it watch the crew. It builds on Layers 1–3: it reads worker **state** from the Session Scheduler and **token usage** from Status Awareness, and acts through the same mux CLI the scheduler uses.
+
+**What it does**:
+- **Watches** — polls every worker session's state (working / waiting / background) and tokens-today, surfacing only what needs you.
+- **Reports** — a single feed: who's blocked, who's burning quota, who finished. macOS notifications when a worker needs input.
+- **Routes** — you give one instruction in natural language; the First Mate picks the right pane and injects it, behind a **confirm gate** so nothing lands without your nod.
+
+**Plumbing** (shipped): `helm-brain` CLI under `tools/helm-brain/` —
+`helm-brain sessions` (merges `kaku cli list` + `runtime.json` state + `quota.py` tokens → JSON), `helm-brain send <pane> "<text>"`, `helm-brain notify`, `helm-brain watch`. These are the Brain's eyes and hands; the Sonnet orchestrator is the mind on top.
+
+**Toggle**: `Cmd+Shift+Return` switches between the Brain view and your workers.
+
+**Why it matters**: every other agent terminal scales attention linearly — more agents, more panes to scan. The Brain collapses that to **O(1)**: one conversation regardless of fleet size.
+
+### Layer 3 — Shared Context
 
 **The idea**: Like an emperor reviewing memorials — 20 sessions running in the background, 2 panes visible. Sessions swap in/out based on LRU/LFU, like OS virtual memory.
 

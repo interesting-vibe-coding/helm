@@ -48,6 +48,18 @@ flowchart TB
 
 ---
 
+## The Brain 🧠 — meet your First Mate
+
+Running ten agents still means watching ten panes. The Brain removes that last bit of friction: instead of juggling N agents, you talk to **one**.
+
+The Brain is a Sonnet orchestrator — your **First Mate**. It watches every worker session for you (state + token usage), reports only when something actually needs you, and routes your instructions to the right pane. You say *"tell the one working on the parser to also add tests"*; the First Mate finds it and sends it — with a confirm gate before anything lands.
+
+This is the **less friction** philosophy taken to its end: **N agents → 1 conversation**. You stop scanning a wall of terminals and start steering through a single mate who knows the whole crew.
+
+Press `Cmd+Shift+Return` to toggle between the Brain view and your workers.
+
+---
+
 ## Install
 
 ```bash
