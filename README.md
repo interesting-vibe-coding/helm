@@ -44,17 +44,25 @@ flowchart TB
 
 ---
 
-## Quick Start
+## Install
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/interesting-vibe-coding/helm/main/install.sh | bash
+```
+
+That's it. On first launch, Helm guides you through shell integration and sets up
+cross-harness memory automatically. Then press `Cmd+Shift+K` to launch your first agent.
+
+<details>
+<summary>Build from source</summary>
 
 ```bash
 git clone https://github.com/interesting-vibe-coding/helm
 cd helm
 PROFILE=debug ./scripts/build.sh --app-only
 open dist/Helm.app
-bash tools/helm-init/helm-init.sh   # set up cross-harness memory
 ```
-
-Then in Helm: press `Cmd+Shift+K` to launch an agent, `Cmd+Shift+S` to see them all.
+</details>
 
 ---
 
