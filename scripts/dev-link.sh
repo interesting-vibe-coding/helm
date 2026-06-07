@@ -15,9 +15,15 @@ APP="/Applications/Helm.app/Contents/Resources"
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
 
 # 1) kaku.lua: user config → repo (the file Helm actually loads). Cmd+R reloads it.
-mkdir -p "$HOME/.config/kaku"
-ln -sfn "$BREPO/kaku.lua" "$HOME/.config/kaku/kaku.lua"
-green "✓ ~/.config/kaku/kaku.lua → repo  (edit repo, Cmd+R to hot-reload)"
+#    Helm now reads ~/.config/helm; keep the legacy ~/.config/kaku symlink too so a
+#    not-yet-migrated install still hot-reloads from the repo.
+mkdir -p "$HOME/.config/helm"
+ln -sfn "$BREPO/kaku.lua" "$HOME/.config/helm/kaku.lua"
+green "✓ ~/.config/helm/kaku.lua → repo  (edit repo, Cmd+R to hot-reload)"
+if [[ -d "$HOME/.config/kaku" ]]; then
+  ln -sfn "$BREPO/kaku.lua" "$HOME/.config/kaku/kaku.lua"
+  green "✓ ~/.config/kaku/kaku.lua → repo  (legacy dir, kept for compat)"
+fi
 
 # 2) App bundle resources → repo (scripts/tools/skills resolve from the bundle first).
 if [[ -d "$APP" ]]; then

@@ -1251,6 +1251,8 @@ impl Config {
         // state.
         std::env::remove_var("KAKU_CONFIG_FILE");
         std::env::remove_var("KAKU_CONFIG_DIR");
+        std::env::remove_var("HELM_CONFIG_FILE");
+        std::env::remove_var("HELM_CONFIG_DIR");
 
         match Self::try_default() {
             Err(err) => LoadedConfig {
@@ -1515,8 +1517,10 @@ impl Config {
                 cfg.check_consistency()?;
 
                 std::env::set_var("KAKU_CONFIG_FILE", p);
+                std::env::set_var("HELM_CONFIG_FILE", p);
                 if let Some(dir) = p.parent() {
                     std::env::set_var("KAKU_CONFIG_DIR", dir);
+                    std::env::set_var("HELM_CONFIG_DIR", dir);
                 }
                 Ok(cfg)
             });

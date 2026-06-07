@@ -9,12 +9,14 @@ APP="/Applications/Helm.app/Contents/Resources"
 
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
 
-# kaku.lua: replace symlink with a real copy
-if [[ -L "$HOME/.config/kaku/kaku.lua" ]]; then
-  rm -f "$HOME/.config/kaku/kaku.lua"
-  cp "$BREPO/kaku.lua" "$HOME/.config/kaku/kaku.lua"
-  green "✓ ~/.config/kaku/kaku.lua is now a real copy"
-fi
+# kaku.lua: replace symlink with a real copy (both new and legacy dirs)
+for cfg_dir in "$HOME/.config/helm" "$HOME/.config/kaku"; do
+  if [[ -L "$cfg_dir/kaku.lua" ]]; then
+    rm -f "$cfg_dir/kaku.lua"
+    cp "$BREPO/kaku.lua" "$cfg_dir/kaku.lua"
+    green "✓ $cfg_dir/kaku.lua is now a real copy"
+  fi
+done
 
 # App resources: replace symlinks with real copies from repo
 if [[ -d "$APP" ]]; then

@@ -1006,7 +1006,7 @@ fn font_size_state_file() -> PathBuf {
     config::CONFIG_DIRS
         .first()
         .cloned()
-        .unwrap_or_else(|| config::HOME_DIR.join(".config").join("kaku"))
+        .unwrap_or_else(|| config::HOME_DIR.join(".config").join(config::CONFIG_DIR_NAME))
         .join(".kaku_font_size")
 }
 

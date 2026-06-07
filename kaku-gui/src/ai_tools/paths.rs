@@ -54,6 +54,8 @@ pub(crate) fn reject_if_sensitive(path: &Path) -> Result<()> {
             ".ssh",
             ".aws/credentials",
             ".gnupg",
+            ".config/helm/assistant.toml",
+            ".config/helm/secrets",
             ".config/kaku/assistant.toml",
             ".config/kaku/secrets",
         ] {

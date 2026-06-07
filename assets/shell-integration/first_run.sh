@@ -2,7 +2,17 @@
 # Helm First Run Experience
 set -euo pipefail
 
-CONFIG_DIR="$HOME/.config/kaku"
+CONFIG_DIR="$HOME/.config/helm"
+LEGACY_CONFIG_DIR="$HOME/.config/kaku"
+# One-time, non-destructive migration: if Helm's config dir doesn't exist yet
+# but a legacy Kaku dir does, copy it over so existing onboarding state
+# (state.json, brain.conf, …) carries forward. The legacy dir is left intact so
+# a real Kaku install is never disturbed. Runs at most once (helm dir absent).
+if [[ ! -d "$CONFIG_DIR" && -d "$LEGACY_CONFIG_DIR" ]]; then
+  if cp -R "$LEGACY_CONFIG_DIR" "$CONFIG_DIR" 2>/dev/null; then
+    echo "Migrated config from $LEGACY_CONFIG_DIR to $CONFIG_DIR (legacy dir kept)." >&2
+  fi
+fi
 STATE_FILE="$CONFIG_DIR/state.json"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMMON_SCRIPT="$SCRIPT_DIR/state_common.sh"
@@ -122,7 +132,7 @@ fi
 
 # ── Choose your Brain ─────────────────────────────────────────────────────────
 # The Brain is the First Mate that orchestrates all your agents. Let the user
-# pick which harness powers it; persist to ~/.config/kaku/brain.conf so the
+# pick which harness powers it; persist to ~/.config/helm/brain.conf so the
 # launcher (tools/helm-brain/launch-brain.sh) can honor the choice.
 # Read a single keypress into the global REPLY_KEY. Decodes escape sequences
 # (arrow keys arrive as ESC [ A/B). Empty result = Enter. bash 3.2 safe.
@@ -164,7 +174,7 @@ choose_brain() {
     local picked="${keys[$1]}"
     mkdir -p "$CONFIG_DIR"
     printf 'BRAIN_HARNESS=%s\n' "$picked" > "$CONFIG_DIR/brain.conf"
-    ok "Brain: ${BOLD}${picked}${NC} ${DIM}(~/.config/kaku/brain.conf)${NC}"
+    ok "Brain: ${BOLD}${picked}${NC} ${DIM}(~/.config/helm/brain.conf)${NC}"
   }
 
   # NON-TTY / piped: pick the default silently, no interaction, no hang.
