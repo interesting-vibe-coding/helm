@@ -187,6 +187,10 @@ config.restore_previous_session = true
 -- ════════════════════════════════════════════════════════════
 local Helm = {}
 
+-- Ghost glyph: placeholder logo for the bottom status bar (swap for a custom
+-- mark later). Used at the head of the LEFT zone.
+Helm.GHOST = '👻'
+
 -- ── Tuning constants ────────────────────────────────────────
 --   IDLE_THRESHOLD : secs of stable pane content before a session is 'waiting'
 --   LRU_LIMIT      : max sessions shown in the Cmd+Shift+S overlay (most-recent first)
@@ -255,6 +259,14 @@ end
 function Helm.util.fmt_duration(secs)
   local s = math.floor(secs)
   return string.format('%02d:%02d:%02d', math.floor(s/3600), math.floor((s%3600)/60), s%60)
+end
+
+-- Compact runtime for the status bar: 45s / 2m34s / 1h12m
+function Helm.util.fmt_short(secs)
+  local s = math.floor(secs)
+  if s < 60 then return s .. 's' end
+  if s < 3600 then return math.floor(s/60) .. 'm' .. (s % 60) .. 's' end
+  return math.floor(s/3600) .. 'h' .. math.floor((s % 3600)/60) .. 'm'
 end
 
 -- ════════════════════════════════════════════════════════════
@@ -409,72 +421,184 @@ end
 -- ════════════════════════════════════════════════════════════
 Helm.status = {}
 
--- format-tab-title: active harness → '🔵 kiro:wu' (harness:project),
--- shell/other → default tab title.
+-- Calm, low-saturation palette for the bottom bar.
+Helm.status.palette = {
+  working = '#7aa2f7',  -- blue   — agent actively producing output
+  waiting = '#e0af68',  -- orange — agent finished, awaiting input
+  dim     = '#565f73',  -- gray   — separators, background count, idle
+  usage   = '#8a7faa',  -- muted purple/gray — per-harness token usage
+  ghost   = '#8a8fa3',  -- ghost glyph
+  text    = '#a9b1d6',  -- harness/project label
+}
+
+-- Format a token count compactly: 142k / 1.2M.
+function Helm.status.fmt_tokens(n)
+  if not n or n == 0 then return '0' end
+  if n >= 1000000 then
+    local m = n / 1000000
+    return (m >= 10 and string.format('%dM', math.floor(m + 0.5))) or string.format('%.1fM', m)
+  end
+  if n >= 1000 then return math.floor(n / 1000) .. 'k' end
+  return tostring(n)
+end
+
+-- ── Live per-harness usage (quota.py --json), throttled + cached ──
+-- quota.py reads local session/message files. We call it via
+-- run_child_process at most once / 60s and stash the result in
+-- wezterm.GLOBAL.helm_quota_cache = { ts=, data= }. render() reads the cache
+-- and kicks a refresh when stale; the fetch guard prevents re-entry.
+
+-- Resolve quota.py path once (bundle Resources, then dev repo), cache in GLOBAL.
+function Helm.status.quota_script()
+  if wezterm.GLOBAL.helm_quota_path ~= nil then
+    return wezterm.GLOBAL.helm_quota_path or nil
+  end
+  local home = os.getenv('HOME') or ''
+  local candidates = {
+    wezterm.executable_dir:gsub('MacOS/?$', 'Resources') .. '/tools/helm-quota/quota.py',
+    home .. '/workspace/helm-terminal/tools/helm-quota/quota.py',
+    home .. '/.config/kaku/tools/helm-quota/quota.py',
+  }
+  for _, p in ipairs(candidates) do
+    local f = io.open(p, 'r')
+    if f then f:close(); wezterm.GLOBAL.helm_quota_path = p; return p end
+  end
+  wezterm.GLOBAL.helm_quota_path = false  -- remember "not found"
+  return nil
+end
+
+-- Blocking call, but invoked at most once per 60s (quota.py runs in ~100ms).
+function Helm.status.refresh_quota()
+  local script = Helm.status.quota_script()
+  if not script then
+    wezterm.GLOBAL.helm_quota_fetching = false
+    return
+  end
+  local ok, stdout = pcall(wezterm.run_child_process, { 'python3', script, '--json' })
+  if ok and stdout and stdout ~= '' then
+    local ok2, data = pcall(wezterm.json_parse, stdout)
+    if ok2 and type(data) == 'table' then
+      wezterm.GLOBAL.helm_quota_cache = { ts = Helm.util.now(), data = data }
+    end
+  end
+  wezterm.GLOBAL.helm_quota_fetching = false
+end
+
+-- Returns formatted usage strings like { 'kiro 142k', 'claude 1.2M' };
+-- kicks a background-ish refresh when the cache is stale (>60s).
+function Helm.status.usage_summary()
+  local now = Helm.util.now()
+  local cache = wezterm.GLOBAL.helm_quota_cache
+  if (not cache or (now - (cache.ts or 0)) > 60) and not wezterm.GLOBAL.helm_quota_fetching then
+    wezterm.GLOBAL.helm_quota_fetching = true
+    Helm.status.refresh_quota()
+    cache = wezterm.GLOBAL.helm_quota_cache
+  end
+  if not cache or type(cache.data) ~= 'table' then return {} end
+  local parts = {}
+  for _, name in ipairs({ 'kiro', 'claude', 'opencode' }) do
+    local d = cache.data[name]
+    if type(d) == 'table' and (d.tokens_today or 0) > 0 then
+      table.insert(parts, name .. ' ' .. Helm.status.fmt_tokens(d.tokens_today))
+    end
+  end
+  return parts
+end
+
+-- format-tab-title: the bar is now a single clean status line, so tabs shrink
+-- to a tiny marker (active ● / inactive ·) instead of boxy browser tabs.
+-- The agent + project info now lives in the LEFT status zone (render).
 function Helm.status.tab_title(tab)
-  local pane = tab:active_pane()
+  return tab.is_active and ' ● ' or ' · '
+end
+
+-- update-right-status render: paint the bottom bar in two zones.
+--   LEFT  (set_left_status)  : current pane's agent → 👻 kiro · proj ▶ working 2m34s
+--   RIGHT (set_right_status) : globals + live usage → ○ 2 bg · ◐ 1 waiting   kiro 142k · claude 1.2M
+function Helm.status.render(window, pane)
+  local t = Helm.util.now()
+  local P = Helm.status.palette
+
+  -- ── LEFT: current pane's agent ──────────────────────────────
   local proc = pane:get_foreground_process_name()
   local harness = Helm.harnesses.detect(proc)
+  local left
   if harness then
     local project = Helm.util.cwd_basename(pane:get_current_working_dir())
     local sess = (wezterm.GLOBAL.helm_sessions or {})[tostring(pane:pane_id())]
-    local icon = '🔵'
-    if sess then
-      if sess.state == 'waiting' then icon = '🟠'
-      elseif sess.state == 'background' then icon = '⏸' end
-    end
-    return ' ' .. icon .. ' ' .. harness:lower() .. ':' .. project .. ' '
-  end
-  -- fallback: pane title set by shell/app
-  return tab:get_title()
-end
-
--- update-right-status render half: build the compact HUD + window title
--- from all sessions. (Session tracking happens separately in Helm.apply.)
-function Helm.status.render(window, pane)
-  -- Build compact HUD: [kiro 🔵 02:34 | claude 🔵 05:12 | 2 bg]
-  local t = Helm.util.now()
-  local working_parts = {}
-  local bg_count = 0
-  for _, entry in ipairs(Helm.sessions.lru()) do
-    local sess = entry.session
-    if sess.state == 'background' then
-      bg_count = bg_count + 1
+    local state = (sess and sess.state) or 'working'
+    local scolor, sicon, slabel
+    if state == 'waiting' then
+      scolor, sicon, slabel = P.waiting, '◐', 'waiting'
+    elseif state == 'background' then
+      scolor, sicon, slabel = P.dim, '⏸', 'background'
     else
-      local icon = sess.state == 'waiting' and '🟠' or '🔵'
-      local runtime = Helm.util.fmt_duration(t - (sess.start_time or t))
-      table.insert(working_parts, sess.harness .. ' ' .. icon .. ' ' .. runtime)
+      scolor, sicon, slabel = P.working, '▶', 'working'
     end
+    local runtime = sess and Helm.util.fmt_short(t - (sess.start_time or t)) or ''
+    left = {
+      { Foreground = { Color = P.ghost } }, { Text = ' ' .. Helm.GHOST .. ' ' },
+      { Foreground = { Color = P.text } },  { Text = harness:lower() },
+      { Foreground = { Color = P.dim } },   { Text = ' · ' },
+      { Foreground = { Color = P.text } },  { Text = project .. '  ' },
+      { Foreground = { Color = scolor } },  { Text = sicon .. ' ' .. slabel .. ' ' .. runtime .. ' ' },
+    }
+  else
+    left = {
+      { Foreground = { Color = P.ghost } }, { Text = ' ' .. Helm.GHOST .. ' ' },
+      { Foreground = { Color = P.dim } },   { Text = 'helm · idle ' },
+    }
   end
-  if #working_parts == 0 and bg_count == 0 then
-    window:set_right_status('')
-    return
-  end
-  local hud = table.concat(working_parts, ' | ')
-  if bg_count > 0 then
-    if hud ~= '' then hud = hud .. ' | ' end
-    hud = hud .. bg_count .. ' bg'
-  end
-  -- Window title: "Helm — N agents (M waiting)" or just "Helm"
-  local total_agents = #working_parts + bg_count
-  local waiting_count = 0
+  window:set_left_status(wezterm.format(left))
+
+  -- ── RIGHT: global summary + live usage ──────────────────────
+  local bg_count, waiting_count, total = 0, 0, 0
   for _, entry in ipairs(Helm.sessions.lru()) do
-    if entry.session.state == 'waiting' then waiting_count = waiting_count + 1 end
+    total = total + 1
+    local st = entry.session.state
+    if st == 'background' then bg_count = bg_count + 1
+    elseif st == 'waiting' then waiting_count = waiting_count + 1 end
   end
-  if total_agents > 0 then
-    local title = 'Helm \xe2\x80\x94 ' .. total_agents .. ' agent' .. (total_agents == 1 and '' or 's')
-    if waiting_count > 0 then
-      title = title .. ' (' .. waiting_count .. ' waiting)'
+
+  local right = {}
+  local function sep()
+    table.insert(right, { Foreground = { Color = P.dim } })
+    table.insert(right, { Text = ' · ' })
+  end
+  if bg_count > 0 then
+    table.insert(right, { Foreground = { Color = P.dim } })
+    table.insert(right, { Text = '○ ' .. bg_count .. ' bg' })
+  end
+  if waiting_count > 0 then
+    if bg_count > 0 then sep() else table.insert(right, { Text = '' }) end
+    table.insert(right, { Foreground = { Color = P.waiting } })
+    table.insert(right, { Text = '◐ ' .. waiting_count .. ' waiting' })
+  end
+
+  local usage = Helm.status.usage_summary()
+  if #usage > 0 then
+    table.insert(right, { Foreground = { Color = P.dim } })
+    table.insert(right, { Text = '    ' })  -- gap between counts and usage
+    for i, u in ipairs(usage) do
+      if i > 1 then
+        table.insert(right, { Foreground = { Color = P.dim } })
+        table.insert(right, { Text = ' · ' })
+      end
+      table.insert(right, { Foreground = { Color = P.usage } })
+      table.insert(right, { Text = u })
     end
+  end
+  table.insert(right, { Text = ' ' })
+  window:set_right_status(wezterm.format(right))
+
+  -- ── Window title: "Helm — N agents (M waiting)" ─────────────
+  if total > 0 then
+    local title = 'Helm \xe2\x80\x94 ' .. total .. ' agent' .. (total == 1 and '' or 's')
+    if waiting_count > 0 then title = title .. ' (' .. waiting_count .. ' waiting)' end
     window:set_title(title)
   else
     window:set_title('Helm')
   end
-
-  window:set_right_status(wezterm.format({
-    { Foreground = { Color = '#a89070' } },
-    { Text = ' [' .. hud .. '] ' },
-  }))
 end
 
 -- Layer 3 lives in tools/ (cross-harness memory via symlinks) — no Lua needed here
@@ -666,6 +790,29 @@ function Helm.apply(config)
 
   Helm.keys.bind(config)
 end
+
+-- ── Helm bottom status bar ──────────────────────────────────
+-- WezTerm renders status text ON the tab bar (no standalone status widget),
+-- so to get a single clean status LINE at the very bottom and NO boxy tabs at
+-- the top we: keep the tab bar enabled (it hosts the status text), switch it to
+-- the retro/text style, push it to the bottom, and recolor tabs so they blend
+-- into the bar (the tiny ● / · markers come from Helm.status.tab_title).
+config.enable_tab_bar = true            -- MUST stay true: hosts set_left/right_status
+config.use_fancy_tab_bar = false        -- retro/text style — no rounded tab boxes
+config.tab_bar_at_bottom = true         -- move the whole bar to the bottom
+config.hide_tab_bar_if_only_one_tab = false  -- always show the status line
+config.show_new_tab_button_in_tab_bar = false
+config.tab_max_width = 6                -- markers are tiny; keep them tight
+
+config.colors = config.colors or {}
+config.colors.tab_bar = {
+  background = '#16161e',
+  active_tab         = { bg_color = '#16161e', fg_color = '#8a8fa3' },
+  inactive_tab       = { bg_color = '#16161e', fg_color = '#3b4048' },
+  inactive_tab_hover = { bg_color = '#16161e', fg_color = '#565f73', italic = false },
+  new_tab            = { bg_color = '#16161e', fg_color = '#3b4048' },
+  new_tab_hover      = { bg_color = '#16161e', fg_color = '#565f73' },
+}
 
 Helm.apply(config)
 return config
