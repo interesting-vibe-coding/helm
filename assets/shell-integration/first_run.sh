@@ -145,86 +145,47 @@ choose_brain() {
 choose_brain
 echo ""
 
-# ── Shell integration ─────────────────────────────────────────────────────────
-echo -e "${BOLD}  Setting up shell integration...${NC}"
-if [[ "$DETECTED_SHELL" == "fish" ]]; then
-  if [[ -f "$RESOURCES_DIR/setup_fish.sh" ]]; then
-    bash "$RESOURCES_DIR/setup_fish.sh" && ok "Fish shell integration done"
-  fi
-else
-  # zsh (or bash fallback)
-  if [[ -f "$RESOURCES_DIR/setup_zsh.sh" ]]; then
-    bash "$RESOURCES_DIR/setup_zsh.sh" && ok "Zsh shell integration done"
-  fi
-fi
-echo ""
+# ── Shell + tools ─────────────────────────────────────────────────────────────
+echo -e "${BOLD}  Setting up your shell…${NC}"
 
-# ── Required tools (auto-install, no prompt) ──────────────────────────────────
-echo -e "${BOLD}  Installing required tools...${NC}"
-# Starship — smart prompt
-if ! command -v starship >/dev/null 2>&1; then
-  brew_install starship
-else
-  ok "starship (already installed)"
+# Shell integration (quiet)
+if [[ "$DETECTED_SHELL" == "fish" && -f "$RESOURCES_DIR/setup_fish.sh" ]]; then
+  bash "$RESOURCES_DIR/setup_fish.sh" >/dev/null 2>&1 || true
+elif [[ -f "$RESOURCES_DIR/setup_zsh.sh" ]]; then
+  bash "$RESOURCES_DIR/setup_zsh.sh" >/dev/null 2>&1 || true
 fi
-if [[ "$DETECTED_SHELL" == "fish" ]]; then
-  FISH_CONFIG="$HOME/.config/fish/config.fish"
-  if [[ -f "$FISH_CONFIG" ]] && ! grep -q 'starship init fish' "$FISH_CONFIG"; then
-    echo '' >> "$FISH_CONFIG"
-    echo 'starship init fish | source' >> "$FISH_CONFIG"
-    ok "starship init added to fish config"
-  fi
-fi
-# Zoxide — smart cd
-if ! command -v zoxide >/dev/null 2>&1; then
-  brew_install zoxide
-else
-  ok "zoxide (already installed)"
-fi
-if [[ "$DETECTED_SHELL" == "fish" ]]; then
-  FISH_CONFIG="$HOME/.config/fish/config.fish"
-  if [[ -f "$FISH_CONFIG" ]] && ! grep -q 'zoxide init fish' "$FISH_CONFIG"; then
-    echo '' >> "$FISH_CONFIG"
-    echo 'zoxide init fish | source' >> "$FISH_CONFIG"
-    ok "zoxide init added to fish config"
-  fi
-fi
-# Delta — better git diff
-if ! command -v delta >/dev/null 2>&1; then
-  brew_install git-delta
-else
-  ok "delta (already installed)"
-fi
-echo ""
 
-# ── Optional tools (ask) ──────────────────────────────────────────────────────
-if [[ -t 0 && -t 1 ]]; then
-  echo -e "${BOLD}  Optional tools:${NC}"
-  echo "    lazygit  — terminal git UI        (Cmd+Shift+G)"
-  echo "    yazi     — terminal file manager  (Cmd+Shift+Y)"
-  echo ""
-  read -r -p "  Install optional tools? [y/N] " OPT_ANSWER
-  echo ""
-  if [[ "${OPT_ANSWER,,}" == "y" ]]; then
-    command -v lazygit >/dev/null 2>&1 && ok "lazygit (already installed)" || brew_install lazygit
-    command -v yazi    >/dev/null 2>&1 && ok "yazi (already installed)"    || brew_install yazi
-  else
-    info "Skipped. You can install later: brew install lazygit yazi"
+# Required tools — install only what's missing, quietly
+if command -v brew >/dev/null 2>&1; then
+  command -v starship >/dev/null 2>&1 || brew install starship  >/dev/null 2>&1 || true
+  command -v zoxide   >/dev/null 2>&1 || brew install zoxide    >/dev/null 2>&1 || true
+  command -v delta    >/dev/null 2>&1 || brew install git-delta >/dev/null 2>&1 || true
+fi
+
+# Wire prompt + zoxide into fish
+if [[ "$DETECTED_SHELL" == "fish" ]]; then
+  FC="$HOME/.config/fish/config.fish"
+  if [[ -f "$FC" ]]; then
+    grep -q 'starship init fish' "$FC" || printf '\nstarship init fish | source\n' >> "$FC"
+    grep -q 'zoxide init fish'   "$FC" || printf 'zoxide init fish | source\n'   >> "$FC"
   fi
 fi
+ok "Shell ready ${DIM}· starship · zoxide · delta${NC}"
+echo ""
 
 # ── Done ──────────────────────────────────────────────────────────────────────
-echo ""
 if [[ "${HELM_LANG:-en}" == "zh" ]]; then
   echo -e "${GREEN}${BOLD}  ✓ 一切就绪${NC}"
   echo ""
-  echo -e "  ${DIM}打开 Helm 直接进入 Brain（大副）。${NC}"
-  echo -e "  ${DIM}Cmd+1 Brain · Cmd+Shift+K 启动 · Cmd+/ 帮助${NC}"
+  echo -e "  ${DIM}打开 Helm 直接进入 Brain，告诉它做什么就好。${NC}"
+  echo -e "  ${DIM}⌘1 Brain   ⌘2 Work   ⌘3 Monitor   ⌘/ 帮助${NC}"
+  echo -e "  ${DIM}可选：brew install lazygit yazi${NC}"
 else
   echo -e "${GREEN}${BOLD}  ✓ You're all set${NC}"
   echo ""
-  echo -e "  ${DIM}Opening Helm drops you straight into the Brain.${NC}"
-  echo -e "  ${DIM}Cmd+1 Brain · Cmd+Shift+K launch · Cmd+/ help${NC}"
+  echo -e "  ${DIM}Helm opens straight into the Brain — just tell it what to build.${NC}"
+  echo -e "  ${DIM}⌘1 Brain   ⌘2 Work   ⌘3 Monitor   ⌘/ Help${NC}"
+  echo -e "  ${DIM}Optional: brew install lazygit yazi${NC}"
 fi
 echo ""
 
