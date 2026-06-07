@@ -260,12 +260,15 @@ cp -R assets/shell-integration/* "$APP_BUNDLE_OUT/Contents/Resources/"
 cp -R assets/shell-completion "$APP_BUNDLE_OUT/Contents/Resources/"
 cp -R assets/fonts "$APP_BUNDLE_OUT/Contents/Resources/"
 cp -R assets/prompts "$APP_BUNDLE_OUT/Contents/Resources/"
-# Helm: bundle the helm-quota usage tool so the bottom status bar can read
-# live per-harness usage even when run from the installed .app (kaku.lua looks
-# for Resources/tools/helm-quota/quota.py first, then the dev repo path).
-if [[ -d "tools/helm-quota" ]]; then
+# Helm: bundle ALL helm tools (helm-brain, helm-top, helm-quota, CLI utils) so
+# the Brain launcher, Monitor (helm-top), and bottom status bar work from the
+# installed .app, not just the dev repo. kaku.lua / launchers resolve
+# Resources/tools/<tool> first, then fall back to the dev repo path.
+if [[ -d "tools" ]]; then
 	mkdir -p "$APP_BUNDLE_OUT/Contents/Resources/tools"
-	cp -R tools/helm-quota "$APP_BUNDLE_OUT/Contents/Resources/tools/"
+	cp -R tools/* "$APP_BUNDLE_OUT/Contents/Resources/tools/"
+	# strip any local python caches that may have been copied
+	find "$APP_BUNDLE_OUT/Contents/Resources/tools" -name __pycache__ -type d -exec rm -rf {} + 2>/dev/null || true
 fi
 mkdir -p "$APP_BUNDLE_OUT/Contents/Resources/vendor"
 for vendor_item in starship.toml fast-syntax-highlighting zsh-autosuggestions zsh-completions zsh-z; do
