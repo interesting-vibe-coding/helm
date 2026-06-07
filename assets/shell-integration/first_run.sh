@@ -94,19 +94,30 @@ if [[ -f "$MASTER_MEMORY" ]]; then
   ok "Cross-harness memory linked ($(ls -1 $HOME/.claude $HOME/.config/opencode $HOME/.codex 2>/dev/null | grep -c AGENTS)/${MASTER_MEMORY:+3} harnesses)"
 fi
 
-# ── Cross-harness skills ──────────────────────────────────────────────────────
-# Symlink the bundled helm-first-mate skill into the user's skills dir so any
-# harness (Kiro, Claude Code, …) can load the Brain / First Mate persona. The
-# bundled skill is the single source of truth.
+# ── Cross-harness skills (open Agent Skills standard) ─────────────────────────
+# Install the bundled helm-first-mate skill into the OPEN hub ~/.agents/skills
+# — the agentskills.io USER-scope location that Codex reads natively. Then link
+# it into Kiro / Claude Code skill dirs (if installed) so every harness, no
+# matter which powers the Brain, loads the same First Mate persona. The bundled
+# skill is the single source of truth.
 FIRST_MATE_SKILL="$RESOURCES_DIR/skills/helm-first-mate"
 if [[ -d "$FIRST_MATE_SKILL" ]]; then
-  mkdir -p "$HOME/.kiro/skills"
-  if [[ -L "$HOME/.kiro/skills/helm-first-mate" && "$(readlink "$HOME/.kiro/skills/helm-first-mate")" == "$FIRST_MATE_SKILL" ]]; then
-    :  # already linked
-  else
-    ln -sfn "$FIRST_MATE_SKILL" "$HOME/.kiro/skills/helm-first-mate"
-    ok "First Mate skill linked (~/.kiro/skills/helm-first-mate)"
-  fi
+  skill_target="$(cd "$FIRST_MATE_SKILL" && pwd -P)"
+  link_first_mate() {
+    local dir="$1" src="$2"
+    mkdir -p "$dir" 2>/dev/null || return 0
+    if [[ -e "$dir/helm-first-mate/SKILL.md" \
+          && "$(cd "$dir/helm-first-mate" 2>/dev/null && pwd -P)" == "$skill_target" ]]; then
+      return 0  # already resolves to our skill (directly or via a dir symlink)
+    fi
+    ln -sfn "$src" "$dir/helm-first-mate" 2>/dev/null \
+      && ok "First Mate skill linked ($dir/helm-first-mate)"
+  }
+  HUB="$HOME/.agents/skills"
+  link_first_mate "$HUB" "$FIRST_MATE_SKILL"                          # open hub → Codex reads natively
+  # Harness dirs that aren't already pointed at the hub: link to the hub copy.
+  [[ -d "$HOME/.kiro"   ]] && link_first_mate "$HOME/.kiro/skills"   "$HUB/helm-first-mate"
+  [[ -d "$HOME/.claude" ]] && link_first_mate "$HOME/.claude/skills" "$HUB/helm-first-mate"
 fi
 
 # ── Choose your Brain ─────────────────────────────────────────────────────────
