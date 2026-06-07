@@ -35,9 +35,22 @@ detect_shell() {
 DETECTED_SHELL="$(detect_shell)"
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
-GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BOLD='\033[1m'; NC='\033[0m'
+GREEN='\033[0;32m'; YELLOW='\033[1;33m'; PURPLE='\033[38;5;141m'; DIM='\033[2m'; BOLD='\033[1m'; NC='\033[0m'
 ok()   { echo -e "  ${GREEN}✓${NC} $*"; }
 info() { echo -e "  ${YELLOW}→${NC} $*"; }
+
+# Purple ghost mascot — terminal-prompt face (round eyes + >_ mouth)
+ghost() {
+  printf "${PURPLE}"
+  cat <<'GHOST'
+    .-~~~~~~~~~-.
+   |  (o)   (o)  |
+   |     >_      |
+   |             |
+    `~-^-^-^-^-~`
+GHOST
+  printf "${NC}"
+}
 
 brew_install() {
   local pkg="$1"
@@ -57,15 +70,11 @@ fi
 # ── Welcome ───────────────────────────────────────────────────────────────────
 clear
 echo ""
-if [[ "${HELM_LANG:-en}" == "zh" ]]; then
-  echo -e "${BOLD}  🎯 欢迎使用 Helm${NC}"
-  echo ""
-  echo -e "  Shell: ${BOLD}${DETECTED_SHELL}${NC} ✓"
-else
-  echo -e "${BOLD}  🎯 Welcome to Helm${NC}"
-  echo ""
-  echo -e "  Shell: ${BOLD}${DETECTED_SHELL}${NC} ✓"
-fi
+ghost
+echo ""
+echo -e "  ${BOLD}Helm${NC} — you steer, agents execute."
+echo ""
+echo -e "  Shell: ${BOLD}${DETECTED_SHELL}${NC} ✓"
 echo ""
 
 # -- Cross-harness memory setup
@@ -156,13 +165,15 @@ fi
 # ── Done ──────────────────────────────────────────────────────────────────────
 echo ""
 if [[ "${HELM_LANG:-en}" == "zh" ]]; then
-  echo -e "${GREEN}${BOLD}  ✓ Helm 已就绪${NC}"
+  echo -e "${GREEN}${BOLD}  ✓ 一切就绪${NC}"
   echo ""
-  echo -e "  \033[2m快捷键: Cmd+L → AI 对话  ·  Cmd+Shift+M → 切换模型  ·  Cmd+Shift+S → 会话列表\033[0m"
+  echo -e "  ${DIM}打开 Helm 直接进入 Brain（大副）。${NC}"
+  echo -e "  ${DIM}Cmd+1 Brain · Cmd+Shift+K 启动 · Cmd+/ 帮助${NC}"
 else
-  echo -e "${GREEN}${BOLD}  ✓ Helm is ready${NC}"
+  echo -e "${GREEN}${BOLD}  ✓ You're all set${NC}"
   echo ""
-  echo -e "  \033[2mCmd+L → AI chat  ·  Cmd+Shift+M → switch model  ·  Cmd+Shift+S → session list\033[0m"
+  echo -e "  ${DIM}Opening Helm drops you straight into the Brain.${NC}"
+  echo -e "  ${DIM}Cmd+1 Brain · Cmd+Shift+K launch · Cmd+/ help${NC}"
 fi
 echo ""
 
