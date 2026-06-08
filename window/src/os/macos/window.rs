@@ -4394,7 +4394,17 @@ impl WindowView {
             modifiers = key_modifiers(nsevent.modifierFlags());
             screen_coords = NSEvent::mouseLocation(nsevent);
         }
-        let platform_click_count = unsafe { nsevent.clickCount() }.min(255) as u8;
+        // `[NSEvent clickCount]` is only valid for mouse down/up/drag events.
+        // Calling it on a scroll-wheel (or move) NSEvent raises an Objective-C
+        // NSException, which is uncaught and aborts the whole app — this was the
+        // "scroll crashes Helm" bug. Only read clickCount for press/release,
+        // where it's both valid and actually needed (title-bar double-click zoom).
+        let platform_click_count = match kind {
+            MouseEventKind::Press(_) | MouseEventKind::Release(_) => {
+                unsafe { nsevent.clickCount() }.min(255) as u8
+            }
+            _ => 0,
+        };
         let event = MouseEvent {
             kind,
             coords: Point::new(coords.x as isize, coords.y as isize),

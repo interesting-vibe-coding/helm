@@ -780,6 +780,7 @@ impl super::TermWindow {
             None
         };
 
+
         match mouse_dispatch_target(
             ui_item.is_some(),
             event.coords.y,

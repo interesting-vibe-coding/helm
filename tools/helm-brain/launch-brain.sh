@@ -92,7 +92,13 @@ fi
 case "$BRAIN_HARNESS" in
   claude)
     echo "launch-brain: using claude (--model sonnet, /helm-first-mate skill)" >&2
+    # --strict-mcp-config: ignore ALL other MCP configs (incl. Claude Desktop's
+    # ~/Library/Application Support/Claude/claude_desktop_config.json). Reading
+    # that cross-app file makes macOS pop a TCC "Helm wants to access data from
+    # other apps" prompt on every Brain launch. The Brain doesn't need desktop
+    # MCP servers (it drives workers via the helm-brain CLI), so we opt out.
     exec claude --model sonnet --dangerously-skip-permissions \
+      --mcp-config '{"mcpServers":{}}' --strict-mcp-config \
       "You are the Helm First Mate. Use the /helm-first-mate skill, then run 'helm-brain sessions' and greet me."
     ;;
   kiro)
