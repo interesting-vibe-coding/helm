@@ -1112,13 +1112,16 @@ extern "C" fn application_open_untitled_file(
                 });
 
                 if should_spawn {
-                    if !crate::connection::app_event_handler_ready() {
-                        // During cold startup we rely on the normal startup pipeline
-                        // to create the first window. This avoids introducing a fixed
-                        // delay for every launch while still allowing service-open
-                        // requests to take over when present.
+                    if crate::connection::startup_pending_first_window() {
+                        // During cold startup the normal startup pipeline owns the first
+                        // window. This flag is set synchronously before any AppKit event
+                        // can fire and only cleared once that window registers, so we
+                        // never race the pipeline into a second empty window. This avoids
+                        // a fixed per-launch delay while still letting service-open
+                        // requests take over.
                         log::debug!(
-                            "Ignoring applicationOpenUntitledFile before app event handler is ready"
+                            "Ignoring applicationOpenUntitledFile while startup pipeline owns \
+                             the first window"
                         );
                     } else {
                         schedule_open_untitled_spawn();

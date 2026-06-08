@@ -850,6 +850,12 @@ fn run_terminal_gui(opts: StartCommand, default_domain_name: Option<String>) -> 
         return Ok(());
     }
 
+    // This process owns the GUI and will create the first window through the
+    // normal startup pipeline below. Claim that ownership synchronously, before
+    // any AppKit event can fire, so macOS's applicationOpenUntitledFile does not
+    // race us into a second empty window on cold start.
+    ::window::connection::mark_startup_pending_first_window();
+
     startup_trace::mark("GuiFrontEnd::try_new() start");
     let gui = crate::frontend::try_new()?;
     startup_trace::mark("GuiFrontEnd::try_new() done");
