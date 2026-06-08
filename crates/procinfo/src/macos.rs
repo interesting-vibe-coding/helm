@@ -181,6 +181,7 @@ impl LocalProcessInfo {
             LocalProcessInfo {
                 pid: info.pbi_pid,
                 ppid: info.pbi_ppid,
+                pgid: info.pbi_pgid,
                 name,
                 executable,
                 cwd: cwd_for_pid(info.pbi_pid as _),

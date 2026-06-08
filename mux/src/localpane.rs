@@ -635,9 +635,15 @@ impl Pane for LocalPane {
     }
 
     fn can_close_without_prompting(&self, _reason: CloseReason) -> bool {
+        // Consider only the tty's foreground process group so backgrounded
+        // daemons spawned by the shell (e.g. gitstatusd) don't count as a
+        // stateful process at an otherwise idle prompt.
+        let fg_pgid = self.pty.lock().process_group_leader().map(|p| p as u32);
+
         if let Some(info) = self.divine_process_list(CachePolicy::FetchImmediate) {
             log::trace!(
-                "can_close_without_prompting? procs in pane {:#?}",
+                "can_close_without_prompting? fg_pgid={:?} procs in pane {:#?}",
+                fg_pgid,
                 info.root
             );
 
@@ -657,13 +663,21 @@ impl Pane for LocalPane {
                 }
             });
 
-            fn default_stateful_check(proc_list: &LocalProcessInfo) -> bool {
+            fn default_stateful_check(proc_list: &LocalProcessInfo, fg_pgid: Option<u32>) -> bool {
+                // Restrict to the foreground process group when we know it, so
+                // background jobs in the same process tree are ignored. When the
+                // foreground group is unknown (no tty, e.g. ssh/serial), fall
+                // back to the whole tree.
+                let exe_names = match fg_pgid {
+                    Some(pgid) => proc_list.flatten_to_exe_names_in_group(pgid),
+                    None => proc_list.flatten_to_exe_names(),
+                };
+
                 // Fig uses `figterm` a pseudo terminal for a lot of functionality, it runs between
                 // the shell and terminal. Unfortunately it is typically named `<shell> (figterm)`,
                 // which prevents the statuful check from passing. This strips the suffix from the
                 // process name to allow the check to pass.
-                let names = proc_list
-                    .flatten_to_exe_names()
+                let names = exe_names
                     .into_iter()
                     .map(|s| match s.strip_suffix(" (figterm)") {
                         Some(s) => s.into(),
@@ -686,7 +700,7 @@ impl Pane for LocalPane {
             }
 
             let is_stateful = match hook_result {
-                Ok(None) => default_stateful_check(&info.root),
+                Ok(None) => default_stateful_check(&info.root, fg_pgid),
                 Ok(Some(s)) => s,
                 Err(err) => {
                     log::error!(
@@ -694,7 +708,7 @@ impl Pane for LocalPane {
                          hook: {:#}, falling back to default behavior",
                         err
                     );
-                    default_stateful_check(&info.root)
+                    default_stateful_check(&info.root, fg_pgid)
                 }
             };
 
