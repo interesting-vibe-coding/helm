@@ -668,31 +668,55 @@ function Helm.status.current_view(pane)
   return 2  -- Work
 end
 
--- update-right-status render: a 4-dot VIEW COMPASS for Helm's four layers
--- (Brain · Work · Monitor · Terminal). The dot of the view you're in lights up
--- in Helm purple and shows its name; the others stay dim. The verbose
--- key cheat-sheet is hidden by default (⌘/ toggles it for newcomers).
+-- Liveness of each view, used to render the compass dynamically: a dot only
+-- shows for a view that currently exists. Brain is always considered live (you
+-- never "close" it — closing the Brain quits Helm).
+function Helm.status.work_alive()
+  if Helm.workspace.empty_pane() then return true end
+  for _, win in ipairs(wezterm.mux.all_windows()) do
+    for _, tab in ipairs(win:tabs()) do
+      for _, p in ipairs(tab:panes()) do
+        if Helm.workspace.is_worker(p:pane_id()) then return true end
+      end
+    end
+  end
+  return false
+end
+
+-- update-right-status render: a dynamic VIEW COMPASS. One dot per LIVE view, in
+-- fixed order (Brain · Work · Monitor · Terminal); the view you're in lights up
+-- in Helm purple with its name, the rest stay dim. Closing a view drops its dot.
 function Helm.status.render(window, pane)
   local P = Helm.status.palette
-  local view  = Helm.status.current_view(pane)
-  local names = { 'Brain', 'Work', 'Monitor', 'Terminal' }
+  local view = Helm.status.current_view(pane)
+
+  local slots = {
+    { idx = 1, name = 'Brain',    live = true },                              -- always
+    { idx = 2, name = 'Work',     live = Helm.status.work_alive() },
+    { idx = 3, name = 'Monitor',  live = Helm.top.pane() ~= nil },
+    { idx = 4, name = 'Terminal', live = Helm.workspace.terminal_pane() ~= nil },
+  }
 
   -- build the compass and measure its display width (in cells)
   local elems = {}
   local w = 0
-  for i = 1, 4 do
-    if i == view then
-      elems[#elems+1] = { Foreground = { Color = P.accent } }
-      elems[#elems+1] = { Text = '● ' .. names[i] }
-      w = w + 2 + #names[i]
-    else
-      elems[#elems+1] = { Foreground = { Color = P.dim } }
-      elems[#elems+1] = { Text = '·' }
-      w = w + 1
-    end
-    if i < 4 then
-      elems[#elems+1] = { Text = '   ' }  -- separator
-      w = w + 3
+  local first = true
+  for _, s in ipairs(slots) do
+    if s.live then
+      if not first then
+        elems[#elems+1] = { Text = '   ' }  -- separator
+        w = w + 3
+      end
+      first = false
+      if s.idx == view then
+        elems[#elems+1] = { Foreground = { Color = P.accent } }
+        elems[#elems+1] = { Text = '● ' .. s.name }
+        w = w + 2 + #s.name
+      else
+        elems[#elems+1] = { Foreground = { Color = P.dim } }
+        elems[#elems+1] = { Text = '·' }
+        w = w + 1
+      end
     end
   end
 
@@ -989,6 +1013,27 @@ end
 -- ════════════════════════════════════════════════════════════
 Helm.keys = {}
 
+-- A small Helm-branded yes/no confirmation, shown as a selector overlay. The
+-- title carries the question; `yes_label` is the affirmative choice. `on_yes`
+-- runs only if the user picks it (Esc / Cancel does nothing). Guards the
+-- destructive Cmd+W paths (quitting Helm, closing a running session).
+function Helm.keys.confirm(window, pane, title, yes_label, on_yes)
+  window:perform_action(
+    wezterm.action.InputSelector {
+      title = title,
+      choices = {
+        { id = 'no',  label = 'Cancel' },
+        { id = 'yes', label = yes_label },
+      },
+      fuzzy = false,
+      action = wezterm.action_callback(function(w, p, id, _label)
+        if id == 'yes' and on_yes then on_yes(w, p) end
+      end),
+    },
+    pane
+  )
+end
+
 function Helm.keys.bind(config)
   config.keys = config.keys or {}
 
@@ -1034,6 +1079,50 @@ function Helm.keys.bind(config)
       Helm.workspace.remember(pane)
       local tp = Helm.workspace.terminal_pane()
       if tp then Helm.brain.focus_pane(tp:pane_id()) else Helm.workspace.spawn_terminal(window) end
+    end),
+  })
+
+  -- Cmd+W: close the CURRENT view, with semantics that match Helm's model.
+  --   • Brain    → quit Helm entirely (no Brain = no Helm). Confirmed.
+  --   • Work      → close the running agent session (confirmed); if it's the
+  --                 empty "no active session" hint, just close the view.
+  --   • Monitor   → close the Monitor view.
+  --   • Terminal  → close it, like a normal terminal.
+  -- Closing a view drops its dot from the compass.
+  table.insert(config.keys, {
+    key = 'w',
+    mods = 'CMD',
+    action = wezterm.action_callback(function(window, pane)
+      local view = Helm.status.current_view(pane)
+      local id = pane:pane_id()
+      local close = wezterm.action.CloseCurrentPane { confirm = false }
+      if view == 1 then
+        -- Brain → quit the whole app
+        Helm.keys.confirm(window, pane,
+          'Quit Helm? The First Mate and all sessions will stop.', 'Quit Helm',
+          function(w, p) w:perform_action(wezterm.action.QuitApplication, p) end)
+      elseif view == 3 then
+        wezterm.GLOBAL.helm_top_pane = nil
+        window:perform_action(close, pane)
+      elseif view == 4 then
+        wezterm.GLOBAL.helm_terminal_pane = nil
+        window:perform_action(close, pane)
+      else
+        -- Work
+        if id == wezterm.GLOBAL.helm_empty_pane then
+          wezterm.GLOBAL.helm_empty_pane = nil
+          window:perform_action(close, pane)
+        else
+          Helm.keys.confirm(window, pane,
+            'Close this session? The agent running here will stop.', 'Close session',
+            function(w, p)
+              if wezterm.GLOBAL.helm_last_worker == p:pane_id() then
+                wezterm.GLOBAL.helm_last_worker = nil
+              end
+              w:perform_action(wezterm.action.CloseCurrentPane { confirm = false }, p)
+            end)
+        end
+      end
     end),
   })
 
