@@ -14,6 +14,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo check --locked -p kaku -p kaku-gui
+      - name: Scroll regression tests
+        run: cargo test --locked -p wezterm-term scrollback
       - name: Check kaku.lua syntax
         run: |
           brew install lua 2>/dev/null || true
