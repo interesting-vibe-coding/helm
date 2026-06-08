@@ -56,17 +56,25 @@ Concrete, prioritized task list toward V1. Tiers by impact: **P0** = correctness
 - **Cmd+1/2/3/4 are view SLOTS, not new sessions** — Cmd+4 Terminal is a dedicated free shell (same pane each press); Cmd+2 Work is agent-sessions-only and shows a calm "No active session" hint when nothing runs. Work / Terminal / empty are distinct slots. (PR #93)
 - **Dark-only colors fixed** — pinned `color_scheme = 'Kaku Dark'`. Following macOS appearance referenced an undefined `Kaku Light` in Light/Auto mode, erroring the whole config and dropping warm colors + fonts. (PR #93)
 
+### ✅ Shipped 2026-06-08 (evening)
+- **Cmd+W close semantics + dynamic compass** — per-view close (Brain→quit w/ confirm, Work→close session, Monitor/Terminal→close); compass draws one dot per live view. (PR #95)
+- **Brain session-tracking crash fixed** — `helm-brain` track called `table.concat` on `get_lines_as_text` (which returns a String), erroring every tick on any agent pane and breaking session tracking + tab fallback. (PR #96)
+- **Kaku Light / Auto fully adapted** — ported `Kaku Light` palette + appearance-resolve; theme-aware window_frame / tab_bar / status compass; settings TUI (`helm config`) now recovers theme intent from the config file when `color_scheme` is unevaluated (was painting pure black on light systems); config_tui title `Kaku`→`Helm`; active compass dot is Anthropic orange on cream; `foreground_color_overrides` for legible Claude text on cream. (PR #97)
+- **Blank tab titles (no cwd leak)** — the compass is the single source of tab identity; the engine no longer falls back to the pane cwd (which surfaced `Users/Users/Users/` after the settings window closed). (PR #101)
+- **Upstream Kaku fixes ported** — #448 scroll snap-to-bottom (no more jump-to-top during long AI output, PR #101); #446/#450 powerline separators keep their color, exempt block glyphs from min-contrast (PR #102); #449 Cmd+Q close-confirmation scoped to the foreground process group, so background daemons like gitstatusd don't force a prompt at an idle shell (PR #103); #452 repaint after resize + suppress phantom second window on cold start (PR #104).
+- **Helm ⟂ Kaku isolation confirmed** — distinct bundle id (`dev.helm.app` vs `fun.tw93.kaku`), config dirs, bundled binary; Kaku.app untouched. Reinstalled upstream Kaku V0.12.1 cleanly.
+
 ### P0 — correctness / prevent loss
-- [ ] **Close-confirmation guard.** Today `window_close_confirmation = NeverPrompt` and there's no Cmd+W binding — a misclick can kill running agents with no prompt. Add a Helm-branded confirm, only when an agent session is actually running. (gated on the Cmd+W discussion below)
+- [x] **Close-confirmation guard.** (PR #95) Was `window_close_confirmation = NeverPrompt` and there's no Cmd+W binding — a misclick can kill running agents with no prompt. Add a Helm-branded confirm, only when an agent session is actually running. (gated on the Cmd+W discussion below)
 - [ ] **Core agent loop, end-to-end.** Manually walk the whole chain: spawn worker → Monitor (helm-top) shows it → Brain `notify_waiting` fires → session restore after restart. List and fix what's broken.
 
 ### P1 — core UX
 - [ ] **Window geometry persistence** — remember last size/position instead of the fixed 110×22 on every launch.
-- [ ] **Cmd+W semantics** — define what close means per view (Brain / Monitor / Terminal / Work). Pairs with the close-confirmation guard. *(discussion first, then implement)*
+- [x] **Cmd+W semantics** — per-view close defined + implemented (Brain quits w/ confirm, Work closes session, Monitor/Terminal close). (PR #95)
 - [ ] **First-run onboarding + boot-into-Brain** — confirm the cold-start flow is smooth, first_run clean, no stray permission popups.
 
 ### P2 — polish
-- [ ] **Scroll regression test in CI** — the GUI mouse→render path is hard to test headless; the realistic move is a `term`-crate scrollback unit test for wheel→viewport-offset behavior, wired into the existing Cargo CI.
+- [x] **Scroll regression test in CI** — `term`-crate scrollback unit tests wired into Cargo CI. (PR #94)
 - [ ] **Compass centering** — `BUTTON_CELLS=8` fudge for the integrated-buttons offset; good enough now, revisit if it drifts at other window sizes.
 - [ ] **Empty Work state** — currently a non-interactive branded hint; option to make it input-capable (minus the generic fish greeting) if that reads better.
 
