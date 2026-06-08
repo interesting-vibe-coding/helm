@@ -1,5 +1,37 @@
 # Release Checklist
 
+## macOS Code Signing & TCC (BLOCKER for public release)
+
+Helm currently ships **ad-hoc signed** (`codesign -dvvv /Applications/Helm.app`
+→ `Signature=adhoc`, no `TeamIdentifier`). This has a user-visible consequence:
+
+- macOS attributes Helm's file access to a TCC service
+  (`kTCCServiceSystemPolicyAppData`) and, because the binary has no stable
+  signing identity, **the user's "Allow" grant can never persist** — the
+  "“Helm” wants to access data from other apps" prompt **recurs on every
+  launch**. (It fires because Claude Code stores its session/VM data inside
+  `~/Library/Application Support/Claude/`, which Helm touches each time the
+  Brain view launches `claude`.)
+- TCC also currently attributes the *responsible* app to `fun.tw93.kaku`
+  (Kaku.app) because the fork shares LaunchServices identity quirks.
+
+Before a public release:
+
+- [ ] Sign with a real **Developer ID Application** certificate (stable
+      `TeamIdentifier`) and **notarize** the DMG. This is what makes the TCC
+      grant persist after the first approval. (Upstream Kaku's Nightly is now a
+      signed + notarized DMG — same direction.)
+- [ ] Confirm bundle identifier is `dev.helm.app` end-to-end so TCC stops
+      attributing Helm's access to `fun.tw93.kaku`.
+- [ ] Verify after signing: launch Helm, approve the data-access prompt once,
+      relaunch — the prompt must **not** reappear.
+
+Interim user workaround (ad-hoc builds): System Settings → Privacy & Security →
+Full Disk Access → add Helm.app (may still recur across reinstalls).
+
+Note: PR #92's `--strict-mcp-config` was based on a wrong hypothesis and does
+**not** fix the recurring prompt; it is harmless but unrelated to TCC.
+
 ## macOS Tab Bar Matrix
 
 Before shipping a release that touches windowing, titlebar coloring, tab bar

@@ -66,12 +66,35 @@ local config = {}
 --   action = wezterm.action.TogglePaneZoomState,
 -- })
 
--- Helm is dark-only: pin Kaku's warm dark scheme unconditionally. (We used to
--- follow the macOS appearance and pick 'Kaku Light' in Light/Auto mode, but
--- 'Kaku Light' is not defined — referencing it made the WHOLE config error out
--- and fall back to defaults, dropping the warm colors AND the fonts. Dark-only
--- avoids that entirely and matches Helm's aesthetic.)
-config.color_scheme = 'Kaku Dark'
+-- Theme follows the macOS appearance, exactly like Kaku: warm cream 'Kaku Light'
+-- in light mode, 'Kaku Dark' in dark mode. These resolvers are ported verbatim
+-- from Kaku; the `resolve_kaku_color_scheme(...)` call (after the palettes are
+-- registered, below) is also how the engine detects "Auto" and swaps its
+-- built-in light/dark palette to match the system.
+local function is_macos_dark_appearance()
+  local handle = io.popen('defaults read -g AppleInterfaceStyle 2>/dev/null')
+  if not handle then return true end
+  local result = handle:read('*a') or ''
+  handle:close()
+  return result:find('Dark') ~= nil
+end
+
+local function resolve_appearance_color_scheme()
+  local gui = wezterm.gui
+  if gui and type(gui.get_appearance) == 'function' then
+    local ok, appearance = pcall(gui.get_appearance)
+    if ok and type(appearance) == 'string' then
+      return appearance:find('Dark', 1, true) and 'Kaku Dark' or 'Kaku Light'
+    end
+  end
+  return is_macos_dark_appearance() and 'Kaku Dark' or 'Kaku Light'
+end
+
+local function resolve_kaku_color_scheme(scheme)
+  if scheme == 'Auto' then return resolve_appearance_color_scheme() end
+  if not scheme or scheme == '' then return resolve_appearance_color_scheme() end
+  return scheme
+end
 config.window_decorations = 'INTEGRATED_BUTTONS|RESIZE'
 
 -- ════════════════════════════════════════════════════════════
@@ -215,21 +238,72 @@ config.color_schemes = config.color_schemes or {}
 config.color_schemes['Kaku Dark'] = kaku_theme
 config.color_schemes['Kaku Theme'] = kaku_theme
 
+-- 'Kaku Light' — Kaku's warm cream palette (#FFFCF0 bg), ported verbatim so
+-- Auto mode shows the same warm light theme Kaku does in daylight.
+local kaku_light = {
+  foreground = '#100F0F',
+  background = '#FFFCF0',
+  cursor_bg = '#343331',
+  cursor_fg = '#FFFCF0',
+  cursor_border = '#343331',
+  selection_bg = '#E8E6DB',
+  selection_fg = '#100F0F',
+  ansi = {
+    '#100F0F', '#AF3029', '#536907', '#8E6B02',
+    '#205EA6', '#A02F6F', '#1C6C66', '#575653',
+  },
+  brights = {
+    '#6F6E69', '#C03E35', '#66790D', '#8E6B02',
+    '#3171B2', '#B74583', '#2F968D', '#403E3C',
+  },
+  scrollbar_thumb = '#C9C2B1',
+  split = '#DDDBCF',
+  tab_bar = {
+    background = '#FFFCF0',
+    inactive_tab_edge = '#FFFCF0',
+    active_tab   = { bg_color = '#E8E6DB', fg_color = '#100F0F', intensity = 'Bold' },
+    inactive_tab = { bg_color = '#FFFCF0', fg_color = '#4A4946', intensity = 'Normal' },
+    inactive_tab_hover = { bg_color = '#E8E6DB', fg_color = '#100F0F', italic = false },
+    new_tab       = { bg_color = '#FFFCF0', fg_color = '#4A4946' },
+    new_tab_hover = { bg_color = '#E8E6DB', fg_color = '#100F0F' },
+  },
+  color_overrides = {
+    ['#575653'] = '#F2F0EB', ['#585754'] = '#F2F0EB', ['#225FA6'] = '#F2F0EB',
+    ['#205EA6'] = '#F2F0EB', ['#1C6C66'] = '#F2F0EB', ['#536907'] = '#F2F0EB',
+    ['#8E6B02'] = '#F2F0EB',
+  },
+  -- Pale agent/Claude Code text that is readable on dark themes but nearly
+  -- invisible against the cream background — remap to a legible base tone.
+  -- Ported verbatim from Kaku Light, which is why Kaku has no contrast issue.
+  foreground_color_overrides = {
+    ['#FFFFDB'] = '#575653',  -- pale yellow text
+    ['#FFFFDC'] = '#575653',  -- pale yellow text variant
+  },
+}
+config.color_schemes['Kaku Light'] = kaku_light
+
+-- Resolve the scheme against the system appearance (Kaku's mechanism). Keeping
+-- the literal call `resolve_kaku_color_scheme(...)` on this line is also what
+-- lets the engine recognise Auto mode and swap its built-in palette.
+config.color_scheme = resolve_kaku_color_scheme(config.color_scheme)
+
 -- ════════════════════════════════════════════════════════════
 -- Behaviour / window settings — ported from Kaku so Helm matches its feel:
 -- dark title bar, no close prompts, WebGpu rendering, macOS key handling.
 -- ════════════════════════════════════════════════════════════
 
--- Title bar (dark theme): blends into the terminal, no visible borders.
+-- Title bar — theme-aware so it matches the terminal background (cream in Kaku
+-- Light, charcoal in Kaku Dark). Mirrors Kaku's get_window_frame_colors.
+local _is_light = (config.color_scheme == 'Kaku Light')
 config.window_frame = {
   font = wezterm.font({ family = 'JetBrains Mono', weight = 'Regular' }),
   font_size = 14.0,
-  active_titlebar_bg = KAKU.BLACK,
-  inactive_titlebar_bg = KAKU.BLACK,
-  active_titlebar_fg = KAKU.WHITE,
-  inactive_titlebar_fg = KAKU.GRAY,
-  active_titlebar_border_bottom = KAKU.BLACK,
-  inactive_titlebar_border_bottom = KAKU.BLACK,
+  active_titlebar_bg            = _is_light and '#FFFCF0' or KAKU.BLACK,
+  inactive_titlebar_bg          = _is_light and '#F8F5EA' or KAKU.BLACK,
+  active_titlebar_fg            = _is_light and '#100F0F' or KAKU.WHITE,
+  inactive_titlebar_fg          = _is_light and '#575653' or KAKU.GRAY,
+  active_titlebar_border_bottom = _is_light and '#E8E1D0' or KAKU.BLACK,
+  inactive_titlebar_border_bottom = _is_light and '#EDE6D6' or KAKU.BLACK,
   border_left_width = 0,
   border_right_width = 0,
   border_top_height = 0,
@@ -258,7 +332,7 @@ config.status_update_interval = 1000
 
 -- Environment: COLORFGBG hints dark background to TUI apps
 config.set_environment_variables = config.set_environment_variables or {}
-config.set_environment_variables['COLORFGBG'] = '15;0'
+config.set_environment_variables['COLORFGBG'] = (config.color_scheme == 'Kaku Light') and '0;15' or '15;0'
 
 -- ════════════════════════════════════════════════════════════
 -- Paws 🐾 — terminal companion (fully native, no external scripts)
@@ -641,11 +715,13 @@ end
 -- ════════════════════════════════════════════════════════════
 Helm.status = {}
 
--- Calm, low-saturation palette for the bottom help bar.
+-- Calm, low-saturation palette for the view compass — theme-aware so the dots
+-- stay readable on both the cream (Kaku Light) and charcoal (Kaku Dark) bar.
+local _light_status = (config.color_scheme == 'Kaku Light')
 Helm.status.palette = {
-  dim    = '#565f73',  -- gray — inactive dots / secondary hints
-  text   = '#a9b1d6',  -- primary cheat-sheet text
-  accent = '#bb9af7',  -- Helm purple — the active view dot
+  dim    = _light_status and '#9A988F' or '#565f73',  -- inactive dots
+  text   = _light_status and '#403E3C' or '#a9b1d6',  -- primary text
+  accent = _light_status and '#D97757' or '#bb9af7',  -- active dot: Anthropic orange on cream, Helm purple on charcoal
 }
 
 -- format-tab-title: the bar is now a single clean status line, so tabs shrink
@@ -694,6 +770,33 @@ end
 function Helm.status.render(window, pane)
   local P = Helm.status.palette
   local view = Helm.status.current_view(pane)
+
+  -- The standalone Settings TUI is spawned as `helm config` in its own window
+  -- (see frontend.rs open_kaku_config). When the active pane is that process,
+  -- the view compass is meaningless here — show a single "Settings" label so
+  -- the top bar matches the screen instead of falling back to "Work".
+  do
+    local okp, proc = pcall(function() return pane:get_foreground_process_name() end)
+    if okp and type(proc) == 'string' then
+      local base = proc:match('[^/]+$') or proc
+      if base == 'helm' or base == 'kaku' then
+        local label = '● Settings'
+        local w = 2 + #('Settings')
+        local cols = 0
+        local okd, d = pcall(function() return pane:get_dimensions() end)
+        if okd and d and d.cols then cols = d.cols end
+        local pad = math.floor((cols - w) / 2) - 8
+        if pad < 0 then pad = 0 end
+        window:set_left_status(wezterm.format({
+          { Text = string.rep(' ', pad) },
+          { Foreground = { Color = P.accent } },
+          { Text = label },
+        }))
+        window:set_right_status('')
+        return
+      end
+    end
+  end
 
   local slots = {
     { idx = 1, name = 'Brain',    live = true },                              -- always
@@ -1395,20 +1498,31 @@ end
 -- into the bar (the tiny ● / · markers come from Helm.status.tab_title).
 config.enable_tab_bar = true            -- MUST stay true: hosts set_left/right_status
 config.use_fancy_tab_bar = false        -- retro/text style — no rounded tab boxes
-config.tab_bar_at_bottom = false        -- view compass + tabs live at the TOP
+config.tab_bar_at_bottom = false
 config.hide_tab_bar_if_only_one_tab = false  -- always show the status line
 config.show_new_tab_button_in_tab_bar = false
 config.tab_max_width = 6                -- markers are tiny; keep them tight
 
 config.colors = config.colors or {}
-config.colors.tab_bar = {
-  background = '#16161e',
-  active_tab         = { bg_color = '#16161e', fg_color = '#8a8fa3' },
-  inactive_tab       = { bg_color = '#16161e', fg_color = '#3b4048' },
-  inactive_tab_hover = { bg_color = '#16161e', fg_color = '#565f73', italic = false },
-  new_tab            = { bg_color = '#16161e', fg_color = '#3b4048' },
-  new_tab_hover      = { bg_color = '#16161e', fg_color = '#565f73' },
-}
+if _is_light then
+  config.colors.tab_bar = {
+    background = '#FFFCF0',
+    active_tab         = { bg_color = '#FFFCF0', fg_color = '#100F0F' },
+    inactive_tab       = { bg_color = '#FFFCF0', fg_color = '#9A988F' },
+    inactive_tab_hover = { bg_color = '#E8E6DB', fg_color = '#100F0F', italic = false },
+    new_tab            = { bg_color = '#FFFCF0', fg_color = '#9A988F' },
+    new_tab_hover      = { bg_color = '#E8E6DB', fg_color = '#100F0F' },
+  }
+else
+  config.colors.tab_bar = {
+    background = '#16161e',
+    active_tab         = { bg_color = '#16161e', fg_color = '#8a8fa3' },
+    inactive_tab       = { bg_color = '#16161e', fg_color = '#3b4048' },
+    inactive_tab_hover = { bg_color = '#16161e', fg_color = '#565f73', italic = false },
+    new_tab            = { bg_color = '#16161e', fg_color = '#3b4048' },
+    new_tab_hover      = { bg_color = '#16161e', fg_color = '#565f73' },
+  }
+end
 
 Helm.apply(config)
 return config
