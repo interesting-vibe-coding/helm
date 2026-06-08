@@ -223,6 +223,11 @@ pub struct ComputeCellFgBgParams<'a> {
     pub cursor_is_default_color: bool,
     pub cursor_border_color: LinearRgba,
     pub pane: Option<&'a Arc<dyn Pane>>,
+    // Powerline/box-drawing glyphs are decorative shapes whose exact color is
+    // intentional (e.g. a separator tinted to match the adjacent segment for a
+    // seamless blend). Skip min-contrast enforcement for them so it does not
+    // lighten a dim separator into a visible block.
+    pub is_block_glyph: bool,
 }
 
 #[derive(Debug)]
@@ -730,7 +735,11 @@ impl crate::TermWindow {
             _ => (params.fg_color, params.bg_color, params.cursor_border_color),
         };
 
-        let fg_color = self.ensure_min_contrast(fg_color, bg_color);
+        let fg_color = if params.is_block_glyph {
+            fg_color
+        } else {
+            self.ensure_min_contrast(fg_color, bg_color)
+        };
 
         let blinking = params.cursor.is_some()
             && params.is_active_pane
