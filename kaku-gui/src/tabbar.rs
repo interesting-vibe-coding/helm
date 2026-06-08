@@ -323,21 +323,24 @@ fn compute_tab_title_from_precomputed(
         Some(title) => title,
         None => {
             if let Some(pane) = &tab.active_pane {
-                let title = if !tab.tab_title.is_empty() {
-                    tab.tab_title.clone()
-                } else if let Some(multi) = tab_multi_pane_title(tab.tab_id) {
-                    multi
-                } else if let Some(path_title) = pane_cwd_title(pane) {
-                    path_title
-                } else if let Some(ssh_host) = ssh_destination_for_pane(pane) {
-                    ssh_host
-                } else {
-                    pane.title.clone()
-                };
-                build_default_title(tab, config, &title, true, false)
+                // Helm: the view compass (left status) is the single source of
+                // tab identity, so an untitled tab must render BLANK. Never fall
+                // back to the pane cwd / process title here — that is what
+                // surfaced "Users/" in the bar after the settings window closed
+                // (format-tab-title can momentarily yield None mid reload).
+                if !tab.tab_title.is_empty() {
+                    return build_default_title(tab, config, &tab.tab_title, true, false);
+                }
+                if let Some(multi) = tab_multi_pane_title(tab.tab_id) {
+                    return build_default_title(tab, config, &multi, true, false);
+                }
+                let _ = pane;
+                TitleText {
+                    items: vec![FormatItem::Text(" ".to_string())],
+                }
             } else {
                 TitleText {
-                    items: vec![FormatItem::Text(" no pane ".to_string())],
+                    items: vec![FormatItem::Text(" ".to_string())],
                 }
             }
         }

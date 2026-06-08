@@ -5468,18 +5468,14 @@ impl TermWindow {
         match position {
             Some(pos) if pos >= dims.physical_top => None,
             Some(pos) if pos < dims.scrollback_top => {
-                // The viewport position has been pruned from scrollback.
-                // If the pruning is small (within one viewport page), keep the
-                // user in history at the nearest valid row.  If the pruning is
-                // large (the content they were reading is gone), snap to the
-                // bottom so they see current output instead of unrelated old
-                // content at the top of scrollback.
-                let pruned_distance = dims.scrollback_top - pos;
-                if pruned_distance <= dims.viewport_rows as StableRowIndex {
-                    Some(dims.scrollback_top)
-                } else {
-                    None
-                }
+                // The viewport position has been pruned from scrollback. Snap to
+                // the bottom (follow live output) instead of clamping to
+                // scrollback_top: during continuous output the oldest row keeps
+                // advancing, so clamping pinned the viewport to that moving top
+                // edge, which read as a jarring "jump to the top" (Kaku #448).
+                // The content being read is already gone, so following current
+                // output is the least surprising fallback.
+                None
             }
             Some(pos) => Some(pos),
             None => None,
@@ -6241,13 +6237,13 @@ mod tests {
     }
 
     #[test]
-    fn normalize_viewport_clamps_to_scrollback_top_when_pruned() {
-        // When viewport is below scrollback_top by a small amount (within one
-        // viewport page), clamp to scrollback_top so the user stays in history.
-        // dims() sets viewport_rows=24, so pruning of 10 rows is within threshold.
+    fn normalize_viewport_snaps_to_bottom_on_small_pruning() {
+        // Even a small prune (here 10 rows, within one viewport page) snaps to
+        // bottom (None) rather than clamping to the moving scrollback_top, which
+        // read as a jarring "jump to the top" during continuous output (#448).
         assert_eq!(
             TermWindow::normalize_viewport(Some(90), dims(150, 100)),
-            Some(100)
+            None
         );
     }
 
@@ -6281,10 +6277,10 @@ mod tests {
             TermWindow::normalize_viewport(Some(120), dims(140, 100)),
             Some(120)
         );
-        // When scrollback_top advances past the viewport, clamp to scrollback_top.
+        // Once scrollback_top advances past the viewport, snap to bottom.
         assert_eq!(
             TermWindow::normalize_viewport(Some(120), dims(150, 121)),
-            Some(121)
+            None
         );
     }
 

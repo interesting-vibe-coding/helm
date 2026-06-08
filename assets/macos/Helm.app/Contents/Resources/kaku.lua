@@ -285,7 +285,7 @@ config.color_schemes['Kaku Light'] = kaku_light
 -- Resolve the scheme against the system appearance (Kaku's mechanism). Keeping
 -- the literal call `resolve_kaku_color_scheme(...)` on this line is also what
 -- lets the engine recognise Auto mode and swap its built-in palette.
-config.color_scheme = resolve_kaku_color_scheme(config.color_scheme)
+config.color_scheme = (wezterm.gui and wezterm.gui.get_appearance() or 'Dark'):find('Dark') and 'Kaku Dark' or 'Kaku Light'
 
 -- ════════════════════════════════════════════════════════════
 -- Behaviour / window settings — ported from Kaku so Helm matches its feel:
@@ -735,6 +735,10 @@ Helm.status.palette = {
 -- empty string makes wezterm fall back to the default (cwd) title, which is
 -- where the stray "Users/Users/" came from.
 function Helm.status.tab_title(tab)
+  -- Tabs are intentionally blank: the view compass (left status) is the single
+  -- source of tab identity. Returning a space renders an empty tab cell; the
+  -- engine's cwd fallback (which would surface "Users/") is disabled in
+  -- tabbar.rs for the None case so this stays blank even mid config-reload.
   return ' '
 end
 
