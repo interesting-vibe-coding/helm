@@ -669,19 +669,10 @@ function Helm.status.render(window, pane)
   end
   window:set_right_status('')
 
-  -- Window title keeps an at-a-glance agent count even when the bar is hidden.
-  local waiting_count, total = 0, 0
-  for _, entry in ipairs(Helm.sessions.lru()) do
-    total = total + 1
-    if entry.session.state == 'waiting' then waiting_count = waiting_count + 1 end
-  end
-  if total > 0 then
-    local title = 'Helm \xe2\x80\x94 ' .. total .. ' agent' .. (total == 1 and '' or 's')
-    if waiting_count > 0 then title = title .. ' (' .. waiting_count .. ' waiting)' end
-    window:set_title(title)
-  else
-    window:set_title('Helm')
-  end
+  -- NOTE: the GUI window title (agent count) is intentionally not set here.
+  -- The `window` passed to update-right-status is a GuiWin, which has NO
+  -- set_title method — calling it errored every tick. If we want an agent
+  -- count in the title bar later, do it via a `format-window-title` event.
 end
 
 -- Layer 3 lives in tools/ (cross-harness memory via symlinks) — no Lua needed here
