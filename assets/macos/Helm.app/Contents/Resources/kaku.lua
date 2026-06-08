@@ -66,6 +66,11 @@ local config = {}
 --   action = wezterm.action.TogglePaneZoomState,
 -- })
 
+-- Helm is dark-only: pin Kaku's warm dark scheme unconditionally. (We used to
+-- follow the macOS appearance and pick 'Kaku Light' in Light/Auto mode, but
+-- 'Kaku Light' is not defined — referencing it made the WHOLE config error out
+-- and fall back to defaults, dropping the warm colors AND the fonts. Dark-only
+-- avoids that entirely and matches Helm's aesthetic.)
 config.color_scheme = 'Kaku Dark'
 config.window_decorations = 'INTEGRATED_BUTTONS|RESIZE'
 
@@ -637,42 +642,73 @@ Helm.status = {}
 
 -- Calm, low-saturation palette for the bottom help bar.
 Helm.status.palette = {
-  dim  = '#565f73',  -- gray — separators / secondary hints
-  text = '#a9b1d6',  -- primary cheat-sheet text
+  dim    = '#565f73',  -- gray — inactive dots / secondary hints
+  text   = '#a9b1d6',  -- primary cheat-sheet text
+  accent = '#bb9af7',  -- Helm purple — the active view dot
 }
 
 -- format-tab-title: the bar is now a single clean status line, so tabs shrink
 -- to a tiny marker (active ● / inactive ·) instead of boxy browser tabs.
 -- The agent + project info now lives in the LEFT status zone (render).
+-- format-tab-title: the 4-dot view compass (left status) is now the single
+-- source of navigation, so per-tab markers would just add a second, confusing
+-- set of dots. Render tabs as blank — the compass tells you where you are.
 function Helm.status.tab_title(tab)
-  return tab.is_active and ' ● ' or ' · '
+  return ''
 end
 
--- update-right-status render: the bottom bar is a toggleable HELP BAR (a
--- key-bindings cheat-sheet), not a per-agent HUD. Philosophy: zero friction,
--- out of the box, focus on shipping — the keys you need are one glance away,
--- and one keystroke (⌘/) away from getting out of your way. Per-agent status
--- lives in the Brain (⌘1) and the Monitor (⌘3) layers. We also keep an
--- at-a-glance agent count in the window title even when the bar is hidden.
---   visible (default) → calm one-line cheat-sheet (set_left_status)
---   hidden  (⌘/)      → empty, nothing at the bottom
+-- Which of the four views the given pane belongs to (1=Brain 2=Work 3=Monitor
+-- 4=Terminal). Derived by comparing the pane id against the cached view slots;
+-- anything that isn't Brain/Monitor/Terminal is a Work(er) pane.
+function Helm.status.current_view(pane)
+  local id = pane:pane_id()
+  if id == wezterm.GLOBAL.helm_brain_pane    then return 1 end
+  if id == wezterm.GLOBAL.helm_top_pane      then return 3 end
+  if id == wezterm.GLOBAL.helm_terminal_pane then return 4 end
+  return 2  -- Work
+end
+
+-- update-right-status render: a 4-dot VIEW COMPASS for Helm's four layers
+-- (Brain · Work · Monitor · Terminal). The dot of the view you're in lights up
+-- in Helm purple and shows its name; the others stay dim. The verbose
+-- key cheat-sheet is hidden by default (⌘/ toggles it for newcomers).
 function Helm.status.render(window, pane)
   local P = Helm.status.palette
+  local view  = Helm.status.current_view(pane)
+  local names = { 'Brain', 'Work', 'Monitor', 'Terminal' }
 
-  if wezterm.GLOBAL.helm_help_visible then
-    window:set_left_status(wezterm.format({
-      { Foreground = { Color = P.text } }, { Text = ' ⌘1 Brain   ⌘2 Work   ⌘3 Monitor   ⌘4 Terminal   ' },
-      { Foreground = { Color = P.dim } },  { Text = '⌘, Settings   ⌘/ Help ' },
-    }))
-  else
-    window:set_left_status('')
+  -- build the compass and measure its display width (in cells)
+  local elems = {}
+  local w = 0
+  for i = 1, 4 do
+    if i == view then
+      elems[#elems+1] = { Foreground = { Color = P.accent } }
+      elems[#elems+1] = { Text = '● ' .. names[i] }
+      w = w + 2 + #names[i]
+    else
+      elems[#elems+1] = { Foreground = { Color = P.dim } }
+      elems[#elems+1] = { Text = '·' }
+      w = w + 1
+    end
+    if i < 4 then
+      elems[#elems+1] = { Text = '   ' }  -- separator
+      w = w + 3
+    end
   end
-  window:set_right_status('')
 
-  -- NOTE: the GUI window title (agent count) is intentionally not set here.
-  -- The `window` passed to update-right-status is a GuiWin, which has NO
-  -- set_title method — calling it errored every tick. If we want an agent
-  -- count in the title bar later, do it via a `format-window-title` event.
+  -- center the compass across the window (approx via the active pane's columns).
+  -- The integrated macOS traffic-light buttons sit at the bar's left and push
+  -- left_status to the right, so subtract their width (~cells) to compensate.
+  local BUTTON_CELLS = 8
+  local cols = 0
+  local ok, d = pcall(function() return pane:get_dimensions() end)
+  if ok and d and d.cols then cols = d.cols end
+  local pad = math.floor((cols - w) / 2) - BUTTON_CELLS
+  if pad < 0 then pad = 0 end
+  table.insert(elems, 1, { Text = string.rep(' ', pad) })
+
+  window:set_left_status(wezterm.format(elems))
+  window:set_right_status('')
 end
 
 -- Layer 3 lives in tools/ (cross-harness memory via symlinks) — no Lua needed here
@@ -851,57 +887,99 @@ end
 -- ════════════════════════════════════════════════════════════
 Helm.workspace = {}
 
--- Spawn a plain login-shell terminal tab. `banner` (optional) is printed once
--- before dropping into the interactive shell — used by Cmd+2 to surface the
--- "No active session" hint when there are no workers yet.
-function Helm.workspace.spawn_terminal(window, banner)
+-- Cmd+4 Terminal slot: a dedicated plain login shell for running commands.
+-- This is its OWN view, distinct from the Work(space) — it is NOT recorded as a
+-- worker, so Cmd+2 never lands here. Only sets the Terminal slot id.
+function Helm.workspace.spawn_terminal(window)
   local shell = os.getenv('SHELL') or '/bin/sh'
-  local args
-  if banner and banner ~= '' then
-    -- print banner, then replace the process with an interactive login shell
-    local cmd = string.format('printf "%%s\\n\\n" %q; exec %q -l', banner, shell)
-    args = { shell, '-l', '-c', cmd }
-  else
-    args = { shell, '-l' }
-  end
-  local tab = window:mux_window():spawn_tab { args = args }
+  local tab = window:mux_window():spawn_tab { args = { shell, '-l' } }
   local p = tab:active_pane()
-  wezterm.GLOBAL.helm_last_worker = p:pane_id()
+  wezterm.GLOBAL.helm_terminal_pane = p:pane_id()
   tab:activate()
   return p
 end
 
--- Focus the worker you were last on; else the first pane that is neither the
--- Brain nor the Monitor. This is "get me back to the work".
--- When there are no workers at all, open a fresh terminal showing a hint
--- (the Workspace should always be reachable, even when empty).
+-- The empty-Workspace state: shown by Cmd+2 when NO agent session is running.
+-- Deliberately NOT an interactive shell — Work is for agent sessions only, so
+-- this is a calm branded hint that points you to the Brain. (Cmd+4 is the place
+-- for a free shell.) The pane just holds the message open as a state.
+function Helm.workspace.spawn_empty(window)
+  local msg =
+    'clear; printf "\\n\\n\\n"; ' ..
+    'printf "   \\033[38;2;187;154;247m●\\033[0m  No active session\\n\\n"; ' ..
+    'printf "   \\033[38;2;120;130;150mNothing is running in your Workspace right now.\\n"; ' ..
+    'printf "   Press \\033[0m\\033[38;2;169;177;214m⌘1\\033[0m\\033[38;2;120;130;150m to open the Brain and start an agent,\\n"; ' ..
+    'printf "   or \\033[0m\\033[38;2;169;177;214m⌘4\\033[0m\\033[38;2;120;130;150m for a free Terminal.\\033[0m\\n"; ' ..
+    'while :; do sleep 86400; done'
+  local tab = window:mux_window():spawn_tab { args = { '/bin/bash', '-c', msg } }
+  local p = tab:active_pane()
+  wezterm.GLOBAL.helm_empty_pane = p:pane_id()
+  tab:activate()
+  return p
+end
+
+-- Return the live empty-state hint pane, or nil (clearing the stale id).
+function Helm.workspace.empty_pane()
+  local id = wezterm.GLOBAL.helm_empty_pane
+  if not id then return nil end
+  local ok, p = pcall(wezterm.mux.get_pane, id)
+  if ok and p then return p end
+  wezterm.GLOBAL.helm_empty_pane = nil
+  return nil
+end
+
+-- A pane is a Work(er) iff it isn't one of the dedicated slots (Brain / Monitor
+-- / Terminal / the empty-state hint). Agent sessions are workers.
+function Helm.workspace.is_worker(id)
+  return id ~= wezterm.GLOBAL.helm_brain_pane
+     and id ~= wezterm.GLOBAL.helm_top_pane
+     and id ~= wezterm.GLOBAL.helm_terminal_pane
+     and id ~= wezterm.GLOBAL.helm_empty_pane
+end
+
+-- Return the live Terminal-slot pane, or nil (clearing the stale id). Same
+-- pattern as Helm.top.pane()/Helm.brain.pane(): Cmd+4 is a view SLOT, not a
+-- "spawn a new terminal" action — it switches back to the same shell.
+function Helm.workspace.terminal_pane()
+  local id = wezterm.GLOBAL.helm_terminal_pane
+  if not id then return nil end
+  local ok, p = pcall(wezterm.mux.get_pane, id)
+  if ok and p then return p end
+  wezterm.GLOBAL.helm_terminal_pane = nil
+  return nil
+end
+
+-- Cmd+2: the Workspace is for AGENT SESSIONS only.
+--   • return to the worker you were last on, else any live agent worker;
+--   • if nothing is running, show the calm "No active session" hint (never a
+--     plain terminal — that's what Cmd+4 is for).
 function Helm.workspace.focus(window, _pane)
-  local bp = wezterm.GLOBAL.helm_brain_pane
-  local tp = wezterm.GLOBAL.helm_top_pane
   local last = wezterm.GLOBAL.helm_last_worker
-  if last and last ~= bp and last ~= tp and Helm.brain.focus_pane(last) then
+  if last and Helm.workspace.is_worker(last) and Helm.brain.focus_pane(last) then
     return
   end
   for _, win in ipairs(wezterm.mux.all_windows()) do
     for _, tab in ipairs(win:tabs()) do
       for _, p in ipairs(tab:panes()) do
         local id = p:pane_id()
-        if id ~= bp and id ~= tp then
+        if Helm.workspace.is_worker(id) then
+          wezterm.GLOBAL.helm_last_worker = id
           Helm.brain.focus_pane(id)
           return
         end
       end
     end
   end
-  -- No worker panes exist → open a terminal with a "no active session" hint.
-  Helm.workspace.spawn_terminal(window, 'No active session — this is your workspace. Run an agent or just use the shell.')
+  -- No agent session → show the empty-Workspace hint (reuse it if it's alive).
+  local ep = Helm.workspace.empty_pane()
+  if ep then Helm.brain.focus_pane(ep:pane_id()) else Helm.workspace.spawn_empty(window) end
 end
 
--- Remember the current pane as "the worker" if it isn't the Brain/Monitor, so
--- Cmd+2 can return to it. Called by the layer-nav binds.
+-- Remember the current pane as "the worker" if it's an agent session (not one
+-- of the dedicated slots), so Cmd+2 can return to it.
 function Helm.workspace.remember(pane)
   local id = pane:pane_id()
-  if id ~= wezterm.GLOBAL.helm_brain_pane and id ~= wezterm.GLOBAL.helm_top_pane then
+  if Helm.workspace.is_worker(id) then
     wezterm.GLOBAL.helm_last_worker = id
   end
 end
@@ -946,23 +1024,16 @@ function Helm.keys.bind(config)
     end),
   })
 
-  -- Cmd+4: open a plain Terminal (a fresh login shell in its own tab).
+  -- Cmd+4: switch to the Terminal — a single plain login shell. Like the other
+  -- views, this is a SLOT: focus the existing Terminal if it's alive, only
+  -- spawn one on first use (no more new tab on every press).
   table.insert(config.keys, {
     key = '4',
     mods = 'CMD',
     action = wezterm.action_callback(function(window, pane)
       Helm.workspace.remember(pane)
-      Helm.workspace.spawn_terminal(window)
-    end),
-  })
-
-  -- Cmd+/: toggle the bottom help bar (key bindings cheat-sheet).
-  table.insert(config.keys, {
-    key = '/',
-    mods = 'CMD',
-    action = wezterm.action_callback(function(window, pane)
-      wezterm.GLOBAL.helm_help_visible = not wezterm.GLOBAL.helm_help_visible
-      Helm.status.render(window, pane)  -- repaint immediately
+      local tp = Helm.workspace.terminal_pane()
+      if tp then Helm.brain.focus_pane(tp:pane_id()) else Helm.workspace.spawn_terminal(window) end
     end),
   })
 
@@ -1081,10 +1152,6 @@ function Helm.apply(config)
   wezterm.GLOBAL.helm_sessions = wezterm.GLOBAL.helm_sessions or {}
 
   -- The help bar (bottom cheat-sheet) is VISIBLE by default; ⌘/ toggles it.
-  if wezterm.GLOBAL.helm_help_visible == nil then
-    wezterm.GLOBAL.helm_help_visible = true
-  end
-
   -- Register event handlers ONCE per process. wezterm.on ACCUMULATES handlers
   -- on every config reload (Cmd+R) — without this guard, after N reloads each
   -- event fires N times, which degrades input/scroll responsiveness badly.
@@ -1234,7 +1301,7 @@ end
 -- into the bar (the tiny ● / · markers come from Helm.status.tab_title).
 config.enable_tab_bar = true            -- MUST stay true: hosts set_left/right_status
 config.use_fancy_tab_bar = false        -- retro/text style — no rounded tab boxes
-config.tab_bar_at_bottom = true         -- move the whole bar to the bottom
+config.tab_bar_at_bottom = false        -- view compass + tabs live at the TOP
 config.hide_tab_bar_if_only_one_tab = false  -- always show the status line
 config.show_new_tab_button_in_tab_bar = false
 config.tab_max_width = 6                -- markers are tiny; keep them tight
