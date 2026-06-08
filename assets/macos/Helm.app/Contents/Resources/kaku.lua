@@ -478,7 +478,8 @@ function Helm.sessions.track(pane)
 
   local t = Helm.util.now()
   -- cheap content fingerprint of the trailing FP_LINES lines: length + sampled byte sum
-  local text = table.concat(pane:get_lines_as_text(Helm.cfg.FP_LINES), '')
+  -- (get_lines_as_text returns a String in this engine, not a table)
+  local text = pane:get_lines_as_text(Helm.cfg.FP_LINES)
   local fp = #text
   for i = 1, #text, 64 do fp = fp + text:byte(i) end
 
@@ -653,8 +654,12 @@ Helm.status.palette = {
 -- format-tab-title: the 4-dot view compass (left status) is now the single
 -- source of navigation, so per-tab markers would just add a second, confusing
 -- set of dots. Render tabs as blank — the compass tells you where you are.
+-- format-tab-title: the 4-dot view compass (left status) is the single source
+-- of navigation, so we blank the per-tab title. Return a SPACE, not '' — an
+-- empty string makes wezterm fall back to the default (cwd) title, which is
+-- where the stray "Users/Users/" came from.
 function Helm.status.tab_title(tab)
-  return ''
+  return ' '
 end
 
 -- Which of the four views the given pane belongs to (1=Brain 2=Work 3=Monitor
