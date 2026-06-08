@@ -1,7 +1,7 @@
 # Helm Roadmap
 
 > Agent-native terminal. You steer — agents execute.
-> Last updated: 2026-06-07
+> Last updated: 2026-06-08
 
 ---
 
@@ -44,6 +44,34 @@ V1 ships when Helm is something we use **daily and comfortably** — then we tag
 Until then we keep iterating in the **V0.x** series.
 
 ---
+
+## V1 Execution Plan (updated 2026-06-08)
+
+Concrete, prioritized task list toward V1. Tiers by impact: **P0** = correctness / data-loss prevention, **P1** = core UX, **P2** = polish.
+
+### ✅ Shipped this week
+- **Scroll no longer crashes** — `mouse_common` called `[NSEvent clickCount]` on scroll-wheel events, raising an uncaught NSException that aborted the app. Now guarded to press/release only. (PR #92)
+- **Brain TCC prompt gone** — `claude --strict-mcp-config` + empty mcp-config so the Brain stops reading Claude Desktop's config (the cross-app read that triggered the macOS "access other apps' data" popup). (PR #92)
+- **4-dot view compass** — top bar shows a centered Brain · Work · Monitor · Terminal compass; active view lit in Helm purple. Dropped the verbose cheat-sheet and redundant per-tab dots. (PR #93)
+- **Cmd+1/2/3/4 are view SLOTS, not new sessions** — Cmd+4 Terminal is a dedicated free shell (same pane each press); Cmd+2 Work is agent-sessions-only and shows a calm "No active session" hint when nothing runs. Work / Terminal / empty are distinct slots. (PR #93)
+- **Dark-only colors fixed** — pinned `color_scheme = 'Kaku Dark'`. Following macOS appearance referenced an undefined `Kaku Light` in Light/Auto mode, erroring the whole config and dropping warm colors + fonts. (PR #93)
+
+### P0 — correctness / prevent loss
+- [ ] **Close-confirmation guard.** Today `window_close_confirmation = NeverPrompt` and there's no Cmd+W binding — a misclick can kill running agents with no prompt. Add a Helm-branded confirm, only when an agent session is actually running. (gated on the Cmd+W discussion below)
+- [ ] **Core agent loop, end-to-end.** Manually walk the whole chain: spawn worker → Monitor (helm-top) shows it → Brain `notify_waiting` fires → session restore after restart. List and fix what's broken.
+
+### P1 — core UX
+- [ ] **Window geometry persistence** — remember last size/position instead of the fixed 110×22 on every launch.
+- [ ] **Cmd+W semantics** — define what close means per view (Brain / Monitor / Terminal / Work). Pairs with the close-confirmation guard. *(discussion first, then implement)*
+- [ ] **First-run onboarding + boot-into-Brain** — confirm the cold-start flow is smooth, first_run clean, no stray permission popups.
+
+### P2 — polish
+- [ ] **Scroll regression test in CI** — the GUI mouse→render path is hard to test headless; the realistic move is a `term`-crate scrollback unit test for wheel→viewport-offset behavior, wired into the existing Cargo CI.
+- [ ] **Compass centering** — `BUTTON_CELLS=8` fudge for the integrated-buttons offset; good enough now, revisit if it drifts at other window sizes.
+- [ ] **Empty Work state** — currently a non-interactive branded hint; option to make it input-capable (minus the generic fish greeting) if that reads better.
+
+---
+
 
 ## Helm Vision: The Agent OS
 
