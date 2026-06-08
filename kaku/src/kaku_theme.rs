@@ -210,6 +210,29 @@ fn builtin_kaku_theme(config: &ConfigHandle) -> Option<CachedTheme> {
             return Some(cached_theme(dark));
         }
         Some("Kaku Light") => return Some(cached_theme(light)),
+        None => {
+            // The Lua config may not have been *evaluated* in this process —
+            // the standalone settings TUI (`helm config`) parses the config
+            // file for field values but does not always run common_init, so
+            // `config.color_scheme` is None here. Falling through would match
+            // the default (dark) palette and paint the TUI black even on a
+            // light system. Instead, recover the user's theme intent from the
+            // raw config file text (the same source the TUI fields use).
+            let path = config::effective_config_file_path();
+            if let Ok(content) = std::fs::read_to_string(&path) {
+                match color_scheme_selection_from_content(&content) {
+                    Some(ColorSchemeSelection::Light) => return Some(cached_theme(light)),
+                    Some(ColorSchemeSelection::Dark) => return Some(cached_theme(dark)),
+                    // Auto (or no explicit assignment) → follow the system.
+                    Some(ColorSchemeSelection::Auto) | None => {
+                        let is_dark = is_macos_dark_mode();
+                        let palette = if is_dark { dark } else { light };
+                        return Some(appearance_sensitive_theme(palette, is_dark));
+                    }
+                    Some(ColorSchemeSelection::Other) => {}
+                }
+            }
+        }
         _ => {}
     }
 
