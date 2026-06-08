@@ -344,6 +344,12 @@ impl super::TermWindow {
             }
             self.emit_window_event("window-resized", None);
         }
+        // A real dimension change reconfigured the wgpu surface, but the
+        // CAMetalLayer drawable is only resized when a frame is actually
+        // painted. Request a repaint so a window shown into an existing macOS
+        // fullscreen Space sizes its drawable immediately instead of staying
+        // stuck at its initial size until an incidental later resize (#452).
+        window.invalidate();
     }
 
     fn flush_all_pane_pty_sizes(&mut self) {

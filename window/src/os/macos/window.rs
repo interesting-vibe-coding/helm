@@ -1272,6 +1272,9 @@ impl Window {
             conn.windows
                 .borrow_mut()
                 .insert(window_id, Rc::clone(&window_inner));
+            // The startup pipeline has now created its window, so a later
+            // dock-icon reopen with no windows is free to spawn again.
+            crate::connection::clear_startup_pending_first_window();
 
             inner.borrow().events.assign_window(window_handle.clone());
 

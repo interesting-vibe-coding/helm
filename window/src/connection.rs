@@ -16,6 +16,7 @@ fn nop_event_handler(_event: ApplicationEvent) {}
 
 static EVENT_HANDLER: Mutex<fn(ApplicationEvent)> = Mutex::new(nop_event_handler);
 static APP_EVENT_HANDLER_READY: AtomicBool = AtomicBool::new(false);
+static STARTUP_PENDING_FIRST_WINDOW: AtomicBool = AtomicBool::new(false);
 
 pub(crate) fn app_event_handler_ready() -> bool {
     APP_EVENT_HANDLER_READY.load(Ordering::Acquire)
@@ -23,6 +24,24 @@ pub(crate) fn app_event_handler_ready() -> bool {
 
 pub fn mark_app_event_handler_ready() {
     APP_EVENT_HANDLER_READY.store(true, Ordering::Release);
+}
+
+/// Called synchronously by the GUI process during cold start, before any AppKit
+/// event can fire, to claim ownership of creating the first window. While this is
+/// set, macOS's applicationOpenUntitledFile must not spawn its own window; the
+/// normal startup pipeline is responsible for the first one. The flag is cleared
+/// as soon as that window registers (see `clear_startup_pending_first_window`),
+/// so a later dock-icon reopen with no windows still spawns normally.
+pub fn mark_startup_pending_first_window() {
+    STARTUP_PENDING_FIRST_WINDOW.store(true, Ordering::Release);
+}
+
+pub(crate) fn startup_pending_first_window() -> bool {
+    STARTUP_PENDING_FIRST_WINDOW.load(Ordering::Acquire)
+}
+
+pub(crate) fn clear_startup_pending_first_window() {
+    STARTUP_PENDING_FIRST_WINDOW.store(false, Ordering::Release);
 }
 
 pub fn shutdown() {
@@ -33,6 +52,7 @@ pub fn shutdown() {
         *handler = nop_event_handler;
     }
     APP_EVENT_HANDLER_READY.store(false, Ordering::Release);
+    STARTUP_PENDING_FIRST_WINDOW.store(false, Ordering::Release);
     CONN.with(|m| drop(m.borrow_mut().take()));
 }
 
