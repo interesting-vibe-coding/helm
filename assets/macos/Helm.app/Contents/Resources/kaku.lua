@@ -1,9 +1,9 @@
 local wezterm = require 'wezterm'
 
--- Helm is a standalone, self-contained config (like upstream Kaku's). It does
+-- Kaji is a standalone, self-contained config (like upstream Kaku's). It does
 -- NOT load a separate "bundled" file: doing so caused the bundled copy to go
 -- stale vs. the dev-linked / user copy, and the loader could recurse into
--- itself. Everything Helm needs is defined directly in this file; the
+-- itself. Everything Kaji needs is defined directly in this file; the
 -- 'Kaku Dark' color scheme is built into the binary.
 local config = {}
 
@@ -101,8 +101,8 @@ config.window_decorations = 'INTEGRATED_BUTTONS|RESIZE'
 -- Rendering / typography — aligned with Kaku's bundled config so glyphs,
 -- spacing and font weights match the Kaku aesthetic. (The 'Kaku Dark' color
 -- scheme itself is built into the binary; this block is the font + render
--- polish that Helm's rewritten kaku.lua had dropped.)
--- Helm is dark-only, so we use Kaku's dark-theme weights statically:
+-- polish that Kaji's rewritten kaku.lua had dropped.)
+-- Kaji is dark-only, so we use Kaku's dark-theme weights statically:
 --   base = Regular, bold = Medium.
 -- ════════════════════════════════════════════════════════════
 
@@ -190,7 +190,7 @@ config.initial_rows = 22
 
 -- ════════════════════════════════════════════════════════════
 -- Color scheme — 'Kaku Dark' palette ported from Kaku so the background and
--- ANSI colors match exactly (soft charcoal #15141b, not pure black). Helm's
+-- ANSI colors match exactly (soft charcoal #15141b, not pure black). Kaji's
 -- rewritten config had dropped this, leaving a flat pure-black fallback.
 -- ════════════════════════════════════════════════════════════
 local KAKU = {
@@ -288,7 +288,7 @@ config.color_schemes['Kaku Light'] = kaku_light
 config.color_scheme = (wezterm.gui and wezterm.gui.get_appearance() or 'Dark'):find('Dark') and 'Kaku Dark' or 'Kaku Light'
 
 -- ════════════════════════════════════════════════════════════
--- Behaviour / window settings — ported from Kaku so Helm matches its feel:
+-- Behaviour / window settings — ported from Kaku so Kaji matches its feel:
 -- dark title bar, no close prompts, WebGpu rendering, macOS key handling.
 -- ════════════════════════════════════════════════════════════
 
@@ -402,15 +402,15 @@ table.insert(config.keys, {
 })
 
 -- NOTE: we deliberately do NOT set config.restore_previous_session = true.
--- WezTerm's native session restore fights Helm's own gui-startup (which boots
--- into the Brain and rebuilds Helm-tracked worker sessions from runtime.json),
--- causing stale plain-shell tabs to cover the Brain on launch. Helm owns startup.
+-- WezTerm's native session restore fights Kaji's own gui-startup (which boots
+-- into the Brain and rebuilds Kaji-tracked worker sessions from runtime.json),
+-- causing stale plain-shell tabs to cover the Brain on launch. Kaji owns startup.
 
 -- ════════════════════════════════════════════════════════════
--- Helm 🎯 — agent-native terminal layer (on top of WezTerm/Kaku)
+-- Kaji 🎯 — agent-native terminal layer (on top of WezTerm/Kaku)
 -- Organized as one namespace; sub-tables map to the 3 layers.
--- To add a harness: add a row to Helm.harnesses.list
--- To add a keybind:  add to Helm.keys.bind(config)
+-- To add a harness: add a row to Kaji.harnesses.list
+-- To add a keybind:  add to Kaji.keys.bind(config)
 -- ════════════════════════════════════════════════════════════
 local Helm = {}
 
@@ -746,7 +746,7 @@ local _light_status = (config.color_scheme == 'Kaku Light')
 Helm.status.palette = {
   dim    = _light_status and '#9A988F' or '#565f73',  -- inactive dots
   text   = _light_status and '#403E3C' or '#a9b1d6',  -- primary text
-  accent = _light_status and '#D97757' or '#bb9af7',  -- active dot: Anthropic orange on cream, Helm purple on charcoal
+  accent = _light_status and '#D97757' or '#bb9af7',  -- active dot: Anthropic orange on cream, Kaji purple on charcoal
 }
 
 -- format-tab-title: the bar is now a single clean status line, so tabs shrink
@@ -780,7 +780,7 @@ end
 
 -- Liveness of each view, used to render the compass dynamically: a dot only
 -- shows for a view that currently exists. Brain is always considered live (you
--- never "close" it — closing the Brain quits Helm).
+-- never "close" it — closing the Brain quits Kaji).
 function Helm.status.work_alive()
   if Helm.workspace.empty_pane() then return true end
   for _, win in ipairs(wezterm.mux.all_windows()) do
@@ -795,7 +795,7 @@ end
 
 -- update-right-status render: a dynamic VIEW COMPASS. One dot per LIVE view, in
 -- fixed order (Brain · Work · Monitor · Terminal); the view you're in lights up
--- in Helm purple with its name, the rest stay dim. Closing a view drops its dot.
+-- in Kaji purple with its name, the rest stay dim. Closing a view drops its dot.
 function Helm.status.render(window, pane)
   local P = Helm.status.palette
   local view = Helm.status.current_view(pane)
@@ -987,7 +987,7 @@ function Helm.brain.notify_waiting(worker_id, harness, project)
 end
 
 -- ════════════════════════════════════════════════════════════
--- Helm.top — the Monitor layer (helm-top, an htop-style session list)
+-- Kaji.top — the Monitor layer (helm-top, an htop-style session list)
 -- ════════════════════════════════════════════════════════════
 -- Philosophy: zero friction, out of the box, focus on shipping. helm-top is a
 -- stdlib-only Python viewer over `helm-brain sessions` — no deps, no state of
@@ -996,7 +996,7 @@ end
 Helm.top = {}
 
 -- Resolve the helm-top script once (bundle Resources, dev repo, ~/.config),
--- cached in GLOBAL. Same strategy as Helm.brain.launcher().
+-- cached in GLOBAL. Same strategy as Kaji.brain.launcher().
 function Helm.top.launcher()
   if wezterm.GLOBAL.helm_top_path ~= nil then
     return wezterm.GLOBAL.helm_top_path or nil
@@ -1043,7 +1043,7 @@ function Helm.top.focus(window)
 end
 
 -- ════════════════════════════════════════════════════════════
--- Helm.workspace — the Workspace layer (the worker panes you actually drive)
+-- Kaji.workspace — the Workspace layer (the worker panes you actually drive)
 -- ════════════════════════════════════════════════════════════
 Helm.workspace = {}
 
@@ -1098,7 +1098,7 @@ function Helm.workspace.is_worker(id)
 end
 
 -- Return the live Terminal-slot pane, or nil (clearing the stale id). Same
--- pattern as Helm.top.pane()/Helm.brain.pane(): Cmd+4 is a view SLOT, not a
+-- pattern as Kaji.top.pane()/Helm.brain.pane(): Cmd+4 is a view SLOT, not a
 -- "spawn a new terminal" action — it switches back to the same shell.
 function Helm.workspace.terminal_pane()
   local id = wezterm.GLOBAL.helm_terminal_pane
@@ -1149,10 +1149,10 @@ end
 -- ════════════════════════════════════════════════════════════
 Helm.keys = {}
 
--- A small Helm-branded yes/no confirmation, shown as a selector overlay. The
+-- A small Kaji-branded yes/no confirmation, shown as a selector overlay. The
 -- title carries the question; `yes_label` is the affirmative choice. `on_yes`
 -- runs only if the user picks it (Esc / Cancel does nothing). Guards the
--- destructive Cmd+W paths (quitting Helm, closing a running session).
+-- destructive Cmd+W paths (quitting Kaji, closing a running session).
 function Helm.keys.confirm(window, pane, title, yes_label, on_yes)
   window:perform_action(
     wezterm.action.InputSelector {
@@ -1173,7 +1173,7 @@ end
 function Helm.keys.bind(config)
   config.keys = config.keys or {}
 
-  -- ── Helm's three-layer view navigation ──────────────────────
+  -- ── Kaji's three-layer view navigation ──────────────────────
   --   Cmd+1 Brain (First Mate)  ·  Cmd+2 Workspace (workers)  ·  Cmd+3 Monitor (helm-top)
   -- Cmd+1: jump to the Brain (spawn it on first use).
   table.insert(config.keys, {
@@ -1212,8 +1212,8 @@ function Helm.keys.bind(config)
     end),
   })
 
-  -- Cmd+W: close the CURRENT view, with semantics that match Helm's model.
-  --   • Brain    → quit Helm entirely (no Brain = no Helm). Confirmed.
+  -- Cmd+W: close the CURRENT view, with semantics that match Kaji's model.
+  --   • Brain    → quit Kaji entirely (no Brain = no Kaji). Confirmed.. Confirmed.
   --   • Work      → close the running agent session (confirmed); if it's the
   --                 empty "no active session" hint, just close the view.
   --   • Monitor   → close the Monitor view.
@@ -1229,7 +1229,7 @@ function Helm.keys.bind(config)
       if view == 1 then
         -- Brain → quit the whole app
         Helm.keys.confirm(window, pane,
-          'Quit Helm? The First Mate and all sessions will stop.', 'Quit Helm',
+          'Quit Kaji? The First Mate and all sessions will stop.', 'Quit Kaji',
           function(w, p) w:perform_action(wezterm.action.QuitApplication, p) end)
       elseif view == 3 then
         wezterm.GLOBAL.helm_top_pane = nil
@@ -1256,7 +1256,7 @@ function Helm.keys.bind(config)
     end),
   })
 
-  -- Cmd+,: open Settings — the Helm config file, where every binding and option
+  -- Cmd+,: open Settings — the Kaji config file, where every binding and option
   -- lives. (macOS Preferences convention.) Opens in a new tab with $EDITOR.
   table.insert(config.keys, {
     key = ',',
@@ -1293,7 +1293,7 @@ function Helm.keys.bind(config)
     end),
   })
 
-  -- Cmd+Shift+K: Helm Harness Launcher 🚀
+  -- Cmd+Shift+K: Kaji Harness Launcher 🚀
   table.insert(config.keys, {
     key = 'K',
     mods = 'CMD|SHIFT',
@@ -1329,7 +1329,7 @@ function Helm.keys.bind(config)
       window:perform_action(
         wezterm.action.InputSelector {
           action      = wezterm.action.EmitEvent 'helm-session-selected',
-          title       = '  Helm Sessions',
+          title       = '  Kaji Sessions',
           choices     = build_session_choices(),
           fuzzy       = true,
           description = 'Select a session to focus',
@@ -1354,7 +1354,7 @@ function Helm.keys.bind(config)
     end),
   })
 
-  -- Override Cmd+L: Helm doesn't need the built-in AI chat (use your own harness).
+  -- Override Cmd+L: Kaji doesn't need the built-in AI chat (use your own harness).
   -- Remap to clear screen (send Ctrl+L to the shell), the conventional terminal behavior.
   table.insert(config.keys, {
     key = 'l',
@@ -1364,7 +1364,7 @@ function Helm.keys.bind(config)
 end
 
 -- ════════════════════════════════════════════════════════════
--- Hooks + wiring — call once with the config table to activate Helm.
+-- Hooks + wiring — call once with the config table to activate Kaji.
 -- ════════════════════════════════════════════════════════════
 function Helm.apply(config)
   -- Session state lives in GLOBAL so it survives config reloads.
@@ -1532,12 +1532,12 @@ function Helm.apply(config)
   Helm.keys.bind(config)
 end
 
--- ── Helm bottom status bar ──────────────────────────────────
+-- ── Kaji bottom status bar ──────────────────────────────────
 -- WezTerm renders status text ON the tab bar (no standalone status widget),
 -- so to get a single clean status LINE at the very bottom and NO boxy tabs at
 -- the top we: keep the tab bar enabled (it hosts the status text), switch it to
 -- the retro/text style, push it to the bottom, and recolor tabs so they blend
--- into the bar (the tiny ● / · markers come from Helm.status.tab_title).
+-- into the bar (the tiny ● / · markers come from Kaji.status.tab_title).
 config.enable_tab_bar = true            -- MUST stay true: hosts set_left/right_status
 config.use_fancy_tab_bar = false        -- retro/text style — no rounded tab boxes
 config.tab_bar_at_bottom = false

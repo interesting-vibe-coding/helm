@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# launch-brain.sh — start the Helm "First Mate", a Sonnet orchestrator agent.
+# launch-brain.sh — start the Kaji "First Mate", a Sonnet orchestrator agent.
 #
 # The Brain is a normal coding-agent session pointed at the cross-harness
 # `helm-first-mate` skill (single source of truth for the persona; bundled in
-# Helm.app and installed to the open hub ~/.agents/skills by first_run.sh) and given the
+# Kaji.app and installed to the open hub ~/.agents/skills by first_run.sh) and given the
 # `helm-brain` CLI on its PATH. It watches every worker session (via
 # `helm-brain sessions`) and relays the captain's orders to worker panes.
 #
@@ -23,7 +23,7 @@
 #   The picked harness is echoed to stderr before exec.
 #
 # PATH RESOLUTION: works both from the repo (tools/helm-brain/) and when bundled
-# in Helm.app/Contents/Resources/tools/helm-brain/. We resolve the script's own
+# in Kaji.app/Contents/Resources/tools/helm-brain/. We resolve the script's own
 # directory and locate the helm-brain CLI next to it.
 
 set -euo pipefail
@@ -38,7 +38,7 @@ done
 SCRIPT_DIR="$(cd -P "$(dirname "$SOURCE")" >/dev/null 2>&1 && pwd)"
 
 # Put the helm-brain CLI on PATH so the agent can call `helm-brain ...`.
-# Also prepend the common Homebrew bin dirs: GUI-launched apps (Helm started
+# Also prepend the common Homebrew bin dirs: GUI-launched apps (Kaji started
 # from Finder/Dock) do NOT inherit the shell's PATH, so tools like `node` —
 # needed by the Brain harness's own hooks (e.g. Claude Code statusline/skills) —
 # would otherwise be "command not found". Prepend them so the whole Brain
@@ -55,7 +55,7 @@ cd "$START_DIR" 2>/dev/null || true
 # single KEY=VALUE line: `BRAIN_HARNESS=claude` (claude | kiro | opencode |
 # codex). Missing file or unknown value → default to claude.
 BRAIN_CONF="${XDG_CONFIG_HOME:-$HOME/.config}/helm/brain.conf"
-# Backward compat: fall back to the legacy Kaku location if Helm's isn't present.
+# Backward compat: fall back to the legacy Kaku location if Kaji's isn't present.
 if [[ ! -f "$BRAIN_CONF" ]]; then
   LEGACY_BRAIN_CONF="${XDG_CONFIG_HOME:-$HOME/.config}/kaku/brain.conf"
   [[ -f "$LEGACY_BRAIN_CONF" ]] && BRAIN_CONF="$LEGACY_BRAIN_CONF"
@@ -99,27 +99,27 @@ case "$BRAIN_HARNESS" in
     echo "launch-brain: using claude (--model sonnet, /helm-first-mate skill)" >&2
     # --strict-mcp-config: ignore ALL other MCP configs (incl. Claude Desktop's
     # ~/Library/Application Support/Claude/claude_desktop_config.json). Reading
-    # that cross-app file makes macOS pop a TCC "Helm wants to access data from
+    # that cross-app file makes macOS pop a TCC "Kaji wants to access data from
     # other apps" prompt on every Brain launch. The Brain doesn't need desktop
     # MCP servers (it drives workers via the helm-brain CLI), so we opt out.
     exec claude --model sonnet --dangerously-skip-permissions \
       --mcp-config '{"mcpServers":{}}' --strict-mcp-config \
-      "You are the Helm First Mate. Use the /helm-first-mate skill, then run 'helm-brain sessions' and 'helm-brain last-session' (offer a y/n restore if the latter is non-empty), and greet me."
+      "You are the Kaji First Mate. Use the /helm-first-mate skill, then run 'helm-brain sessions' and 'helm-brain last-session' (offer a y/n restore if the latter is non-empty), and greet me."
     ;;
   kiro)
     echo "launch-brain: using kiro-cli (--model claude-sonnet-4.6, helm-first-mate skill)" >&2
     exec kiro-cli chat --trust-all-tools --agent default \
       --model claude-sonnet-4.6 \
-      "You are the Helm First Mate. Use the helm-first-mate skill (~/.agents/skills/helm-first-mate), then run 'helm-brain sessions' and 'helm-brain last-session' (offer a y/n restore if the latter is non-empty), and greet me."
+      "You are the Kaji First Mate. Use the helm-first-mate skill (~/.agents/skills/helm-first-mate), then run 'helm-brain sessions' and 'helm-brain last-session' (offer a y/n restore if the latter is non-empty), and greet me."
     ;;
   opencode)
     echo "launch-brain: using opencode (--model openrouter/anthropic/claude-sonnet-4.6, helm-first-mate skill)" >&2
     exec opencode --model "openrouter/anthropic/claude-sonnet-4.6" \
-      --prompt "You are the Helm First Mate. Use the helm-first-mate skill (~/.agents/skills/helm-first-mate), then run 'helm-brain sessions' and 'helm-brain last-session' (offer a y/n restore if the latter is non-empty), and greet me."
+      --prompt "You are the Kaji First Mate. Use the helm-first-mate skill (~/.agents/skills/helm-first-mate), then run 'helm-brain sessions' and 'helm-brain last-session' (offer a y/n restore if the latter is non-empty), and greet me."
     ;;
   codex)
     echo "launch-brain: using codex (--dangerously-bypass-approvals-and-sandbox, helm-first-mate skill)" >&2
     exec codex --dangerously-bypass-approvals-and-sandbox \
-      "You are the Helm First Mate. Use the helm-first-mate skill (~/.agents/skills/helm-first-mate), then run 'helm-brain sessions' and 'helm-brain last-session' (offer a y/n restore if the latter is non-empty), and greet me."
+      "You are the Kaji First Mate. Use the helm-first-mate skill (~/.agents/skills/helm-first-mate), then run 'helm-brain sessions' and 'helm-brain last-session' (offer a y/n restore if the latter is non-empty), and greet me."
     ;;
 esac

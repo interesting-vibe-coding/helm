@@ -1,10 +1,10 @@
 #!/bin/bash
-# Helm First Run Experience
+# Kaji First Run Experience
 set -euo pipefail
 
 CONFIG_DIR="$HOME/.config/helm"
 LEGACY_CONFIG_DIR="$HOME/.config/kaku"
-# One-time, non-destructive migration: if Helm's config dir doesn't exist yet
+# One-time, non-destructive migration: if Kaji's config dir doesn't exist yet
 # but a legacy Kaku dir does, copy it over so existing onboarding state
 # (state.json, brain.conf, …) carries forward. The legacy dir is left intact so
 # a real Kaku install is never disturbed. Runs at most once (helm dir absent).
@@ -14,7 +14,7 @@ if [[ ! -d "$CONFIG_DIR" && -d "$LEGACY_CONFIG_DIR" ]]; then
   fi
 fi
 STATE_FILE="$CONFIG_DIR/state.json"
-# Helm's session-tracking dir, where the GUI writes runtime.json (the snapshot
+# Kaji's session-tracking dir, where the GUI writes runtime.json (the snapshot
 # the Brain/Monitor read). Create it up front: the lua writer uses io.open(...,
 # 'w') which silently fails if the parent dir is missing, leaving the Monitor
 # permanently empty.
@@ -30,10 +30,10 @@ trap 'persist_config_version 2>/dev/null || true' EXIT
 # Resolve resources dir
 if [[ -f "$SCRIPT_DIR/setup_zsh.sh" ]]; then
   RESOURCES_DIR="$SCRIPT_DIR"
-elif [[ -f "/Applications/Helm.app/Contents/Resources/setup_zsh.sh" ]]; then
-  RESOURCES_DIR="/Applications/Helm.app/Contents/Resources"
+elif [[ -f "/Applications/Kaji.app/Contents/Resources/setup_zsh.sh" ]]; then
+  RESOURCES_DIR="/Applications/Kaji.app/Contents/Resources"
 else
-  echo "Warning: Helm resources not found, skipping shell setup."
+  echo "Warning: Kaji resources not found, skipping shell setup."
   exit 0
 fi
 
@@ -87,7 +87,7 @@ clear
 echo ""
 ghost
 echo ""
-echo -e "  ${BOLD}Helm${NC} — you steer, agents execute."
+echo -e "  ${BOLD}Kaji${NC} — you steer, agents execute."
 echo ""
 echo -e "  Shell: ${BOLD}${DETECTED_SHELL}${NC} ✓"
 echo ""
@@ -111,7 +111,7 @@ fi
 
 # ── Cross-harness skills (open Agent Skills standard) ─────────────────────────
 # Install the bundled helm-first-mate skill into each harness's skill dir.
-# This skill is Helm-specific and lives ONLY in the Helm app bundle (the single
+# This skill is Kaji-specific and lives ONLY in the Kaji app bundle (the single
 # source of truth) — it is intentionally NOT added to the personal skills hub
 # (~/workspace/My-Skills), since a product-specific skill should stay in its own
 # repo and not be loaded by every unrelated session. We link each harness dir
@@ -326,12 +326,12 @@ echo ""
 if [[ "${HELM_LANG:-en}" == "zh" ]]; then
   echo -e "${GREEN}${BOLD}  ✓ 一切就绪${NC}"
   echo ""
-  echo -e "  ${DIM}打开 Helm 直接进入 Brain，告诉它做什么就好。${NC}"
+  echo -e "  ${DIM}打开 Kaji 直接进入 Brain，告诉它做什么就好。${NC}"
   echo -e "  ${DIM}⌘1 Brain   ⌘2 Work   ⌘3 Monitor   ⌘/ 帮助${NC}"
 else
   echo -e "${GREEN}${BOLD}  ✓ You're all set${NC}"
   echo ""
-  echo -e "  ${DIM}Helm opens straight into the Brain — just tell it what to build.${NC}"
+  echo -e "  ${DIM}Kaji opens straight into the Brain — just tell it what to build.${NC}"
   echo -e "  ${DIM}⌘1 Brain   ⌘2 Work   ⌘3 Monitor   ⌘/ Help${NC}"
 fi
 echo ""

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Helm CLI tools bootstrap
+# Kaji CLI tools bootstrap
 # Installs required external tools via Homebrew and migrates legacy bundled binaries.
 
 set -euo pipefail
@@ -57,7 +57,7 @@ prompt_install_homebrew() {
 	fi
 
 	echo ""
-	echo "Homebrew is required to install Helm's optional CLI tools:"
+	echo "Homebrew is required to install Kaji's optional CLI tools:"
 	if [[ ${#MISSING_TOOLS[@]} -gt 0 ]]; then
 		echo "  ${MISSING_TOOLS[*]}"
 	fi
@@ -106,7 +106,7 @@ ensure_homebrew_installation() {
 	if [[ ${#MISSING_TOOLS[@]} -gt 0 ]]; then
 		echo "Missing optional tools: ${MISSING_TOOLS[*]}"
 	fi
-	echo "Helm shell integration will continue without them."
+	echo "Kaji shell integration will continue without them."
 	echo "Install Homebrew later, then refresh optional tools with:"
 	echo "  kaku init --update-only"
 	echo "Homebrew install guide:"
@@ -295,7 +295,7 @@ install_missing_tools() {
 			echo -e "${BOLD}Installing optional CLI tools automatically...${NC}"
 		else
 			echo -e "${BOLD}Optional CLI tools${NC}"
-			echo "Helm can install missing tools with Homebrew:"
+			echo "Kaji can install missing tools with Homebrew:"
 			for tool in "${MISSING_TOOLS[@]}"; do
 				echo "  - $tool"
 			done

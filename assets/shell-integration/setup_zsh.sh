@@ -1,6 +1,6 @@
 #!/bin/bash
-# Helm Zsh Setup Script
-# This script configures a "batteries-included" Zsh environment using Helm's bundled resources.
+# Kaji Zsh Setup Script
+# This script configures a "batteries-included" Zsh environment using Kaji's bundled resources.
 # It is designed to be safe: it backs up existing configurations and can be re-run.
 
 set -euo pipefail
@@ -34,8 +34,8 @@ if [[ "${KAKU_INIT_INTERNAL:-0}" != "1" ]]; then
 
 	for candidate in \
 		"$SCRIPT_DIR/../MacOS/kaku" \
-		"/Applications/Helm.app/Contents/MacOS/kaku" \
-		"$HOME/Applications/Helm.app/Contents/MacOS/kaku"; do
+		"/Applications/Kaji.app/Contents/MacOS/kaku" \
+		"$HOME/Applications/Kaji.app/Contents/MacOS/kaku"; do
 		if [[ -x "$candidate" ]]; then
 			exec "$candidate" init "$@"
 		fi
@@ -49,12 +49,12 @@ if [[ -d "$SCRIPT_DIR/vendor" ]]; then
 	RESOURCES_DIR="$SCRIPT_DIR"
 elif [[ -d "$SCRIPT_DIR/../vendor" ]]; then
 	RESOURCES_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-elif [[ -d "/Applications/Helm.app/Contents/Resources/vendor" ]]; then
-	RESOURCES_DIR="/Applications/Helm.app/Contents/Resources"
-elif [[ -d "$HOME/Applications/Helm.app/Contents/Resources/vendor" ]]; then
-	RESOURCES_DIR="$HOME/Applications/Helm.app/Contents/Resources"
+elif [[ -d "/Applications/Kaji.app/Contents/Resources/vendor" ]]; then
+	RESOURCES_DIR="/Applications/Kaji.app/Contents/Resources"
+elif [[ -d "$HOME/Applications/Kaji.app/Contents/Resources/vendor" ]]; then
+	RESOURCES_DIR="$HOME/Applications/Kaji.app/Contents/Resources"
 else
-	echo -e "${YELLOW}Error: Could not locate Helm resources (vendor directory missing).${NC}"
+	echo -e "${YELLOW}Error: Could not locate Kaji resources (vendor directory missing).${NC}"
 	exit 1
 fi
 
@@ -78,8 +78,8 @@ YAZI_KEYMAP_FILE="$YAZI_CONFIG_DIR/keymap.toml"
 YAZI_THEME_FILE="$YAZI_CONFIG_DIR/theme.toml"
 YAZI_FLAVORS_DIR="$YAZI_CONFIG_DIR/flavors"
 YAZI_WRAPPER_FILE="$USER_CONFIG_DIR/bin/yazi"
-KAKU_YAZI_THEME_MARKER_START="# ===== Helm Yazi Flavor (managed) ====="
-KAKU_YAZI_THEME_MARKER_END="# ===== End Helm Yazi Flavor (managed) ====="
+KAKU_YAZI_THEME_MARKER_START="# ===== Kaji Yazi Flavor (managed) ====="
+KAKU_YAZI_THEME_MARKER_END="# ===== End Kaji Yazi Flavor (managed) ====="
 ZSHRC="${ZDOTDIR:-$HOME}/.zshrc"
 TMUXRC="$HOME/.tmux.conf"
 BACKUP_SUFFIX=".kaku-backup-$(date +%s)"
@@ -148,11 +148,11 @@ resolve_kaku_flavor_from_config() {
 			' "$config_file"
 		)"
 		if [[ -n "$scheme_line" ]]; then
-			if [[ "$scheme_line" == *"Helm Light"* ]]; then
+			if [[ "$scheme_line" == *"Kaji Light"* ]]; then
 				printf '%s\n' "kaku-light"
 				return
 			fi
-			if [[ "$scheme_line" == *"Helm Dark"* || "$scheme_line" == *"Helm Theme"* ]]; then
+			if [[ "$scheme_line" == *"Kaji Dark"* || "$scheme_line" == *"Kaji Theme"* ]]; then
 				printf '%s\n' "kaku-dark"
 				return
 			fi
@@ -193,7 +193,7 @@ is_legacy_kaku_yazi_theme_file() {
 	fi
 
 	local normalized expected
-	if grep -Fq '# Helm-aligned theme for Yazi 26.x' "$YAZI_THEME_FILE"; then
+	if grep -Fq '# Kaji-aligned theme for Yazi 26.x' "$YAZI_THEME_FILE"; then
 		return 0
 	fi
 	normalized="$(sed -e 's/[[:space:]]*$//' -e '/^[[:space:]]*$/d' "$YAZI_THEME_FILE")"
@@ -228,7 +228,7 @@ sync_kaku_yazi_flavors() {
 		cp "$source_dir/flavor.toml" "$target_dir/flavor.toml"
 	done
 
-	echo -e "  ${GREEN}✓${NC} ${BOLD}Config${NC}      Refreshed Helm yazi flavors ${NC}(dark + light)${NC}"
+	echo -e "  ${GREEN}✓${NC} ${BOLD}Config${NC}      Refreshed Kaji yazi flavors ${NC}(dark + light)${NC}"
 }
 
 ensure_kaku_yazi_theme() {
@@ -240,11 +240,11 @@ ensure_kaku_yazi_theme() {
 		cat <<EOF >"$YAZI_THEME_FILE"
 \$schema = "https://yazi-rs.github.io/schemas/theme.json"
 
-# Helm manages the [flavor] section below so Yazi matches the current Helm theme.
+# Kaji manages the [flavor] section below so Yazi matches the current Kaji theme.
 # Add your own theme overrides in other sections if needed.
 $(kaku_yazi_theme_block "$managed_flavor")
 EOF
-		echo -e "  ${GREEN}✓${NC} ${BOLD}Config${NC}      Initialized yazi theme ${NC}(managed Helm flavor: $managed_flavor)${NC}"
+		echo -e "  ${GREEN}✓${NC} ${BOLD}Config${NC}      Initialized yazi theme (managed Kaji flavor: $managed_flavor)${NC}"
 		return
 	fi
 
@@ -275,7 +275,7 @@ EOF
 
 	mv "${tmp_theme}.next" "$YAZI_THEME_FILE"
 	rm -f "$tmp_theme"
-	echo -e "  ${GREEN}✓${NC} ${BOLD}Config${NC}      Updated yazi theme ${NC}(managed Helm flavor: $managed_flavor)${NC}"
+	echo -e "  ${GREEN}✓${NC} ${BOLD}Config${NC}      Updated yazi theme (managed Kaji flavor: $managed_flavor)${NC}"
 }
 
 install_yazi_wrapper() {
@@ -284,8 +284,8 @@ install_yazi_wrapper() {
 set -euo pipefail
 
 YAZI_THEME_FILE="${HOME}/.config/yazi/theme.toml"
-MARKER_START="# ===== Helm Yazi Flavor (managed) ====="
-MARKER_END="# ===== End Helm Yazi Flavor (managed) ====="
+MARKER_START="# ===== Kaji Yazi Flavor (managed) ====="
+MARKER_END="# ===== End Kaji Yazi Flavor (managed) ====="
 WRAPPER_PATH="${BASH_SOURCE[0]}"
 WRAPPER_DIR="$(cd "$(dirname "$WRAPPER_PATH")" && pwd)"
 
@@ -331,11 +331,11 @@ resolve_kaku_flavor_from_config() {
 			' "$config_file"
 		)"
 		if [[ -n "$scheme_line" ]]; then
-			if [[ "$scheme_line" == *"Helm Light"* ]]; then
+			if [[ "$scheme_line" == *"Kaji Light"* ]]; then
 				printf '%s\n' "kaku-light"
 				return
 			fi
-			if [[ "$scheme_line" == *"Helm Dark"* || "$scheme_line" == *"Helm Theme"* ]]; then
+			if [[ "$scheme_line" == *"Kaji Dark"* || "$scheme_line" == *"Kaji Theme"* ]]; then
 				printf '%s\n' "kaku-dark"
 				return
 			fi
@@ -378,7 +378,7 @@ ensure_theme() {
 		cat <<BLOCK >"$YAZI_THEME_FILE"
 \$schema = "https://yazi-rs.github.io/schemas/theme.json"
 
-# Helm manages the [flavor] section below so Yazi matches the current Helm theme.
+# Kaji manages the [flavor] section below so Yazi matches the current Kaji theme.
 $(managed_block "$flavor")
 BLOCK
 		return
@@ -518,7 +518,7 @@ install_kaku_terminfo() {
 
 install_kaku_terminfo
 
-echo -e "${BOLD}Setting up Helm Shell Environment${NC}"
+echo -e "${BOLD}Setting up Kaji Shell Environment${NC}"
 
 # 1. Prepare User Config Directory
 mkdir -p "$USER_CONFIG_DIR"
@@ -765,7 +765,7 @@ fi
 KAKU_INIT_TMPFILE="${KAKU_INIT_FILE}.tmp.$$"
 cat <<EOF >"$KAKU_INIT_TMPFILE"
 # Kaku Zsh Integration - DO NOT EDIT MANUALLY
-# This file is managed by Helm.app. Any changes may be overwritten.
+# This file is managed by Kaji.app. Any changes may be overwritten.
 
 export KAKU_ZSH_DIR="\$HOME/.config/kaku/zsh"
 
@@ -1107,15 +1107,15 @@ alias glgp='git log --stat -p'
     local k_cmd
     for _candidate in \
         "\${KAKU_ZSH_DIR:+\$KAKU_ZSH_DIR/../../MacOS/k}" \
-        "\$HOME/Applications/Helm.app/Contents/MacOS/k" \
-        "/Applications/Helm.app/Contents/MacOS/k"; do
+        "\$HOME/Applications/Kaji.app/Contents/MacOS/k" \
+        "/Applications/Kaji.app/Contents/MacOS/k"; do
         if [[ -x "\$_candidate" ]]; then
             k_cmd="\$_candidate"
             break
         fi
     done
     if [[ -z "\$k_cmd" ]]; then
-        echo "k: Helm app not found. Install Helm from https://github.com/interesting-vibe-coding/helm"
+        echo "k: Kaji app not found. Install Kaji from https://github.com/interesting-vibe-coding/helm"
         return 127
     fi
     "\$k_cmd" "\$@"
@@ -1221,7 +1221,7 @@ unset -f _kaku_has_autosuggest_system 2>/dev/null
 # - For the first command token, prefer completion by default so Tab reveals
 #   candidates instead of always accepting recent-history suggestions
 # - Set KAKU_TAB_ACCEPT_SUGGEST_FIRST=1 to restore suggestion-first behavior
-# - Only claim Tab inside Helm sessions unless explicitly disabled
+# - Only claim Tab inside Kaji sessions unless explicitly disabled
 if [[ -z "\${KAKU_SMART_TAB_DISABLE:-}" ]] && [[ "\${TERM_PROGRAM:-}" == "Kaku" ]]; then
     _kaku_tab_widget() {
         emulate -L zsh
@@ -1515,7 +1515,7 @@ function sudo {
 }
 fi
 
-# Helm Dark maps ANSI 8 / bright_black to #3A3942, which makes any text rendered
+# Kaji Dark maps ANSI 8 / bright_black to #3A3942, which makes any text rendered
 # at fg=8 (the default comment color in fast-syntax-highlighting and
 # zsh-syntax-highlighting) invisible. The deferred loader blocks above already
 # override the comment color when Kaku itself loaded the plugin, but they are
@@ -1526,7 +1526,7 @@ fi
 _kaku_apply_highlight_styles() {
     # Both fast-syntax-highlighting and zsh-syntax-highlighting ship the same
     # invisible default for `[comment]`: fg=black,bold (older versions: fg=8).
-    # Helm Dark's color_overrides collapse those to #3A3942 against #1F1D2C,
+    # Kaji Dark's color_overrides collapse those to #3A3942 against #1F1D2C,
     # so the # character and any zsh-style # comment becomes unreadable.
     # Replace ONLY the known defaults; leave any other value alone so a user
     # who picked their own comment color in .zshrc keeps it.
@@ -1557,13 +1557,13 @@ fi
 echo -e "  ${GREEN}✓${NC} ${BOLD}Script${NC}      Generated kaku.zsh init script"
 
 # 4. Configure tmux (Optional)
-TMUX_SOURCE_LINE='source-file "$HOME/.config/kaku/tmux/kaku.tmux.conf" # Helm tmux Integration'
+TMUX_SOURCE_LINE='source-file "$HOME/.config/kaku/tmux/kaku.tmux.conf" # Kaji tmux Integration'
 
 write_kaku_tmux_file() {
 	mkdir -p "$KAKU_TMUX_DIR"
 	cat <<'EOF' >"$KAKU_TMUX_FILE"
-# Helm tmux Integration - DO NOT EDIT MANUALLY
-# This file is managed by Helm.app. Any changes may be overwritten.
+# Kaji tmux Integration - DO NOT EDIT MANUALLY
+# This file is managed by Kaji.app. Any changes may be overwritten.
 
 set -g mouse on
 bind-key -n S-WheelUpPane if-shell -F '#{pane_in_mode}' 'send-keys -X -N 5 scroll-up' 'copy-mode -e -u'
@@ -1613,7 +1613,7 @@ END {
 		if ! cmp -s "$TMUXRC" "$tmp_file"; then
 			backup_tmuxrc_once
 			mv "$tmp_file" "$TMUXRC"
-			echo -e "  ${GREEN}✓${NC} ${BOLD}Integrate${NC}   Updated Helm source line in .tmux.conf"
+			echo -e "  ${GREEN}✓${NC} ${BOLD}Integrate${NC}   Updated Kaji source line in .tmux.conf"
 		else
 			rm -f "$tmp_file"
 		fi
@@ -1623,14 +1623,14 @@ END {
 			if ! cmp -s "$TMUXRC" "$tmp_file"; then
 				backup_tmuxrc_once
 				mv "$tmp_file" "$TMUXRC"
-				echo -e "  ${GREEN}✓${NC} ${BOLD}Integrate${NC}   Removed duplicate Helm source line(s) from .tmux.conf"
+				echo -e "  ${GREEN}✓${NC} ${BOLD}Integrate${NC}   Removed duplicate Kaji source line(s) from .tmux.conf"
 			else
 				rm -f "$tmp_file"
 			fi
 		else
 			rm -f "$tmp_file"
 			if [[ "$awk_status" != "3" ]]; then
-				echo -e "${YELLOW}Warning: failed to normalize Helm source line in .tmux.conf; leaving it unchanged.${NC}"
+				echo -e "${YELLOW}Warning: failed to normalize Kaji source line in .tmux.conf; leaving it unchanged.${NC}"
 			fi
 		fi
 	fi
@@ -1685,8 +1685,8 @@ ensure_kaku_tmux_integration() {
 ensure_kaku_tmux_integration
 
 # 5. Configure .zshrc
-PATH_LINE='[[ ":$PATH:" != *":$HOME/.config/kaku/zsh/bin:"* ]] && export PATH="$HOME/.config/kaku/zsh/bin:$PATH" # Helm PATH Integration'
-SOURCE_LINE='[[ -f "$HOME/.config/kaku/zsh/kaku.zsh" ]] && source "$HOME/.config/kaku/zsh/kaku.zsh" # Helm Shell Integration'
+PATH_LINE='[[ ":$PATH:" != *":$HOME/.config/kaku/zsh/bin:"* ]] && export PATH="$HOME/.config/kaku/zsh/bin:$PATH" # Kaji PATH Integration'
+SOURCE_LINE='[[ -f "$HOME/.config/kaku/zsh/kaku.zsh" ]] && source "$HOME/.config/kaku/zsh/kaku.zsh" # Kaji Shell Integration'
 LEGACY_INLINE_BLOCK_PRESERVED=0
 
 # SYNC: the heredoc below must stay in sync with KAKU_LEGACY_INLINE_KNOWN_LINES
@@ -1701,7 +1701,7 @@ legacy_inline_block_has_only_kaku_managed_lines() {
 
 		if ! grep -Fqx -- "$line" <<'EOF'
 # Kaku Zsh Integration - DO NOT EDIT MANUALLY
-# This file is managed by Helm.app. Any changes may be overwritten.
+# This file is managed by Kaji.app. Any changes may be overwritten.
 export KAKU_ZSH_DIR="$HOME/.config/kaku/zsh"
 # Add bundled binaries to PATH
 export PATH="$KAKU_ZSH_DIR/bin:$PATH"
@@ -1845,7 +1845,7 @@ cleanup_legacy_inline_block() {
 		return
 	fi
 
-	if ! grep -q "^# Helm Shell Integration$" "$ZSHRC"; then
+	if ! grep -q "^# Kaji Shell Integration$" "$ZSHRC"; then
 		return
 	fi
 
@@ -1875,7 +1875,7 @@ cleanup_legacy_inline_block() {
 			fi
 			skip_blank_after_removed=0
 
-			if [[ "$line" == "# Helm Shell Integration" ]]; then
+			if [[ "$line" == "# Kaji Shell Integration" ]]; then
 				in_block=1
 				saw_kaku_var=0
 				saw_syntax=0
@@ -1897,7 +1897,7 @@ cleanup_legacy_inline_block() {
 				skip_blank_after_removed=1
 			else
 				preserved_block=1
-				printf '%s\n' "# Helm Shell Integration" >>"$tmp_file"
+				printf '%s\n' "# Kaji Shell Integration" >>"$tmp_file"
 				local block_line
 				for block_line in "${block_lines[@]}"; do
 					printf '%s\n' "$block_line" >>"$tmp_file"
@@ -1914,7 +1914,7 @@ cleanup_legacy_inline_block() {
 	if [[ "$in_block" == "1" ]]; then
 		rm -f "$tmp_file"
 		LEGACY_INLINE_BLOCK_PRESERVED=1
-		echo -e "${YELLOW}Warning: found unterminated legacy Helm block; leaving .zshrc unchanged.${NC}"
+		echo -e "${YELLOW}Warning: found unterminated legacy Kaji block; leaving .zshrc unchanged.${NC}"
 		return
 	fi
 
@@ -1922,17 +1922,17 @@ cleanup_legacy_inline_block() {
 		backup_zshrc_once
 		mv "$tmp_file" "$ZSHRC"
 		if [[ "$removed_block" == "1" ]]; then
-			echo -e "  ${GREEN}✓${NC} ${BOLD}Migrate${NC}     Removed legacy inline Helm block from .zshrc"
+			echo -e "  ${GREEN}✓${NC} ${BOLD}Migrate${NC}     Removed legacy inline Kaji block from .zshrc"
 		fi
 		if [[ "$preserved_block" == "1" ]]; then
 			LEGACY_INLINE_BLOCK_PRESERVED=1
-			echo -e "${YELLOW}Warning: kept legacy Helm block with custom lines to avoid deleting user shell config.${NC}"
+			echo -e "${YELLOW}Warning: kept legacy Kaji block with custom lines to avoid deleting user shell config.${NC}"
 		fi
 	else
 		rm -f "$tmp_file"
 		if [[ "$preserved_block" == "1" ]]; then
 			LEGACY_INLINE_BLOCK_PRESERVED=1
-			echo -e "${YELLOW}Warning: kept legacy Helm block with custom lines to avoid deleting user shell config.${NC}"
+			echo -e "${YELLOW}Warning: kept legacy Kaji block with custom lines to avoid deleting user shell config.${NC}"
 		fi
 	fi
 }
@@ -1948,7 +1948,7 @@ normalize_kaku_path_line() {
 	tmp_file="$(mktemp "${TMPDIR:-/tmp}/kaku-zshrc.XXXXXX")"
 
 	# Exit codes: 0 = replaced exactly 1 line, 2 = collapsed duplicates, 3 = no match.
-	# Only normalize Helm's single-line PATH guard variants; leave user-managed
+	# Only normalize Kaji's single-line PATH guard variants; leave user-managed
 	# multi-line or custom PATH logic untouched.
 	if awk -v path_line="$PATH_LINE" '
 BEGIN { replaced = 0; extra = 0 }
@@ -1984,7 +1984,7 @@ END {
 		if ! cmp -s "$ZSHRC" "$tmp_file"; then
 			backup_zshrc_once
 			mv "$tmp_file" "$ZSHRC"
-			echo -e "  ${GREEN}✓${NC} ${BOLD}Integrate${NC}   Updated Helm PATH line in .zshrc"
+			echo -e "  ${GREEN}✓${NC} ${BOLD}Integrate${NC}   Updated Kaji PATH line in .zshrc"
 		else
 			rm -f "$tmp_file"
 		fi
@@ -1994,14 +1994,14 @@ END {
 			if ! cmp -s "$ZSHRC" "$tmp_file"; then
 				backup_zshrc_once
 				mv "$tmp_file" "$ZSHRC"
-				echo -e "  ${GREEN}✓${NC} ${BOLD}Integrate${NC}   Removed duplicate Helm PATH line(s) from .zshrc"
+				echo -e "  ${GREEN}✓${NC} ${BOLD}Integrate${NC}   Removed duplicate Kaji PATH line(s) from .zshrc"
 			else
 				rm -f "$tmp_file"
 			fi
 		else
 			rm -f "$tmp_file"
 			if [[ "$awk_status" != "3" ]]; then
-				echo -e "${YELLOW}Warning: failed to normalize Helm PATH line in .zshrc; leaving it unchanged.${NC}"
+				echo -e "${YELLOW}Warning: failed to normalize Kaji PATH line in .zshrc; leaving it unchanged.${NC}"
 			fi
 		fi
 	fi
@@ -2052,7 +2052,7 @@ END {
 		if ! cmp -s "$ZSHRC" "$tmp_file"; then
 			backup_zshrc_once
 			mv "$tmp_file" "$ZSHRC"
-			echo -e "  ${GREEN}✓${NC} ${BOLD}Integrate${NC}   Updated Helm source line in .zshrc"
+			echo -e "  ${GREEN}✓${NC} ${BOLD}Integrate${NC}   Updated Kaji source line in .zshrc"
 		else
 			rm -f "$tmp_file"
 		fi
@@ -2063,14 +2063,14 @@ END {
 			if ! cmp -s "$ZSHRC" "$tmp_file"; then
 				backup_zshrc_once
 				mv "$tmp_file" "$ZSHRC"
-				echo -e "  ${GREEN}✓${NC} ${BOLD}Integrate${NC}   Removed duplicate Helm source line(s) from .zshrc"
+				echo -e "  ${GREEN}✓${NC} ${BOLD}Integrate${NC}   Removed duplicate Kaji source line(s) from .zshrc"
 			else
 				rm -f "$tmp_file"
 			fi
 		else
 			rm -f "$tmp_file"
 			if [[ "$awk_status" != "3" ]]; then
-				echo -e "${YELLOW}Warning: failed to normalize Helm source line in .zshrc; leaving it unchanged.${NC}"
+				echo -e "${YELLOW}Warning: failed to normalize Kaji source line in .zshrc; leaving it unchanged.${NC}"
 			fi
 		fi
 	fi
@@ -2108,7 +2108,7 @@ has_kaku_source_line() {
 if has_kaku_path_line && has_kaku_source_line; then
 	echo -e "  ${GREEN}✓${NC} ${BOLD}Integrate${NC}   Already linked in .zshrc"
 elif [[ "$LEGACY_INLINE_BLOCK_PRESERVED" == "1" ]]; then
-	echo -e "  ${BLUE}•${NC} ${BOLD}Integrate${NC}   Preserved legacy inline Helm block ${NC}(move custom lines outside it, then rerun kaku init)${NC}"
+	echo -e "  ${BLUE}•${NC} ${BOLD}Integrate${NC}   Preserved legacy inline Kaji block ${NC}(move custom lines outside it, then rerun kaku init)${NC}"
 else
 	if [[ -f "$ZSHRC" && ! -w "$ZSHRC" ]]; then
 		echo -e "  ${YELLOW}!${NC} ${BOLD}Integrate${NC}   .zshrc is read-only (symlink or permission). Add manually:"

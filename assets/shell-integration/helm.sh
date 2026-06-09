@@ -37,10 +37,10 @@ case "$TERM" in
 esac
 
 # Remote machines typically don't have the "kaku" terminfo entry, so when
-# SSHing from a Helm local shell (TERM=kaku), zsh plugins on the remote side
+# SSHing from a Kaji local shell (TERM=kaku), zsh plugins on the remote side
 # (autosuggestions, syntax-highlighting) can fall back to broken rendering
 # paths, causing garbled display (e.g. "ls -lh" appearing as "lss s -lh").
-# Override TERM for ssh sessions the same way Helm's built-in SSH domain does.
+# Override TERM for ssh sessions the same way Kaji's built-in SSH domain does.
 # Set KAKU_SSH_SKIP_TERM_FIX=1 to disable. If the user already defined ssh(),
 # keep their function untouched.
 _kaku_wrapped_ssh() {
@@ -615,7 +615,7 @@ if [[ -z "${WEZTERM_SHELL_SKIP_CWD-}" ]] ; then
   fi
 fi
 
-# Check for available Helm updates on shell startup
+# Check for available Kaji updates on shell startup
 __kaku_check_update_notification() {
   # macOS uses ~/Library/Application Support, Linux uses XDG_DATA_HOME
   local check_file

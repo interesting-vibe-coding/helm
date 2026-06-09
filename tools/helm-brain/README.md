@@ -1,12 +1,12 @@
 # helm-brain
 
-The Brain agent's **eyes and hands**. Helm's "First Mate" — a Sonnet
+The Brain agent's **eyes and hands**. Kaji's "First Mate" — a Sonnet
 orchestrator — uses this CLI to watch every worker agent session and to route
 the user's instructions to the right pane.
 
 It merges three sources:
 
-- `kaku cli list --format json` — live panes. Helm is a wezterm fork, so its
+- `kaku cli list --format json` — live panes. Kaji is a wezterm fork, so its
   mux CLI is the `kaku` binary in the bundle
   (`/Applications/Helm.app/Contents/MacOS/kaku`). It falls back to `kaku`/
   `wezterm` on `PATH`, and honours `$HELM_CLI` as an override.
@@ -20,9 +20,9 @@ It merges three sources:
 
 ### `helm-brain sessions`
 
-Prints a JSON array of worker sessions — one object per pane that Helm is
+Prints a JSON array of worker sessions — one object per pane that Kaji is
 tracking as an agent session. Panes without a `runtime.json` entry (i.e. not
-agent sessions) are skipped. If Helm isn't running or files are missing it
+agent sessions) are skipped. If Kaji is not running or files are missing it
 prints `[]` and exits 0.
 
 ```json
@@ -42,7 +42,7 @@ Field reference:
 
 | field          | type   | source                                              |
 | -------------- | ------ | --------------------------------------------------- |
-| `pane_id`      | int    | `runtime.json` key (Helm/wezterm pane id)           |
+| `pane_id`      | int    | `runtime.json` key (Kaji/wezterm pane id)           |
 | `harness`      | string | `runtime.json.harness`, lowercased (`claude`/`kiro`/`opencode`) |
 | `project`      | string | basename of `runtime.json.cwd`                      |
 | `state`        | string | `working` \| `waiting` \| `background` \| ...       |
@@ -51,7 +51,7 @@ Field reference:
 
 > When the live pane list is available, sessions are filtered to panes that
 > still exist; stale `runtime.json` entries are dropped. If the pane list is
-> unavailable (Helm not running) the script falls back to `runtime.json` alone.
+> unavailable (Kaji not running) the script falls back to `runtime.json` alone.
 
 ### `helm-brain send <pane_id> <text>`
 
@@ -104,5 +104,5 @@ from the repo and when bundled in `Helm.app/Contents/Resources/tools/helm-brain/
 ## Notes
 
 - Brain model = **Sonnet**.
-- Robustness: the script never crashes when Helm isn't running or files are
+- Robustness: the script never crashes when Kaji isn't running or files are
   missing — `sessions` prints `[]`, other commands report a clear error.

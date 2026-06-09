@@ -7,13 +7,13 @@
 	<key>CFBundleExecutable</key>
 	<string>helm-gui</string>
 	<key>CFBundleIdentifier</key>
-	<string>dev.helm.app</string>
+	<string>dev.kaji.app</string>
 	<key>OSAScriptingDefinition</key>
 	<string>Pack.sdef</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>Helm</string>
+	<string>Kaji</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -28,7 +28,7 @@
 	<array>
 		<dict>
 			<key>CFBundleURLName</key>
-			<string>dev.helm.app</string>
+			<string>dev.kaji.app</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>helm</string>
@@ -46,37 +46,37 @@
 	<key>NSSupportsAutomaticGraphicsSwitching</key>
 	<true/>
 	<key>CFBundleDisplayName</key>
-	<string>Helm</string>
+	<string>Kaji</string>
 	<key>NSRequiresAquaSystemAppearance</key>
 	<string>NO</string>
 	<key>NSAppleEventsUsageDescription</key>
-	<string>An application launched via Helm would like to access AppleScript.</string>
+	<string>An application launched via Kaji would like to access AppleScript.</string>
 	<key>NSCalendarsUsageDescription</key>
-	<string>An application launched via Helm would like to access calendar data.</string>
+	<string>An application launched via Kaji would like to access calendar data.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>An application launched via Helm would like to access the camera.</string>
+	<string>An application launched via Kaji would like to access the camera.</string>
 	<key>NSContactsUsageDescription</key>
-	<string>An application launched via Helm wants to access your contacts.</string>
+	<string>An application launched via Kaji wants to access your contacts.</string>
 	<key>NSLocationAlwaysUsageDescription</key>
-	<string>An application launched via Helm would like to access your location information, even in the background.</string>
+	<string>An application launched via Kaji would like to access your location information, even in the background.</string>
 	<key>NSLocationUsageDescription</key>
-	<string>An application launched via Helm would like to access your location information.</string>
+	<string>An application launched via Kaji would like to access your location information.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>An application launched via Helm would like to access your location information while active.</string>
+	<string>An application launched via Kaji would like to access your location information while active.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>An application launched via Helm would like to access your microphone.</string>
+	<string>An application launched via Kaji would like to access your microphone.</string>
 	<key>NSRemindersUsageDescription</key>
-	<string>An application launched via Helm would like to access your reminders.</string>
+	<string>An application launched via Kaji would like to access your reminders.</string>
 	<key>NSDocumentsFolderUsageDescription</key>
-	<string>An application launched via Helm would like to access your Documents folder.</string>
+	<string>An application launched via Kaji would like to access your Documents folder.</string>
 	<key>NSDownloadsFolderUsageDescription</key>
-	<string>An application launched via Helm would like to access your Downloads folder.</string>
+	<string>An application launched via Kaji would like to access your Downloads folder.</string>
 	<key>NSSystemAdministrationUsageDescription</key>
-	<string>An application launched via Helm requires elevated permission.</string>
+	<string>An application launched via Kaji requires elevated permission.</string>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>An application launched via Helm would like to access the local network.</string>
+	<string>An application launched via Kaji would like to access the local network.</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>An application launched via Helm would like to use Bluetooth.</string>
+	<string>An application launched via Kaji would like to use Bluetooth.</string>
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>
@@ -129,10 +129,10 @@
 			<key>NSMenuItem</key>
 			<dict>
 				<key>default</key>
-				<string>New Helm Tab Here</string>
+				<string>New Kaji Tab Here</string>
 			</dict>
 			<key>NSPortName</key>
-			<string>dev.helm.app</string>
+			<string>dev.kaji.app</string>
 			<key>NSSendFileTypes</key>
 			<array>
 				<string>public.folder</string>
@@ -151,10 +151,10 @@
 			<key>NSMenuItem</key>
 			<dict>
 				<key>default</key>
-				<string>New Helm Window Here</string>
+				<string>New Kaji Window Here</string>
 			</dict>
 			<key>NSPortName</key>
-			<string>dev.helm.app</string>
+			<string>dev.kaji.app</string>
 			<key>NSSendFileTypes</key>
 			<array>
 				<string>public.folder</string>

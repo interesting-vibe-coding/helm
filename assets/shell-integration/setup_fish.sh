@@ -1,6 +1,6 @@
 #!/bin/bash
-# Helm Fish Setup Script
-# Configures a "batteries-included" Fish environment using Helm's bundled resources.
+# Kaji Fish Setup Script
+# Configures a "batteries-included" Fish environment using Kaji's bundled resources.
 # It is designed to be safe: can be re-run at any time.
 
 set -euo pipefail
@@ -33,8 +33,8 @@ if [[ "${KAKU_INIT_INTERNAL:-0}" != "1" ]]; then
 
 	for candidate in \
 		"$SCRIPT_DIR/../MacOS/kaku" \
-		"/Applications/Helm.app/Contents/MacOS/kaku" \
-		"$HOME/Applications/Helm.app/Contents/MacOS/kaku"; do
+		"/Applications/Kaji.app/Contents/MacOS/kaku" \
+		"$HOME/Applications/Kaji.app/Contents/MacOS/kaku"; do
 		if [[ -x "$candidate" ]]; then
 			exec "$candidate" init "$@"
 		fi
@@ -46,12 +46,12 @@ if [[ -d "$SCRIPT_DIR/vendor" ]]; then
 	RESOURCES_DIR="$SCRIPT_DIR"
 elif [[ -d "$SCRIPT_DIR/../vendor" ]]; then
 	RESOURCES_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-elif [[ -d "/Applications/Helm.app/Contents/Resources/vendor" ]]; then
-	RESOURCES_DIR="/Applications/Helm.app/Contents/Resources"
-elif [[ -d "$HOME/Applications/Helm.app/Contents/Resources/vendor" ]]; then
-	RESOURCES_DIR="$HOME/Applications/Helm.app/Contents/Resources"
+elif [[ -d "/Applications/Kaji.app/Contents/Resources/vendor" ]]; then
+	RESOURCES_DIR="/Applications/Kaji.app/Contents/Resources"
+elif [[ -d "$HOME/Applications/Kaji.app/Contents/Resources/vendor" ]]; then
+	RESOURCES_DIR="$HOME/Applications/Kaji.app/Contents/Resources"
 else
-	echo -e "${YELLOW}Error: Could not locate Helm resources (vendor directory missing).${NC}"
+	echo -e "${YELLOW}Error: Could not locate Kaji resources (vendor directory missing).${NC}"
 	exit 1
 fi
 
@@ -76,8 +76,8 @@ YAZI_KEYMAP_FILE="$YAZI_CONFIG_DIR/keymap.toml"
 YAZI_THEME_FILE="$YAZI_CONFIG_DIR/theme.toml"
 YAZI_FLAVORS_DIR="$YAZI_CONFIG_DIR/flavors"
 YAZI_WRAPPER_FILE="$USER_CONFIG_DIR/bin/yazi"
-KAKU_YAZI_THEME_MARKER_START="# ===== Helm Yazi Flavor (managed) ====="
-KAKU_YAZI_THEME_MARKER_END="# ===== End Helm Yazi Flavor (managed) ====="
+KAKU_YAZI_THEME_MARKER_START="# ===== Kaji Yazi Flavor (managed) ====="
+KAKU_YAZI_THEME_MARKER_END="# ===== End Kaji Yazi Flavor (managed) ====="
 FISH_CONF_D_DIR="$HOME/.config/fish/conf.d"
 FISH_CONF_D_FILE="$FISH_CONF_D_DIR/kaku.fish"
 TMUXRC="$HOME/.tmux.conf"
@@ -139,11 +139,11 @@ resolve_kaku_flavor_from_config() {
 			' "$config_file"
 		)"
 		if [[ -n "$scheme_line" ]]; then
-			if [[ "$scheme_line" == *"Helm Light"* ]]; then
+			if [[ "$scheme_line" == *"Kaji Light"* ]]; then
 				printf '%s\n' "kaku-light"
 				return
 			fi
-			if [[ "$scheme_line" == *"Helm Dark"* || "$scheme_line" == *"Helm Theme"* ]]; then
+			if [[ "$scheme_line" == *"Kaji Dark"* || "$scheme_line" == *"Kaji Theme"* ]]; then
 				printf '%s\n' "kaku-dark"
 				return
 			fi
@@ -183,7 +183,7 @@ is_legacy_kaku_yazi_theme_file() {
 		return 1
 	fi
 
-	if grep -Fq '# Helm-aligned theme for Yazi 26.x' "$YAZI_THEME_FILE"; then
+	if grep -Fq '# Kaji-aligned theme for Yazi 26.x' "$YAZI_THEME_FILE"; then
 		return 0
 	fi
 	local normalized expected
@@ -219,7 +219,7 @@ sync_kaku_yazi_flavors() {
 		cp "$source_dir/flavor.toml" "$target_dir/flavor.toml"
 	done
 
-	echo -e "  ${GREEN}✓${NC} ${BOLD}Config${NC}      Refreshed Helm yazi flavors ${NC}(dark + light)${NC}"
+	echo -e "  ${GREEN}✓${NC} ${BOLD}Config${NC}      Refreshed Kaji yazi flavors ${NC}(dark + light)${NC}"
 }
 
 ensure_kaku_yazi_theme() {
@@ -231,11 +231,11 @@ ensure_kaku_yazi_theme() {
 		cat <<EOF >"$YAZI_THEME_FILE"
 \$schema = "https://yazi-rs.github.io/schemas/theme.json"
 
-# Helm manages the [flavor] section below so Yazi matches the current Helm theme.
+# Kaji manages the [flavor] section below so Yazi matches the current Kaji theme.
 # Add your own theme overrides in other sections if needed.
 $(kaku_yazi_theme_block "$managed_flavor")
 EOF
-		echo -e "  ${GREEN}✓${NC} ${BOLD}Config${NC}      Initialized yazi theme ${NC}(managed Helm flavor: $managed_flavor)${NC}"
+		echo -e "  ${GREEN}✓${NC} ${BOLD}Config${NC}      Initialized yazi theme (managed Kaji flavor: $managed_flavor)${NC}"
 		return
 	fi
 
@@ -262,7 +262,7 @@ EOF
 
 	mv "${tmp_theme}.next" "$YAZI_THEME_FILE"
 	rm -f "$tmp_theme"
-	echo -e "  ${GREEN}✓${NC} ${BOLD}Config${NC}      Updated yazi theme ${NC}(managed Helm flavor: $managed_flavor)${NC}"
+	echo -e "  ${GREEN}✓${NC} ${BOLD}Config${NC}      Updated yazi theme (managed Kaji flavor: $managed_flavor)${NC}"
 }
 
 install_yazi_wrapper() {
@@ -272,8 +272,8 @@ install_yazi_wrapper() {
 set -euo pipefail
 
 YAZI_THEME_FILE="${HOME}/.config/yazi/theme.toml"
-MARKER_START="# ===== Helm Yazi Flavor (managed) ====="
-MARKER_END="# ===== End Helm Yazi Flavor (managed) ====="
+MARKER_START="# ===== Kaji Yazi Flavor (managed) ====="
+MARKER_END="# ===== End Kaji Yazi Flavor (managed) ====="
 WRAPPER_PATH="${BASH_SOURCE[0]}"
 WRAPPER_DIR="$(cd "$(dirname "$WRAPPER_PATH")" && pwd)"
 
@@ -319,11 +319,11 @@ resolve_kaku_flavor_from_config() {
 			' "$config_file"
 		)"
 		if [[ -n "$scheme_line" ]]; then
-			if [[ "$scheme_line" == *"Helm Light"* ]]; then
+			if [[ "$scheme_line" == *"Kaji Light"* ]]; then
 				printf '%s\n' "kaku-light"
 				return
 			fi
-			if [[ "$scheme_line" == *"Helm Dark"* || "$scheme_line" == *"Helm Theme"* ]]; then
+			if [[ "$scheme_line" == *"Kaji Dark"* || "$scheme_line" == *"Kaji Theme"* ]]; then
 				printf '%s\n' "kaku-dark"
 				return
 			fi
@@ -366,7 +366,7 @@ ensure_theme() {
 		cat <<BLOCK >"$YAZI_THEME_FILE"
 \$schema = "https://yazi-rs.github.io/schemas/theme.json"
 
-# Helm manages the [flavor] section below so Yazi matches the current Helm theme.
+# Kaji manages the [flavor] section below so Yazi matches the current Kaji theme.
 $(managed_block "$flavor")
 BLOCK
 		return
@@ -498,7 +498,7 @@ install_kaku_terminfo() {
 
 install_kaku_terminfo
 
-echo -e "${BOLD}Setting up Helm Fish Shell Environment${NC}"
+echo -e "${BOLD}Setting up Kaji Fish Shell Environment${NC}"
 
 # 1. Prepare User Config Directory
 mkdir -p "$USER_CONFIG_DIR"
@@ -563,13 +563,13 @@ ensure_kaku_yazi_theme
 install_yazi_wrapper
 
 # 3. Configure tmux (Optional)
-TMUX_SOURCE_LINE='source-file "$HOME/.config/kaku/tmux/kaku.tmux.conf" # Helm tmux Integration'
+TMUX_SOURCE_LINE='source-file "$HOME/.config/kaku/tmux/kaku.tmux.conf" # Kaji tmux Integration'
 
 write_kaku_tmux_file() {
 	mkdir -p "$KAKU_TMUX_DIR"
 	cat <<'EOF' >"$KAKU_TMUX_FILE"
-# Helm tmux Integration - DO NOT EDIT MANUALLY
-# This file is managed by Helm.app. Any changes may be overwritten.
+# Kaji tmux Integration - DO NOT EDIT MANUALLY
+# This file is managed by Kaji.app. Any changes may be overwritten.
 
 set -g mouse on
 bind-key -n S-WheelUpPane if-shell -F '#{pane_in_mode}' 'send-keys -X -N 5 scroll-up' 'copy-mode -e -u'
@@ -619,7 +619,7 @@ END {
 		if ! cmp -s "$TMUXRC" "$tmp_file"; then
 			backup_tmuxrc_once
 			mv "$tmp_file" "$TMUXRC"
-			echo -e "  ${GREEN}✓${NC} ${BOLD}Integrate${NC}   Updated Helm source line in .tmux.conf"
+			echo -e "  ${GREEN}✓${NC} ${BOLD}Integrate${NC}   Updated Kaji source line in .tmux.conf"
 		else
 			rm -f "$tmp_file"
 		fi
@@ -629,14 +629,14 @@ END {
 			if ! cmp -s "$TMUXRC" "$tmp_file"; then
 				backup_tmuxrc_once
 				mv "$tmp_file" "$TMUXRC"
-				echo -e "  ${GREEN}✓${NC} ${BOLD}Integrate${NC}   Removed duplicate Helm source line(s) from .tmux.conf"
+				echo -e "  ${GREEN}✓${NC} ${BOLD}Integrate${NC}   Removed duplicate Kaji source line(s) from .tmux.conf"
 			else
 				rm -f "$tmp_file"
 			fi
 		else
 			rm -f "$tmp_file"
 			if [[ "$awk_status" != "3" ]]; then
-				echo -e "${YELLOW}Warning: failed to normalize Helm source line in .tmux.conf; leaving it unchanged.${NC}"
+				echo -e "${YELLOW}Warning: failed to normalize Kaji source line in .tmux.conf; leaving it unchanged.${NC}"
 			fi
 		fi
 	fi
@@ -691,7 +691,7 @@ ensure_kaku_tmux_integration
 # 4. Generate Kaku Fish Init File
 cat <<'EOF' >"$KAKU_INIT_FILE"
 # Kaku Fish Integration - DO NOT EDIT MANUALLY
-# This file is managed by Helm.app. Any changes may be overwritten.
+# This file is managed by Kaji.app. Any changes may be overwritten.
 
 # === PATH ===
 fish_add_path "$HOME/.config/kaku/fish/bin"
@@ -892,14 +892,14 @@ end
 # k - AI chat CLI bundled with Kaku.
 function k
     set -l k_cmd ""
-    for _candidate in "$HOME/Applications/Helm.app/Contents/MacOS/k" "/Applications/Helm.app/Contents/MacOS/k"
+    for _candidate in "$HOME/Applications/Kaji.app/Contents/MacOS/k" "/Applications/Kaji.app/Contents/MacOS/k"
         if test -x "$_candidate"
             set k_cmd "$_candidate"
             break
         end
     end
     if test -z "$k_cmd"
-        echo "k: Helm app not found. Install Helm from https://github.com/interesting-vibe-coding/helm"
+        echo "k: Kaji app not found. Install Kaji from https://github.com/interesting-vibe-coding/helm"
         return 127
     end
     $k_cmd $argv
@@ -911,7 +911,7 @@ echo -e "  ${GREEN}✓${NC} ${BOLD}Script${NC}      Generated kaku.fish init scr
 # 5. Install fish conf.d entry point
 mkdir -p "$FISH_CONF_D_DIR"
 cat <<EOF >"$FISH_CONF_D_FILE"
-# Helm shell integration -- managed. Remove with: helm reset
+# Kaji shell integration -- managed. Remove with: helm reset
 set -l _kaku_fish_init "\$HOME/.config/kaku/fish/kaku.fish"
 if test -f \$_kaku_fish_init
     source \$_kaku_fish_init
@@ -921,7 +921,7 @@ EOF
 echo -e "  ${GREEN}✓${NC} ${BOLD}Integrate${NC}   Installed ${NC}~/.config/fish/conf.d/kaku.fish${NC}"
 
 echo ""
-echo -e "${GREEN}${BOLD}Helm Fish setup complete!${NC}"
+echo -e "${GREEN}${BOLD}Kaji Fish setup complete!${NC}"
 echo ""
 echo "Restart fish or run: source ~/.config/fish/conf.d/kaku.fish"
 echo "Roll back anytime with: helm reset"
