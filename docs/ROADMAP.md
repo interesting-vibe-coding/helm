@@ -54,12 +54,15 @@ Concrete, prioritized task list toward V1. Tiers by impact: **P0** = correctness
 > shipped** (PR #115). Next is a **pure-visualization cockpit** for `Cmd+1` —
 > brand + session switcher + chat history + status dots + "most-neglected
 > first" ordering — built **TUI-first** (cloud-buildable; promote to a GUI
-> overlay later). **Decision:** the Brain very likely needs **no LLM at all**;
-> we build the cockpit render-only, live in it for days, and only add a model
-> (Goose + a cheap/free model, narrate-only) if real use surfaces a concrete
-> ask-the-fleet job. Mobile is a **relay** problem, decoupled from the engine
-> choice. The Goose drivability spike is code-ready (PR #116) but gated behind
-> that need. See `docs/BRAIN_DESIGN.md` § "Visualization first".
+> overlay later). **Decision:** the cockpit ships first, then a **lightweight
+> dispatcher** LLM whose job is concrete — turn one NL instruction into
+> `spawn`/`send` fan-out + session creation (dispatch, not planning,
+> confirm-gated). Because the substrate makes dispatch **near-stateless**, no
+> heavy engine/compaction is needed → ride the **lightest MCP-native harness**
+> (leaning **Crush**) on a cheap/free model, acting only through **helm-brain
+> exposed as an MCP server** (the next no-regret build). Mobile is a **relay**
+> problem, decoupled from the harness choice. See `docs/BRAIN_DESIGN.md`
+> § "The dispatcher".
 
 ### ✅ Shipped this week
 - **Scroll no longer crashes** — `mouse_common` called `[NSEvent clickCount]` on scroll-wheel events, raising an uncaught NSException that aborted the app. Now guarded to press/release only. (PR #92)
