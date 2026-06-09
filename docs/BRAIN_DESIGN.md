@@ -282,18 +282,19 @@ choice:
 
 ## Decision & sequencing (2026-06-09)
 
-**Functionality first.** The UI/aesthetics now look good; the core agent loop is
-**not yet proven end-to-end**. The whole engine redesign below (Goose / cockpit /
-mobile) is a **north star, not the next task** — chasing it now would push "Helm
-is actually usable" out indefinitely. Pretty shell + broken core = demo-ware.
+**Functionality first.** The UI/aesthetics look good and the core agent loop is
+now **verified end-to-end** (2026-06-09). The whole engine redesign below (Goose /
+cockpit / mobile) is a **north star, not the next task** — chasing it now would
+push "Kaji is actually usable" out indefinitely. Pretty shell + broken core =
+demo-ware.
 
 Agreed build order:
 
-1. **Prove the existing loop end-to-end (now).** Using what already ships —
-   `helm-brain` + claude workers, no new engine: spawn worker (Cmd+Shift+K) →
-   Monitor (Cmd+3) lists it → worker hits *waiting* → Brain `notify` fires →
-   session restore after restart. Walk each link, list what's broken, fix it.
-   (This is the long-standing ROADMAP P0 "Core agent loop, end-to-end.")
+1. ✅ **Prove the existing loop end-to-end (done, 2026-06-09).** Using what
+   already ships — `helm-brain` + claude workers, no new engine: spawn worker
+   (Cmd+Shift+K) → Monitor (Cmd+3) lists it → worker hits *waiting* → Brain
+   `notify` fires → session restore after restart. Walked each link; working.
+   (This was the long-standing ROADMAP P0 "Core agent loop, end-to-end.")
 2. **Substrate `events.jsonl` (right after).** No-regret, cloud-buildable,
    unit-testable, engine-independent; upgrades `Cmd+1` from a chat box to a real
    timeline.

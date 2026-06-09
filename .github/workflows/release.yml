@@ -1,0 +1,55 @@
+name: Release
+
+# Build and publish a macOS .app on a version tag. Runs entirely on a GitHub
+# macOS runner — no local Mac needed. Ad-hoc signed (no Developer ID secret
+# required); notarization is still tracked as a separate release blocker in
+# docs/release-checklist.md.
+#
+# Push a tag to cut a release:
+#   git tag v0.4.0 && git push origin v0.4.0
+#
+# The GitHub Release is created as a DRAFT so you can verify Kaji.app.zip
+# before it goes public — open Releases, download + smoke-test the zip, then
+# click "Publish". install.sh reads releases/latest/download, which skips
+# drafts, so users only see it once you publish.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build & publish macOS .app
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          # Universal binary: build both arches (build.sh lipo-merges them).
+          targets: aarch64-apple-darwin, x86_64-apple-darwin
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build app bundle (ad-hoc, universal)
+        # --app-only stops after the signed bundle, skipping the DMG step,
+        # whose Finder/AppleScript layout pass does not run on a headless
+        # runner. install.sh only needs the .app zip, not the DMG.
+        run: PROFILE=release ./scripts/build.sh --app-only
+
+      - name: Package Kaji.app.zip
+        # ditto --keepParent so the zip expands to "Kaji.app", matching the
+        # asset name install.sh downloads (releases/latest/download/Kaji.app.zip).
+        run: ditto -c -k --keepParent dist/Kaji.app Kaji.app.zip
+
+      - name: Create draft release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Kaji ${{ github.ref_name }}
+          draft: true
+          generate_release_notes: true
+          files: Kaji.app.zip
