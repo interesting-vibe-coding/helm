@@ -280,15 +280,51 @@ choice:
 
 ---
 
+## Decision & sequencing (2026-06-09)
+
+**Functionality first.** The UI/aesthetics now look good; the core agent loop is
+**not yet proven end-to-end**. The whole engine redesign below (Goose / cockpit /
+mobile) is a **north star, not the next task** — chasing it now would push "Helm
+is actually usable" out indefinitely. Pretty shell + broken core = demo-ware.
+
+Agreed build order:
+
+1. **Prove the existing loop end-to-end (now).** Using what already ships —
+   `helm-brain` + claude workers, no new engine: spawn worker (Cmd+Shift+K) →
+   Monitor (Cmd+3) lists it → worker hits *waiting* → Brain `notify` fires →
+   session restore after restart. Walk each link, list what's broken, fix it.
+   (This is the long-standing ROADMAP P0 "Core agent loop, end-to-end.")
+2. **Substrate `events.jsonl` (right after).** No-regret, cloud-buildable,
+   unit-testable, engine-independent; upgrades `Cmd+1` from a chat box to a real
+   timeline.
+3. **Engine spike (post-V1).** Time-box ~1 day to confirm an external client can
+   fully drive a Goose session (create → prompt → consume SSE). If it works,
+   commit to Goose; if not, fall back to opencode (accept the node daemon). The
+   `helm-brain`-as-MCP-server layer makes this fallback near-free — build that
+   layer first so the engine choice stays reversible.
+
+**Correction to the Goose rationale above.** Goose was ranked #1 partly because
+its in-process crate embed is "lighter than any sidecar." Under our own mobile
+endgame that advantage is **moot**: remote control needs a network API, so we
+will run **goosed (the server)** anyway and the in-process path is unused. The
+real, still-valid reasons to prefer Goose are **same language as Helm (Rust,
+compiles into the .app bundle), no bun/node runtime to ship, built to serve
+network clients, and LF governance** — not "lightest embed." Decide it at
+server-vs-server parity with opencode, not crate-vs-daemon.
+
+---
+
 ## Open decisions
 
 - [x] **Engine class**: a headless open-source harness driven as a custom
       client — not a fork, not a from-scratch loop. Chosen for proven context
       orchestration + auto-compaction.
-- [ ] **Which engine**: Goose (Rust-native, in-process crate embed or
-      goosed/ACP — leaning here after the 2026-06-09 drivability dive) vs
-      opencode (safest HTTP+SDK, heavy node daemon) vs Crush (lightest, but
-      external-drive API unverified). Prototype Goose first.
+- [ ] **Which engine**: Goose vs opencode vs Crush — **deferred to a post-V1
+      spike** (see Decision & sequencing). Decide Goose vs opencode at
+      **server-vs-server parity** (goosed vs `opencode serve`), not
+      crate-vs-daemon; the in-process advantage is moot under the mobile
+      endgame. Prototype Goose first; fall back to opencode if external drive
+      doesn't pan out.
 - [x] **Instrument layer**: expose `helm-brain` as an MCP server so the engine
       choice stays reversible.
 - [ ] **Cockpit build surface**: TUI in the Brain pane (Rust/Python client over
