@@ -2,7 +2,6 @@
   <img src="assets/kaji-logo.png" width="120" alt="Kaji" />
   <h1>Kaji</h1>
   <p><em>The agent-native terminal. You steer — agents execute.</em></p>
-
   <p>
     <a href="LICENSE.md"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License"></a>
     <img src="https://img.shields.io/badge/macOS-Apple%20Silicon%20%2B%20Intel-lightgrey?style=flat-square" alt="macOS">
@@ -11,62 +10,54 @@
 
 ---
 
-Most terminals assume one human, one session. **Kaji assumes you are orchestrating a fleet of agents** — they do the work, surface what needs you, and wait for your call.
+> Your prefrontal cortex is finite.  
+> Stop spending it on switching context between agents. `(ᴗ‿ᴗ)`
+>
+> Kaji solves this by giving every agent its own pane, a First Mate to watch them all, and a single conversation to steer the crew.
 
-### Zero friction
+---
 
-You shouldn't babysit a terminal. No hunting for which pane needs input, no losing your place between tools, no setup before you can start. Install, open, and you're already talking to your agents. **You make the calls; they do everything in between.**
-
-### Meet your First Mate
-
-Running ten agents still means watching ten panes. Kaji's **Brain** removes that last bit of friction: instead of juggling N agents, you talk to **one**.
-
-The Brain is a Sonnet orchestrator. It watches every session for you — who's working, who's waiting, what they're costing — reports only when something actually needs you, and relays your orders to the right agent, always asking before anything lands.
-
-> **N agents → one conversation.** You stop scanning a wall of terminals and start steering through a mate who knows the whole crew.
-
-### Three views, one keystroke each
-
-**Brain** `Cmd+1` — talk to your First Mate.  
-**Work** `Cmd+2` — every agent tiled in one place; jump in when you need to.  
-**Terminal** `Cmd+4` — a plain shell, always there.
-
-Flip between them instantly.
+<!-- screenshot -->
+<!-- ![Kaji](assets/screenshot.png) -->
 
 ---
 
 ## Why Kaji?
 
-**舵** (kaji) is Japanese for *helm* — the rudder that steers the ship.
+**舵** (kaji) — Japanese for *rudder*.
 
-The name is deliberate. You are not another agent in the system; you are the one holding the rudder. Kaji keeps that distinction physical: every session opens into the Brain, every agent reports back to you, and the Work view tiles their output so you see the whole crew at a glance — without steering each one yourself.
+Most terminals are built for one human, one session. Kaji is built for the moment after that — when you have a crew of agents running in parallel and the real work is *directing* them, not *doing* their work yourself.
 
-The lineage runs deep: Kaku → Kaji, both named after Japanese concepts, both rooted in WezTerm's GPU rendering. Kaji picks up where Kaku left off and goes further — toward a terminal built around *directing* rather than *doing*.
+The name says it all: you hold the rudder. Kaji keeps the friction between you and your agents as close to zero as possible, so your focus stays on decisions — not on tabs. ⛵
 
----
+## Features
+
+- **Brain** — a Sonnet First Mate that watches every worker session. Reports only when something needs you; relays your orders to the right agent.
+- **Work view** — all worker panes tiled automatically in one place (`Cmd+2`). No hunting.
+- **Multi-harness** — Claude Code, Kiro, opencode, Codex. One terminal, any agent.
+- **Session restore** — on restart, Brain offers to bring back your last crew with a single `y`.
+- **Shared memory** — every harness boots with your skills and context already loaded.
 
 ## Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/interesting-vibe-coding/helm/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/interesting-vibe-coding/kaji-terminal/main/install.sh | bash
 ```
 
-Open Kaji and it walks you through a quick setup, then drops you straight into the Brain. Tell it what to work on.
+Open Kaji. The Brain greets you. Tell it what to build.
 
-<details>
-<summary>Build from source</summary>
+---
 
-```bash
-git clone https://github.com/interesting-vibe-coding/helm
-cd helm
-PROFILE=debug ./scripts/build.sh --app-only
-open dist/Kaji.app
-```
-</details>
+## Thanks
+
+Built on the shoulders of:
+
+- [Kaku](https://github.com/tw93/Kaku) — the beautiful macOS terminal this is forked from
+- [WezTerm](https://wezfurlong.org/wezterm/) — the GPU-accelerated terminal engine underneath
+- [Ghostty](https://ghostty.org) — for pushing the terminal space forward
 
 ---
 
 <div align="center">
-  <sub>A focused fork of <a href="https://github.com/tw93/Kaku">Kaku</a> · built on <a href="https://wezfurlong.org/wezterm/">WezTerm</a> · MIT</sub><br/>
-  <sub>Part of <a href="https://github.com/interesting-vibe-coding">interesting-vibe-coding</a></sub>
+  <sub>Part of <a href="https://github.com/interesting-vibe-coding">interesting-vibe-coding</a> · MIT</sub>
 </div>
