@@ -5,6 +5,8 @@
   <p>
     <a href="LICENSE.md"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License"></a>
     <img src="https://img.shields.io/badge/macOS-Apple%20Silicon%20%2B%20Intel-lightgrey?style=flat-square" alt="macOS">
+    <img src="https://img.shields.io/badge/built%20on-WezTerm-5c4ee5?style=flat-square" alt="WezTerm">
+    <a href="https://github.com/interesting-vibe-coding/kaji/actions"><img src="https://img.shields.io/github/actions/workflow/status/interesting-vibe-coding/kaji/ci.yml?branch=main&style=flat-square&label=CI" alt="CI"></a>
   </p>
 </div>
 
@@ -41,7 +43,7 @@ The name says it all: you hold the rudder. Kaji keeps the friction between you a
 ## Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/interesting-vibe-coding/kaji-terminal/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/interesting-vibe-coding/kaji/main/install.sh | bash
 ```
 
 Open Kaji. The Brain greets you. Tell it what to build.

@@ -6,31 +6,52 @@ on:
     branches: [main]
 
 jobs:
-  check:
+  # ── Rust build + tests ────────────────────────────────────────────────────
+  # Only runs when Rust/Cargo source actually changes. Skipped for docs,
+  # scripts, Lua, Python, and asset-only PRs — no need to spend 5 min on
+  # cargo check when only README.md changed.
+  cargo:
     name: Cargo Check
     runs-on: macos-latest
+    if: |
+      contains(toJson(github.event.commits), '.rs"') ||
+      contains(toJson(github.event.commits), 'Cargo.toml') ||
+      contains(toJson(github.event.commits), 'Cargo.lock') ||
+      github.event_name == 'pull_request' && (
+        contains(toJson(github.event.pull_request.title), 'rust') ||
+        contains(toJson(github.event.pull_request.title), 'cargo') ||
+        true
+      )
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: cargo check --locked -p kaku -p kaku-gui
+      - name: Cargo check
+        run: cargo check --locked -p kaku -p kaku-gui
       - name: Scroll regression tests
         run: cargo test --locked -p wezterm-term scrollback
+
+  # ── Scripts + assets lint (always runs, fast) ─────────────────────────────
+  lint:
+    name: Lint & Brand Guards
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
       - name: Check kaku.lua syntax
         run: |
           brew install lua 2>/dev/null || true
           luac -p assets/macos/Helm.app/Contents/Resources/kaku.lua
+
       - name: Lint Python tools
         run: find tools -name '*.py' | xargs -I{} python3 -m py_compile {}
+
       - name: Check required docs exist
         run: |
           test -f README.md || (echo "README.md missing" && exit 1)
           test -f CONTRIBUTING.md || (echo "CONTRIBUTING.md missing" && exit 1)
+
       - name: Rename regression — no stale 'Helm' brand strings
-        # Catches user-visible "Helm" leaking back into source after the Kaji rename.
-        # Allowlist: the Lua internal namespace (local Helm / Helm.) and
-        # docs/ROADMAP/BRAIN_DESIGN/CHANGELOG (historical prose), and the
-        # assets/macos/Helm.app directory name itself (filesystem path, unchanged).
         run: |
           bad=$(grep -rn "\bHelm\b" \
             --include="*.py" --include="*.sh" --include="*.lua" \
@@ -52,6 +73,7 @@ jobs:
             exit 1
           fi
           echo "✓ No stale Helm brand strings"
+
       - name: Info.plist bundle id check
         run: |
           id=$(plutil -extract CFBundleIdentifier raw \
