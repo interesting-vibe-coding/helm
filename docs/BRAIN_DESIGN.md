@@ -342,6 +342,20 @@ server-vs-server parity with opencode, not crate-vs-daemon.
 
 ---
 
+## Work view layout (deferred polish)
+
+The Work view (`Cmd+2`) is a backup "see all live workers" surface — you live in
+the Brain; Work is for an eyeball glance. Workers are tiled in one tab: the first
+opens the Work tab, each later worker is added by `helm-brain spawn` splitting the
+**largest** existing worker pane along its longer (pixel) side. This self-balances:
+2 → equal columns, 4 → even 2×2, 3 → a balanced 2+1 (not three equal columns).
+
+Open: if we ever want count-specific layouts (e.g. 3 → three equal columns *and*
+4 → 2×2), the self-balancing rule can't express both — that needs a full re-tile
+on every spawn (`--move-pane-id` + `--percent`), which is heavier and needs visual
+iteration. Deferred: layout polish is explicitly **not** the priority while the
+core chain (spawn → Work → notify → restore) is still being proven end-to-end.
+
 ## North-star test (repeat)
 
 Every Brain design must beat **"just open N sessions yourself."** If a proposed

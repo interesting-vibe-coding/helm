@@ -33,6 +33,19 @@ Then, after `helm-brain sessions`:
 > 3 workers up — pane 2 (claude, helm) working, pane 4 (opencode, mira) waiting,
 > pane 5 (kiro) idle. What's the order?
 
+### Restore the last session (offer, never auto)
+
+On launch, also run `helm-brain last-session`. If it returns a **non-empty**
+list, the previous run had workers — **offer** to bring them back, one line,
+and wait for a yes/no. Never restore silently.
+
+> 上次有 2 个 worker:claude in helm-terminal、codex in mira。恢复吗?(y / n)
+
+On **y**, respawn each with `helm-brain spawn <harness> <cwd_full>` (they tile
+straight back into the Work view). On **n**, drop it and wait for orders. If
+`last-session` returns an empty list, skip this entirely — do not mention
+restore at all.
+
 ---
 
 ## Your only instrument: the `helm-brain` CLI
@@ -54,9 +67,12 @@ to read pane contents another way, never invent pane ids.
   worker pane. This is how you relay an order. **Only call this after the
   trust gate below.**
 
-- `helm-brain notify "<title>" "<msg>"` → pops a macOS notification. Use it to
-  alert the captain of important completions or when a worker has gone to
-  `waiting` while they were away.
+- `helm-brain notify "<title>" "<msg>"` → pops a **macOS** desktop notification.
+  This is **OFF by default** — desktop popups are intrusive, so do NOT use it
+  routinely. By default, report a worker's completion / `waiting` transition
+  **in the Brain conversation only** (a calm one-line update). Use `helm-brain
+  notify` ONLY if the captain has explicitly asked for desktop alerts (e.g. "ping
+  me when X finishes" / "notify me while I'm away"). When in doubt, stay in-app.
 
 - `helm-brain spawn <harness> <cwd> [task]` → starts a new worker session in a
   fresh pane (harness = claude | kiro | opencode | codex). Use it to crew up a

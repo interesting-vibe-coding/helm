@@ -14,6 +14,11 @@ if [[ ! -d "$CONFIG_DIR" && -d "$LEGACY_CONFIG_DIR" ]]; then
   fi
 fi
 STATE_FILE="$CONFIG_DIR/state.json"
+# Helm's session-tracking dir, where the GUI writes runtime.json (the snapshot
+# the Brain/Monitor read). Create it up front: the lua writer uses io.open(...,
+# 'w') which silently fails if the parent dir is missing, leaving the Monitor
+# permanently empty.
+mkdir -p "$HOME/.helm/sessions" 2>/dev/null || true
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMMON_SCRIPT="$SCRIPT_DIR/state_common.sh"
 
@@ -105,11 +110,13 @@ if [[ -f "$MASTER_MEMORY" ]]; then
 fi
 
 # ── Cross-harness skills (open Agent Skills standard) ─────────────────────────
-# Install the bundled helm-first-mate skill into the OPEN hub ~/.agents/skills
-# — the agentskills.io USER-scope location that Codex reads natively. Then link
-# it into Kiro / Claude Code skill dirs (if installed) so every harness, no
-# matter which powers the Brain, loads the same First Mate persona. The bundled
-# skill is the single source of truth.
+# Install the bundled helm-first-mate skill into each harness's skill dir.
+# This skill is Helm-specific and lives ONLY in the Helm app bundle (the single
+# source of truth) — it is intentionally NOT added to the personal skills hub
+# (~/workspace/My-Skills), since a product-specific skill should stay in its own
+# repo and not be loaded by every unrelated session. We link each harness dir
+# DIRECTLY at the bundled skill (no inter-dir hop), so this works regardless of
+# where the personal hub lives or whether ~/.agents exists.
 FIRST_MATE_SKILL="$RESOURCES_DIR/skills/helm-first-mate"
 if [[ -d "$FIRST_MATE_SKILL" ]]; then
   skill_target="$(cd "$FIRST_MATE_SKILL" && pwd -P)"
@@ -123,11 +130,10 @@ if [[ -d "$FIRST_MATE_SKILL" ]]; then
     ln -sfn "$src" "$dir/helm-first-mate" 2>/dev/null \
       && ok "First Mate skill linked ($dir/helm-first-mate)"
   }
-  HUB="$HOME/.agents/skills"
-  link_first_mate "$HUB" "$FIRST_MATE_SKILL"                          # open hub → Codex reads natively
-  # Harness dirs that aren't already pointed at the hub: link to the hub copy.
-  [[ -d "$HOME/.kiro"   ]] && link_first_mate "$HOME/.kiro/skills"   "$HUB/helm-first-mate"
-  [[ -d "$HOME/.claude" ]] && link_first_mate "$HOME/.claude/skills" "$HUB/helm-first-mate"
+  # All link directly at the bundled skill (single source of truth).
+  link_first_mate "$HOME/.agents/skills" "$FIRST_MATE_SKILL"   # Codex user-scope
+  [[ -d "$HOME/.kiro"   ]] && link_first_mate "$HOME/.kiro/skills"   "$FIRST_MATE_SKILL"
+  [[ -d "$HOME/.claude" ]] && link_first_mate "$HOME/.claude/skills" "$FIRST_MATE_SKILL"
 fi
 
 # ── Choose your Brain ─────────────────────────────────────────────────────────
