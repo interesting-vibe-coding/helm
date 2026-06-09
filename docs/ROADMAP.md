@@ -192,6 +192,13 @@ A background converter indexes all harness histories into `~/.helm/sessions/`. A
 
 ## Next Steps (Priority Order)
 
+> **Roadmap endgame — mobile remote control.** The desktop becomes a controlled
+> endpoint; a phone app steers it (cf. Anthropic's remote control). This is why
+> the Brain is designed as a *client of a headless engine* (see
+> [`BRAIN_DESIGN.md`](BRAIN_DESIGN.md)) — the phone is just another client of the
+> same engine API. It favors an engine whose server already serves network
+> clients (Goose's `goosed`), and needs a relay/tunnel + auth (`kaku-relay`).
+
 ### 1. Cross-Harness Memory — Bake Into Helm (HIGH)
 
 **Current state**: Manually symlinked on your machine. Not automatic for new users.

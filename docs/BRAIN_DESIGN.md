@@ -254,6 +254,32 @@ an HTTP boundary.
 
 ---
 
+## Implication: mobile remote (the roadmap endgame)
+
+The next roadmap step is **mobile remote control** — the desktop becomes a
+controlled endpoint, a phone app steers it (cf. Anthropic's remote control). The
+cockpit-as-client decision makes this nearly free, and it sharpens the engine
+choice:
+
+- **Desktop cockpit and the phone app are peers** — both are clients of the same
+  headless engine API (same session drive, same SSE stream, same `events.jsonl`
+  timeline). The mobile app is not a new system, just another client.
+- **This favors an engine whose server is built for network clients.** Goose's
+  **goosed** already serves mobile clients and Slack bots over the network;
+  opencode's HTTP server is client-only-mode friendly. Crush's TUI↔TUI sharing
+  server is the *least* suited to a remote, non-TUI client — another reason it
+  drops behind for our use.
+- **Nuance that flips one earlier preference:** Goose's *in-process crate embed*
+  is lightest for the desktop, but it exposes **no network API**, so it can't be
+  driven remotely. For the mobile endgame the clean shape is **run `goosed` (the
+  server) on the machine**; the desktop cockpit talks to it locally and the
+  phone talks to it through a relay — both clients. So remote control nudges the
+  integration away from "embed the crate" toward "run the server."
+- **Still missing:** (1) a **relay / tunnel** to expose the local engine to the
+  phone safely (cf. `kaku-relay`), and (2) **auth**.
+
+---
+
 ## Open decisions
 
 - [x] **Engine class**: a headless open-source harness driven as a custom
