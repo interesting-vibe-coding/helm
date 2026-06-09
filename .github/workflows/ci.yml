@@ -26,3 +26,36 @@ jobs:
         run: |
           test -f README.md || (echo "README.md missing" && exit 1)
           test -f CONTRIBUTING.md || (echo "CONTRIBUTING.md missing" && exit 1)
+      - name: Rename regression — no stale 'Helm' brand strings
+        # Catches user-visible "Helm" leaking back into source after the Kaji rename.
+        # Allowlist: the Lua internal namespace (local Helm / Helm.) and
+        # docs/ROADMAP/BRAIN_DESIGN/CHANGELOG (historical prose), and the
+        # assets/macos/Helm.app directory name itself (filesystem path, unchanged).
+        run: |
+          bad=$(grep -rn "\bHelm\b" \
+            --include="*.py" --include="*.sh" --include="*.lua" \
+            --include="*.rs" --include="*.toml" --include="*.json" \
+            --include="*.md" \
+            assets/shell-integration/ \
+            assets/skills/ \
+            tools/helm-brain/ \
+            install.sh \
+            scripts/build.sh scripts/dev-link.sh \
+            kaku/src/config_tui/ \
+            | grep -v "assets/macos/Helm\.app" \
+            | grep -v "local Helm\b\|Helm\.\|function Helm\." \
+            | grep -v "docs/ROADMAP\|docs/BRAIN_DESIGN\|CHANGELOG\|docs/paper\|docs/demo" \
+            | grep -v "^Binary" || true)
+          if [[ -n "$bad" ]]; then
+            echo "ERROR: stale 'Helm' brand string found (should be 'Kaji'):"
+            echo "$bad"
+            exit 1
+          fi
+          echo "✓ No stale Helm brand strings"
+      - name: Info.plist bundle id check
+        run: |
+          id=$(plutil -extract CFBundleIdentifier raw \
+               assets/macos/Helm.app/Contents/Info.plist)
+          [[ "$id" == "dev.kaji.app" ]] || \
+            (echo "ERROR: bundle id is '$id', expected 'dev.kaji.app'" && exit 1)
+          echo "✓ bundle id: $id"
