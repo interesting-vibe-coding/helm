@@ -133,10 +133,10 @@ forces a build decision — where does the fusion happen?
   conversation is one region, the timeline another; the LLM is a *component* of
   our panel, not the shell that contains it.
 
-**Leading direction: (Y) container, opencode-server engine.** The panel is our
-own native surface; the conversation engine is **opencode running headless**,
-driven as a custom client. We own the surface and the fusion; we do **not** own
-the agent engine.
+**Leading direction: (Y) container, headless coding-agent engine.** The panel is
+our own native surface; the conversation engine is an existing open-source
+harness **running headless**, driven as a custom client. We own the surface and
+the fusion; we do **not** own (fork/vendor) the agent engine.
 
 Why not a from-scratch thin loop (an earlier proposal, now rejected): even
 though the Brain doesn't *edit code*, it runs a **long-running multi-turn
@@ -144,34 +144,59 @@ conversation** (reads worker output, accumulates fleet state, dialogues with the
 captain). That conversation needs **context orchestration + automatic
 compaction + token control** — the hardest, least-obvious, easiest-to-botch
 engineering, and it is needed regardless of whether the agent has coding
-capability. opencode has evolved this over hundreds of releases; reinventing it
-would almost certainly be worse. So ride proven engineering for the engine.
+capability. These harnesses have evolved it over hundreds of releases;
+reinventing it would almost certainly be worse. So ride proven engineering for
+the engine.
 
 The shape:
 
-- **Engine** — `opencode serve` (headless HTTP + SSE, OpenAPI 3.1, official
-  SDK). Provides the agent loop, **context management / auto-compaction**,
-  provider plumbing (Claude / OpenRouter / local), and tool execution. We do
-  **not** fork, vendor, or maintain this.
-- **Eyes & hands** — register `helm-brain` (sessions / send / spawn / notify) as
-  opencode **custom tools**, so the Brain agent observes the fleet and proposes
-  routing through them. Trust gate intact.
-- **Persona** — a constrained opencode **custom agent** (the First Mate, scoped
+- **Engine** — a harness run headless (HTTP + SSE), providing the agent loop,
+  **context management / auto-compaction**, provider plumbing (Claude /
+  OpenRouter / local), and tool execution. We do **not** fork, vendor, or
+  maintain this. (Candidate selection below.)
+- **Eyes & hands** — expose `helm-brain` (sessions / send / spawn / notify) as an
+  **MCP server**. Every candidate engine speaks MCP, so this **decouples the
+  Brain's instruments from the engine choice** — switching engines later doesn't
+  rewrite the tool layer. Trust gate intact.
+- **Persona** — a constrained **custom agent** definition (the First Mate, scoped
   to understand / narrate / route — no planning).
 - **Cockpit** — our own client that consumes the server's **SSE stream** to
   render the conversation, and renders the `events.jsonl` **timeline** on the
   same surface. Every pixel ours = the real fusion. Language-agnostic (the
-  cockpit can be Rust, native to Helm); the engine stays TypeScript behind HTTP.
-- **Model** — swappable via opencode's provider config.
+  cockpit can be Rust, native to Helm); the engine stays behind HTTP.
+- **Model** — swappable via the engine's provider config.
 
 Net: **proven engineering (context / compaction / capability) is reused for
-free; brand and fusion (cockpit UI + persona + custom tools) are entirely ours;
+free; brand and fusion (cockpit UI + persona + MCP tools) are entirely ours;
 zero fork.** The "minimal version we maintain" is the cockpit client + agent
-config + a few custom tools — **not the engine.**
+config + the helm-brain MCP server — **not the engine.**
 
-The one real cost: a resident **bun/node opencode daemon** in the background —
-genuine weight for a terminal that wants to be light. Accepted trade: not
-carrying the context-engineering burden ourselves is worth it.
+### Engine candidates (researched 2026-06-09)
+
+| Engine | Lang | Runtime weight | Drivable server/API | MCP | Providers | Stars | License |
+|---|---|---|---|---|---|---|---|
+| **opencode** | TS + Zig | **heavy** (bun/node daemon) | **mature**: REST `POST /session/:id/message` + SSE + OpenAPI 3.1 + official SDK | ✓ | 75+ (OpenRouter, local) | ~172k | MIT |
+| **Crush** (Charm) | **Go** | **lightest** (single binary, no deps) | `crush serve` + SSE exists, but the API is **barely documented** and reads as TUI↔TUI workspace sharing — third-party programmatic drive **unverified** | ✓ (stdio/http/sse) | many (OpenRouter, Ollama, LM Studio) | ~25k | MIT |
+| **Goose** (Block) | **Rust** core (+TS) | medium (goosed daemon, desktop/TS) | API/daemon; **same language as Helm** → potential library-level embed, not just HTTP | ✓ (70+) | 15+ (OpenRouter, Ollama) | ~48k | Apache-2.0 (Linux Foundation) |
+| **Codex** (OpenAI) | Rust | light (single binary) | **none** documented; OpenAI-only | ✗ | OpenAI only | ~90k | Apache-2.0 |
+
+- **Codex** is out: no backend/headless drive, single-provider.
+- **opencode** has the safest API but the heaviest runtime — the bun/node daemon
+  is the one real weight cost for a terminal that wants to be light.
+- **Crush** would *erase that cost* (a Go single binary bundles trivially, fast
+  start, no node), is MIT, Charm-made (terminal-UX pedigree, on-brand for a
+  WezTerm fork), MCP-native. **Decisive unknown: is `crush serve` a real
+  third-party-drivable session API, or sharing-only?** Must verify in source
+  before committing.
+- **Goose** is the Rust-native play: same language as Helm opens *library-level*
+  embedding (no separate-language sidecar), 48k stars, LF governance. Heavier and
+  more desktop-oriented; library embed is more work than HTTP-driving.
+
+**Recommendation:** lead with **Crush, gated on verifying `crush serve` is
+programmatically drivable** (create session / send prompt / stream). If it
+isn't: fall back to **opencode** (known-good API, accept the daemon weight) or
+**Goose** (if we want Rust-native depth). The MCP-server instrument layer keeps
+this choice reversible.
 
 Bonus: one `opencode serve` can host **many sessions**, so a future
 Helm-branded **worker** can ride the same server and API. Non-opencode workers
@@ -201,9 +226,14 @@ an HTTP boundary.
 
 ## Open decisions
 
-- [x] **Brain engine**: opencode-server (driven as a custom client), not a
-      fork, not a from-scratch loop. Chosen for its proven context
+- [x] **Engine class**: a headless open-source harness driven as a custom
+      client — not a fork, not a from-scratch loop. Chosen for proven context
       orchestration + auto-compaction.
+- [ ] **Which engine**: Crush (lightest, verify `serve` drivability first) vs
+      opencode (safe API, heavy daemon) vs Goose (Rust-native, embeddable).
+      Leaning Crush pending source verification.
+- [x] **Instrument layer**: expose `helm-brain` as an MCP server so the engine
+      choice stays reversible.
 - [ ] **Cockpit build surface**: TUI in the Brain pane (Rust/Python client over
       the SSE stream + event feed) vs a GUI overlay. TUI is the lower-risk start.
 - [ ] **Daemon lifecycle**: how Helm starts / supervises / bundles the
