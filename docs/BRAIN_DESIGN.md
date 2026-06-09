@@ -295,14 +295,44 @@ Agreed build order:
    (Cmd+Shift+K) → Monitor (Cmd+3) lists it → worker hits *waiting* → Brain
    `notify` fires → session restore after restart. Walked each link; working.
    (This was the long-standing ROADMAP P0 "Core agent loop, end-to-end.")
-2. **Substrate `events.jsonl` (right after).** No-regret, cloud-buildable,
-   unit-testable, engine-independent; upgrades `Cmd+1` from a chat box to a real
-   timeline.
-3. **Engine spike (post-V1).** Time-box ~1 day to confirm an external client can
-   fully drive a Goose session (create → prompt → consume SSE). If it works,
-   commit to Goose; if not, fall back to opencode (accept the node daemon). The
-   `helm-brain`-as-MCP-server layer makes this fallback near-free — build that
-   layer first so the engine choice stays reversible.
+2. ✅ **Substrate `events.jsonl` (done, 2026-06-09).** No-regret, cloud-built,
+   unit-tested, engine-independent. `helm-brain` now appends `spawn`/`dispatch`/
+   `state` events and renders `helm-brain timeline [--json]`. This is the data
+   layer the cockpit renders. (PR #115.)
+3. **Pure-visualization cockpit (now — the next task).** See § "Visualization
+   first" below. Build the cockpit as render-only and **live in it for several
+   days** before adding any model. This both ships real value and answers the
+   north-star test from evidence rather than assumption.
+4. **Engine / LLM — gated, only if step 3 exposes a real need.** The headless
+   engine (Goose) exists *only* to host a long-running First Mate conversation.
+   Until daily use of the render-only cockpit produces a concrete "I keep
+   wanting to *ask* the fleet X" job, there is nothing for the LLM (or Goose) to
+   do. Spike code is ready (PR #116) but parked behind this gate. If a real job
+   appears: Goose + a cheap/free model (DeepSeek / Flash) for understand /
+   narrate / digest only — never planning — then **measure tokens** before
+   making it the headline.
+
+**Visualization first (consensus 2026-06-09 evening).** Very likely the LLM is
+**not needed at all** — but we can only know after the render-only cockpit is
+real and lived-in. Three points settled the order:
+
+- **The cockpit is necessary either way**, so build it first with zero regret:
+  it is both the render-only product *and*, if we ever add a model, the surface
+  the model draws into (the LLM is a region in the panel, not the shell).
+- **"What does the agent do here?" being unclear is the signal NOT to build it
+  yet.** An LLM added before its job is known is "AI for AI's sake" — against
+  *less friction*. Let lived use force the job out.
+- **Marginal is still worth it.** Even if the cockpit only collapses "scan N
+  panes" into an O(1) glance + persistent history, it sits on top of Kaji's real
+  differentiators — cross-harness **memory** sharing and cross-harness **chat
+  history**, on an already-handsome terminal. That bundle clears the bar.
+
+**Mobile is a relay problem, not an engine problem (consensus 2026-06-09).** A
+render-only Brain does not need `goosed` for remote control — the phone just
+needs a lightweight **relay** exposing `runtime.json` + `events.jsonl` +
+`helm-brain send`. Goose's network engine only wins *if* the Brain top layer is
+a live LLM conversation you want to chat with from the phone. So mobile is
+**decoupled** from the engine choice and must not drive it prematurely.
 
 **Correction to the Goose rationale above.** Goose was ranked #1 partly because
 its in-process crate embed is "lighter than any sidecar." Under our own mobile
@@ -320,22 +350,26 @@ server-vs-server parity with opencode, not crate-vs-daemon.
 - [x] **Engine class**: a headless open-source harness driven as a custom
       client — not a fork, not a from-scratch loop. Chosen for proven context
       orchestration + auto-compaction.
-- [ ] **Which engine**: Goose vs opencode vs Crush — **deferred to a post-V1
-      spike** (see Decision & sequencing). Decide Goose vs opencode at
-      **server-vs-server parity** (goosed vs `opencode serve`), not
-      crate-vs-daemon; the in-process advantage is moot under the mobile
-      endgame. Prototype Goose first; fall back to opencode if external drive
-      doesn't pan out.
+- [ ] **Which engine**: Goose vs opencode vs Crush — **gated behind a real LLM
+      need** (see build order step 4), not just post-V1. The drivability spike
+      for Goose is done in code (PR #116) and awaits a live macOS run; the
+      *decision* waits until render-only use proves an LLM job exists. If it
+      does, decide Goose vs opencode at server-vs-server parity.
 - [x] **Instrument layer**: expose `helm-brain` as an MCP server so the engine
-      choice stays reversible.
-- [ ] **Cockpit build surface**: TUI in the Brain pane (Rust/Python client over
-      the SSE stream + event feed) vs a GUI overlay. TUI is the lower-risk start.
-- [ ] **Daemon lifecycle**: how Helm starts / supervises / bundles the
-      `opencode serve` process (and the bun/node runtime weight that implies).
-- [ ] **Top layer**: visualization-only vs LLM-narrated vs both. They coexist in
-      one cockpit; still measure whether the LLM earns its tokens.
-- [ ] **First Mate token cost**: measure in real daily driving before
-      committing to it as the headline.
+      choice stays reversible. (Deferred in practice until the LLM gate opens.)
+- [~] **Cockpit build surface**: **TUI-first** (render-only, in the Brain pane,
+      reading `events.jsonl` + `runtime.json`). Lower-risk, cloud-buildable;
+      promote to a native GUI overlay only after the TUI proves the layout.
+- [ ] **Daemon lifecycle**: how Kaji starts / supervises / bundles an engine
+      process — **moot until the LLM gate opens.**
+- [~] **Top layer**: **leaning visualization-only.** Likely no LLM at all; revisit
+      only if lived use of the render-only cockpit surfaces a concrete ask-the-
+      fleet job. LLM and viz would coexist in one cockpit if it ever lands.
+- [ ] **First Mate token cost**: measure in real daily driving — only relevant
+      once/if the LLM gate opens.
+- [ ] **Mobile relay**: render-only mobile needs a `runtime.json` +
+      `events.jsonl` + `helm-brain send` relay (cf. `kaku-relay`) + auth —
+      independent of the engine choice.
 - [ ] **Lineage depth**: (a) per-session lifecycle timeline + global feed —
       do this for V1; (b) cross-session dependency DAG (task A done → triggers
       task B) — deferred, it requires the user to declare deps and adds
