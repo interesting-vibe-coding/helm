@@ -49,6 +49,12 @@ Until then we keep iterating in the **V0.x** series.
 
 Concrete, prioritized task list toward V1. Tiers by impact: **P0** = correctness / data-loss prevention, **P1** = core UX, **P2** = polish.
 
+> **Current focus (2026-06-09): functionality, not redesign.** The UI now looks
+> good; the core agent loop is not yet proven end-to-end. The next task is the
+> P0 "Core agent loop, end-to-end" below, then the `events.jsonl` substrate. The
+> Brain engine redesign (Goose / cockpit / mobile) is a north star deferred to a
+> post-V1 spike — see `docs/BRAIN_DESIGN.md` § Decision & sequencing.
+
 ### ✅ Shipped this week
 - **Scroll no longer crashes** — `mouse_common` called `[NSEvent clickCount]` on scroll-wheel events, raising an uncaught NSException that aborted the app. Now guarded to press/release only. (PR #92)
 - **Brain TCC prompt gone** — `claude --strict-mcp-config` + empty mcp-config so the Brain stops reading Claude Desktop's config (the cross-app read that triggered the macOS "access other apps' data" popup). (PR #92)
