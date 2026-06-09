@@ -113,10 +113,69 @@ If/when we layer the LLM back on:
 
 ---
 
+## The "one panel" principle → the Brain is our own cockpit (leading direction)
+
+Helm's spine is **less friction** — reduce the human's prefrontal load. The UX
+consequence: you should live in **one panel**. Many agents work in the
+background; you only ever look at one surface. You leave it only to drill into a
+specific worker.
+
+One panel has a sharp consequence for the visualization: if the timeline lives
+in a *different* view than the conversation, flipping between them is itself
+friction. So **the timeline and the conversation must share one surface.** That
+forces a build decision — where does the fusion happen?
+
+- **(X) Harness as container** — the panel *is* a coding-agent's TUI, and we
+  render the timeline inside it. But Claude Code / opencode expose no clean
+  "draw my widget in your TUI" hook, so this means **forking** — heavy
+  maintenance, and a general agent TUI is the wrong shape for a fleet cockpit.
+- **(Y) Helm as container** — the panel is **our own native surface**; the
+  conversation is one region, the timeline another; the LLM is a *component* of
+  our panel, not the shell that contains it.
+
+**Leading direction: (Y).** Build the Brain as a **purpose-built Helm cockpit
+TUI** — a *partial-capability harness of our own*:
+
+- one surface: a live **timeline + state** region (native render of
+  `events.jsonl`) alongside a **conversation** region;
+- under the conversation, a thin, **model-swappable loop** (model API +
+  `helm-brain` tools: sessions / send / spawn / notify), with the trust gate
+  intact;
+- terminal UI is Helm's home turf (termwiz widgets, overlays, panes), so the
+  cockpit is in range without forking anything.
+
+Why a purpose-built cockpit beats forking opencode:
+- the Brain's scope is already small (no planning — understand / narrate /
+  propose routing), so **writing those few things is less code than maintaining
+  a fork**, and shaped exactly right;
+- no long-term merge tax against a fast-moving upstream (forking fights the
+  less-friction spine);
+- the model stays swappable (Claude / OpenRouter free / local).
+
+Consequences:
+- **The cockpit absorbs Monitor** — the timeline *is* Monitor's content. The
+  Brain cockpit becomes home (conversation + fleet state on one screen); worker
+  panes remain only for drill-down.
+- **Keep the cockpit thin.** If the Brain needs to *investigate* a stuck worker,
+  it does not grow capability — it `spawn`s a worker to do it. Heavy work stays
+  in worker harnesses; the cockpit never becomes another general agent.
+- opencode is **not** forked; it stays a worker harness (and an optional Brain
+  backend for users who want a full agent).
+
+Restated: not "fuse the visualization into a harness," but "**fuse the harness
+(a thin loop) into our own panel**." The panel is ours; the LLM is a component.
+
+---
+
 ## Open decisions
 
-- [ ] **Top layer**: visualization-only vs LLM-narrated vs both. Experiment;
-      may warrant a fork to A/B.
+- [ ] **Brain container**: (X) fork a harness vs (Y) our own cockpit TUI.
+      Leading toward (Y) — a purpose-built partial harness. Confirm before
+      building.
+- [ ] **Cockpit build surface**: TUI in the Brain pane (Python/Rust over the
+      event feed) vs a GUI overlay. TUI is the cloud-buildable, lower-risk start.
+- [ ] **Top layer**: visualization-only vs LLM-narrated vs both. Under (Y) these
+      coexist in one cockpit; still measure whether the LLM earns its tokens.
 - [ ] **First Mate token cost**: measure in real daily driving before
       committing to it as the headline.
 - [ ] **Lineage depth**: (a) per-session lifecycle timeline + global feed —
