@@ -35,7 +35,17 @@ Commands (the INTERFACE CONTRACT every downstream stage depends on):
 
   helm-brain watch
       Poll `sessions` every 3s and print a line whenever a session's state
-      changes (especially -> waiting).
+      changes (especially -> waiting). Also appends each transition to the
+      event log.
+
+  helm-brain timeline [--json] [--pane N]
+      Render the fleet history from the event log plus the current snapshot.
+      --json dumps the parsed events array (for the Cmd+1 Brain view to render).
+
+History substrate: spawn / send / watch append to an append-only event log at
+~/.helm/sessions/events.jsonl (one JSON event per line). runtime.json is the
+"now" snapshot; events.jsonl is the history chain the timeline renders and a
+future First Mate reads. All event writes are best-effort and never raise.
 
 Robustness contract: never crash if Kaji is not running or files are missing.
 `sessions` prints [] and exits 0 in that case.
@@ -51,6 +61,14 @@ from pathlib import Path
 HOME = Path.home()
 RUNTIME_JSON = HOME / ".helm" / "sessions" / "runtime.json"
 LAST_SESSION_JSON = HOME / ".helm" / "sessions" / "last_session.json"
+# Append-only history substrate: one JSON event per line. runtime.json is the
+# "now" snapshot (overwritten each tick); events.jsonl is the history chain the
+# timeline renders and a future First Mate reads. Override with $HELM_EVENTS_JSONL.
+EVENTS_JSONL = (
+    Path(os.environ["HELM_EVENTS_JSONL"])
+    if os.environ.get("HELM_EVENTS_JSONL")
+    else HOME / ".helm" / "sessions" / "events.jsonl"
+)
 REPO_ROOT = Path(__file__).resolve().parents[2]
 QUOTA_PY = REPO_ROOT / "tools" / "helm-quota" / "quota.py"
 
@@ -146,6 +164,60 @@ def load_quota():
     return tokens
 
 
+# ── event log (append-only history substrate) ────────────────────────────────
+
+def append_event(ev, **fields):
+    """Append one event to events.jsonl. Best-effort: NEVER raises.
+
+    An event is {"ts": <unix int>, "ev": <type>, **fields}. Writers are pure
+    rules (0 token): spawn / dispatch / state. Logging must never break the
+    command that triggered it, so all I/O errors are swallowed.
+    """
+    rec = {"ts": int(time.time()), "ev": ev}
+    rec.update(fields)
+    try:
+        EVENTS_JSONL.parent.mkdir(parents=True, exist_ok=True)
+        with open(EVENTS_JSONL, "a", encoding="utf-8") as f:
+            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    except Exception:  # noqa: BLE001 - robustness: the log is best-effort
+        pass
+    return rec
+
+
+def read_events():
+    """Return events.jsonl as a list of dicts (oldest first). [] if missing.
+
+    Corrupt lines are skipped, not fatal — a half-written final line must not
+    lose the whole history.
+    """
+    if not EVENTS_JSONL.exists():
+        return []
+    out = []
+    try:
+        with open(EVENTS_JSONL, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                except Exception:
+                    continue
+                if isinstance(rec, dict):
+                    out.append(rec)
+    except Exception:  # noqa: BLE001 - robustness: return what we parsed so far
+        return out
+    return out
+
+
+def _as_pane(pane_id):
+    """Best-effort int pane id (events use ints to match the snapshot)."""
+    try:
+        return int(pane_id)
+    except (TypeError, ValueError):
+        return pane_id
+
+
 def collect_sessions():
     """Merge panes + runtime.json + quota into the contract's session objects."""
     runtime = load_runtime()
@@ -227,6 +299,9 @@ def cmd_send(args):
     rc, err = _send_text(cli, pane_id, text)
     if rc != 0:
         print(err, file=sys.stderr)
+    else:
+        # History: record what the captain dispatched to this worker.
+        append_event("dispatch", pane=_as_pane(pane_id), text=text)
     return rc
 
 
@@ -315,6 +390,10 @@ def cmd_spawn(args):
 
     result = {"pane_id": pane_id, "harness": harness, "cwd": cwd_abs}
 
+    # History: record the spawn (with the initial task) on the event log.
+    append_event("spawn", pane=pane_id, harness=harness,
+                 cwd=os.path.basename(cwd_abs.rstrip("/")) or cwd_abs, task=task)
+
     # Don't steal focus. Spawning/splitting activates the new worker pane, but
     # the captain lives in the Brain — return focus there immediately. The task
     # send below targets the worker by pane id, so it doesn't need focus.
@@ -367,10 +446,95 @@ def cmd_watch(_args):
                     print("[%s] pane %s (%s/%s) %s %s" % (
                         time.strftime("%H:%M:%S"), pid, s["harness"], s["project"], arrow, state))
                     sys.stdout.flush()
+                    # History: every state transition is an event. The watch
+                    # poll loop is the designated state writer (no Lua change).
+                    append_event("state", pane=_as_pane(pid), to=state,
+                                 harness=s["harness"], project=s["project"])
                     prev[pid] = state
             time.sleep(3)
     except KeyboardInterrupt:
         return 0
+
+
+# ── timeline ──────────────────────────────────────────────────────────────────
+
+def _fmt_hms(ts):
+    try:
+        return time.strftime("%H:%M:%S", time.localtime(int(ts)))
+    except Exception:
+        return "--:--:--"
+
+
+def _fmt_event(e):
+    ev = e.get("ev", "?")
+    pane = e.get("pane", "?")
+    ts = _fmt_hms(e.get("ts"))
+    if ev == "spawn":
+        det = "%s in %s" % (e.get("harness", "?"), e.get("cwd", "?"))
+        task = e.get("task")
+        if task:
+            det += '  — "%s"' % task
+    elif ev == "dispatch":
+        det = '"%s"' % (e.get("text", ""))
+    elif ev == "state":
+        det = e.get("to", "?")
+    else:
+        extra = {k: v for k, v in e.items() if k not in ("ts", "ev", "pane")}
+        det = json.dumps(extra, ensure_ascii=False) if extra else ""
+    return "  %s  pane %-3s %-9s %s" % (ts, pane, ev, det)
+
+
+def cmd_timeline(args):
+    """Render the fleet history (events.jsonl) + the current snapshot.
+
+      --json    dump the parsed events array (for the Cmd+1 Brain view to render)
+      --pane N  restrict the feed to one pane
+    """
+    want_json = "--json" in args
+    pane_filter = None
+    if "--pane" in args:
+        i = args.index("--pane")
+        if i + 1 < len(args):
+            try:
+                pane_filter = int(args[i + 1])
+            except ValueError:
+                pane_filter = None
+
+    events = read_events()
+    if pane_filter is not None:
+        events = [e for e in events if e.get("pane") == pane_filter]
+
+    if want_json:
+        print(json.dumps(events))
+        return 0
+
+    print("Kaji fleet timeline  (%s)" % EVENTS_JSONL)
+    print()
+
+    # "now" — the live snapshot from runtime.json + quota.
+    sessions = collect_sessions()
+    if pane_filter is not None:
+        sessions = [s for s in sessions if s.get("pane_id") == pane_filter]
+    if sessions:
+        print("now:")
+        for s in sessions:
+            mins = s["runtime_secs"] // 60
+            tok = s["tokens_today"]
+            tokstr = ("  %s tok" % tok) if tok else ""
+            print("  pane %-3s %s/%-12s %-9s %dm%s" % (
+                s["pane_id"], s["harness"], s["project"], s["state"], mins, tokstr))
+        print()
+    else:
+        print("now: (no live sessions)\n")
+
+    # Feed — newest first.
+    if not events:
+        print("events: (none yet — spawn a worker to start the log)")
+        return 0
+    print("events (newest first):")
+    for e in reversed(events):
+        print(_fmt_event(e))
+    return 0
 
 
 # ── dispatch ──────────────────────────────────────────────────────────────────
@@ -386,6 +550,9 @@ usage:
                                       sending an initial task. Prints {"pane_id":N}.
   helm-brain notify <title> <msg>     pop a macOS notification
   helm-brain watch                    stream session state changes
+  helm-brain timeline [--json] [--pane N]
+                                      render the fleet history (events.jsonl)
+                                      + the current snapshot
 """
 
 def cmd_last_session(_args):
@@ -430,6 +597,7 @@ COMMANDS = {
     "spawn": cmd_spawn,
     "notify": cmd_notify,
     "watch": cmd_watch,
+    "timeline": cmd_timeline,
     "last-session": cmd_last_session,
 }
 
