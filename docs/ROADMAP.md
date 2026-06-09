@@ -49,11 +49,11 @@ Until then we keep iterating in the **V0.x** series.
 
 Concrete, prioritized task list toward V1. Tiers by impact: **P0** = correctness / data-loss prevention, **P1** = core UX, **P2** = polish.
 
-> **Current focus (2026-06-09): functionality, not redesign.** The UI now looks
-> good; the core agent loop is not yet proven end-to-end. The next task is the
-> P0 "Core agent loop, end-to-end" below, then the `events.jsonl` substrate. The
-> Brain engine redesign (Goose / cockpit / mobile) is a north star deferred to a
-> post-V1 spike — see `docs/BRAIN_DESIGN.md` § Decision & sequencing.
+> **Current focus (2026-06-09): functionality, not redesign.** The UI looks
+> good and the **core agent loop is now verified end-to-end** (spawn → Monitor →
+> waiting → notify → restore). The next task is the `events.jsonl` substrate,
+> then the post-V1 engine spike. The Brain engine redesign (Goose / cockpit /
+> mobile) is a north star — see `docs/BRAIN_DESIGN.md` § Decision & sequencing.
 
 ### ✅ Shipped this week
 - **Scroll no longer crashes** — `mouse_common` called `[NSEvent clickCount]` on scroll-wheel events, raising an uncaught NSException that aborted the app. Now guarded to press/release only. (PR #92)
@@ -72,7 +72,7 @@ Concrete, prioritized task list toward V1. Tiers by impact: **P0** = correctness
 
 ### P0 — correctness / prevent loss
 - [x] **Close-confirmation guard.** (PR #95) Was `window_close_confirmation = NeverPrompt` and there's no Cmd+W binding — a misclick can kill running agents with no prompt. Add a Helm-branded confirm, only when an agent session is actually running. (gated on the Cmd+W discussion below)
-- [ ] **Core agent loop, end-to-end.** Manually walk the whole chain: spawn worker → Monitor (helm-top) shows it → Brain `notify_waiting` fires → session restore after restart. List and fix what's broken.
+- [x] **Core agent loop, end-to-end.** (verified 2026-06-09) Walked the whole chain: spawn worker → Monitor (helm-top) shows it → Brain `notify_waiting` fires → session restore after restart. Working. Next substrate work is the `events.jsonl` history log (see `docs/BRAIN_DESIGN.md`).
 
 ### P1 — core UX
 - [ ] **Window geometry persistence** — remember last size/position instead of the fixed 110×22 on every launch.

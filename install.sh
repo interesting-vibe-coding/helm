@@ -1,8 +1,8 @@
 #!/bin/bash
-# Kaji installer — curl -fsSL https://raw.githubusercontent.com/interesting-vibe-coding/helm/main/install.sh | bash
+# Kaji installer — curl -fsSL https://raw.githubusercontent.com/interesting-vibe-coding/kaji/main/install.sh | bash
 set -euo pipefail
 
-REPO="interesting-vibe-coding/helm"
+REPO="interesting-vibe-coding/kaji"
 APP="Kaji.app"
 DEST="/Applications"
 
