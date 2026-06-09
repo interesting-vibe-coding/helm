@@ -423,6 +423,13 @@ Helm.cfg = {
   IDLE_THRESHOLD = 3,
   LRU_LIMIT      = 6,
   FP_LINES       = 12,
+  -- Cooldown (secs) between two WAITING notifications for the SAME pane. Agent
+  -- TUIs (e.g. Claude Code) often flap working→waiting→working→waiting within a
+  -- second or two after a task finishes — a cursor/spinner/"esc to interrupt"
+  -- redraw changes the content fingerprint — which would fire a duplicate
+  -- notify. This suppresses the repeat while still allowing a genuine new
+  -- waiting after real subsequent work.
+  NOTIFY_COOLDOWN = 20,
   RUNTIME_JSON   = (os.getenv('HOME') or '/tmp') .. '/.helm/sessions/runtime.json',
 }
 
@@ -549,6 +556,12 @@ function Helm.sessions.track(pane)
   local proc = pane:get_foreground_process_name()
   local harness = Helm.harnesses.detect(proc)
   if not harness then return end  -- only track known harnesses
+  -- The Brain (and the other dedicated slots) are agent sessions too, but they
+  -- are NOT workers. Never record them in helm_sessions/runtime.json: otherwise
+  -- the Brain shows up as a "session" in the Monitor and — worse — helm-brain
+  -- spawn would pick the Brain pane as a split anchor and tile a worker right
+  -- next to the Brain instead of opening the Work tab.
+  if not Helm.workspace.is_worker(pane:pane_id()) then return end
 
   local t = Helm.util.now()
   -- cheap content fingerprint of the trailing FP_LINES lines: length + sampled byte sum
@@ -584,7 +597,12 @@ function Helm.sessions.track(pane)
         -- (the guard `s.state ~= 'waiting'` prevents re-firing every idle tick).
         if s.state ~= 'waiting' then
           s.state = 'waiting'
-          Helm.brain.notify_waiting(id, s.harness, s.cwd)
+          -- Suppress duplicate notifications from a working↔waiting flap (TUI
+          -- redraw right after a task ends): only notify if past the cooldown.
+          if (t - (s.last_notify or 0)) > Helm.cfg.NOTIFY_COOLDOWN then
+            s.last_notify = t
+            Helm.brain.notify_waiting(id, s.harness, s.cwd)
+          end
         end
       end
     end
@@ -628,6 +646,13 @@ function Helm.sessions.save()
   local json = sessions_to_json(wezterm.GLOBAL.helm_sessions or {})
   if json == wezterm.GLOBAL.helm_last_json then return end
   local f = io.open(Helm.cfg.RUNTIME_JSON, 'w')
+  if not f then
+    -- Parent dir may be missing on a fresh machine (first_run not yet run).
+    -- io.open('w') fails silently in that case, which would leave the Monitor
+    -- permanently empty. Create it and retry once so tracking self-heals.
+    os.execute('mkdir -p "' .. Helm.cfg.RUNTIME_JSON:gsub('/[^/]*$', '') .. '"')
+    f = io.open(Helm.cfg.RUNTIME_JSON, 'w')
+  end
   if not f then return end
   f:write(json)
   f:close()
@@ -805,7 +830,6 @@ function Helm.status.render(window, pane)
   local slots = {
     { idx = 1, name = 'Brain',    live = true },                              -- always
     { idx = 2, name = 'Work',     live = Helm.status.work_alive() },
-    { idx = 3, name = 'Monitor',  live = Helm.top.pane() ~= nil },
     { idx = 4, name = 'Terminal', live = Helm.workspace.terminal_pane() ~= nil },
   }
 
@@ -1171,15 +1195,9 @@ function Helm.keys.bind(config)
     end),
   })
 
-  -- Cmd+3: open the Monitor (helm-top, htop-style session list).
-  table.insert(config.keys, {
-    key = '3',
-    mods = 'CMD',
-    action = wezterm.action_callback(function(window, pane)
-      Helm.workspace.remember(pane)
-      Helm.top.focus(window)
-    end),
-  })
+  -- Cmd+3 (Monitor) intentionally removed: the Monitor view is cut. High-level
+  -- fleet state will live in the Brain (see docs/BRAIN_DESIGN.md); for now ask
+  -- the Brain. Cmd+2 (Work) tiles all live worker sessions for an eyeball view.
 
   -- Cmd+4: switch to the Terminal — a single plain login shell. Like the other
   -- views, this is a SLOT: focus the existing Terminal if it's alive, only
@@ -1359,10 +1377,20 @@ function Helm.apply(config)
   if not wezterm.GLOBAL.helm_handlers_registered then
     wezterm.GLOBAL.helm_handlers_registered = true
 
-  -- The single update-right-status handler: (1) track this pane's session
-  -- (working/waiting idle heuristic), (2) render the HUD + window title.
+  -- The single update-right-status handler: (1) track EVERY agent pane's session
+  -- (working/waiting idle heuristic) — not just the active one, so a worker in a
+  -- background tab still flips working→waiting and fires notify_waiting while the
+  -- captain sits in the Brain; (2) render the HUD + window title for the active
+  -- pane. track() early-returns for non-worker panes, so this only costs a cheap
+  -- fingerprint per live worker each ~1s tick.
   wezterm.on('update-right-status', function(win, pane)
-    Helm.sessions.track(pane)
+    for _, w in ipairs(wezterm.mux.all_windows()) do
+      for _, tab in ipairs(w:tabs()) do
+        for _, p in ipairs(tab:panes()) do
+          Helm.sessions.track(p)
+        end
+      end
+    end
     Helm.status.render(win, pane)
   end)
 
@@ -1394,6 +1422,13 @@ function Helm.apply(config)
     -- load last run's metadata into GLOBAL, then snapshot it for the rebuild
     Helm.sessions.restore()
     local snapshot = wezterm.GLOBAL.helm_sessions or {}
+    -- Persist last run's workers so the Brain can OFFER to restore them (Y/N) on
+    -- boot, instead of auto-rebuilding. Written before the live table is reset.
+    do
+      local lp = Helm.cfg.RUNTIME_JSON:gsub('runtime%.json$', 'last_session.json')
+      local lf = io.open(lp, 'w')
+      if lf then lf:write(sessions_to_json(snapshot)); lf:close() end
+    end
     -- start live tracking from a clean slate: the snapshot's pane ids are stale,
     -- live panes re-register via update-right-status.
     wezterm.GLOBAL.helm_sessions = {}
@@ -1448,8 +1483,11 @@ function Helm.apply(config)
       wezterm.GLOBAL.helm_brain_pane = _brain_pane:pane_id()
     end
 
-    -- rebuild workers in the background (best-effort, each spawn pcall'd)
-    Helm.sessions.rebuild(mux_window, snapshot)
+    -- Restore is now Brain-driven (opt-in): we do NOT auto-rebuild workers here.
+    -- The snapshot was saved to last_session.json above; on boot the Brain runs
+    -- `helm-brain last-session` and offers the captain a Y/N restore (see the
+    -- helm-first-mate skill), respawning via `helm-brain spawn` so restored
+    -- workers tile into the Work view exactly like fresh ones.
 
     -- land on the Brain tab last so it's the front/active view
     pcall(function() brain_tab:activate() end)

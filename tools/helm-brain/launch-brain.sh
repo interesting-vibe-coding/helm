@@ -38,7 +38,12 @@ done
 SCRIPT_DIR="$(cd -P "$(dirname "$SOURCE")" >/dev/null 2>&1 && pwd)"
 
 # Put the helm-brain CLI on PATH so the agent can call `helm-brain ...`.
-export PATH="$SCRIPT_DIR:$PATH"
+# Also prepend the common Homebrew bin dirs: GUI-launched apps (Helm started
+# from Finder/Dock) do NOT inherit the shell's PATH, so tools like `node` —
+# needed by the Brain harness's own hooks (e.g. Claude Code statusline/skills) —
+# would otherwise be "command not found". Prepend them so the whole Brain
+# process tree (harness + its hooks) can find them.
+export PATH="$SCRIPT_DIR:/opt/homebrew/bin:/usr/local/bin:$PATH"
 
 # Run from the repo/bundle root so relative work feels natural; harmless if it
 # doesn't exist.
@@ -99,22 +104,22 @@ case "$BRAIN_HARNESS" in
     # MCP servers (it drives workers via the helm-brain CLI), so we opt out.
     exec claude --model sonnet --dangerously-skip-permissions \
       --mcp-config '{"mcpServers":{}}' --strict-mcp-config \
-      "You are the Helm First Mate. Use the /helm-first-mate skill, then run 'helm-brain sessions' and greet me."
+      "You are the Helm First Mate. Use the /helm-first-mate skill, then run 'helm-brain sessions' and 'helm-brain last-session' (offer a y/n restore if the latter is non-empty), and greet me."
     ;;
   kiro)
     echo "launch-brain: using kiro-cli (--model claude-sonnet-4.6, helm-first-mate skill)" >&2
     exec kiro-cli chat --trust-all-tools --agent default \
       --model claude-sonnet-4.6 \
-      "You are the Helm First Mate. Use the helm-first-mate skill (~/.agents/skills/helm-first-mate), then run 'helm-brain sessions' and greet me."
+      "You are the Helm First Mate. Use the helm-first-mate skill (~/.agents/skills/helm-first-mate), then run 'helm-brain sessions' and 'helm-brain last-session' (offer a y/n restore if the latter is non-empty), and greet me."
     ;;
   opencode)
     echo "launch-brain: using opencode (--model openrouter/anthropic/claude-sonnet-4.6, helm-first-mate skill)" >&2
     exec opencode --model "openrouter/anthropic/claude-sonnet-4.6" \
-      --prompt "You are the Helm First Mate. Use the helm-first-mate skill (~/.agents/skills/helm-first-mate), then run 'helm-brain sessions' and greet me."
+      --prompt "You are the Helm First Mate. Use the helm-first-mate skill (~/.agents/skills/helm-first-mate), then run 'helm-brain sessions' and 'helm-brain last-session' (offer a y/n restore if the latter is non-empty), and greet me."
     ;;
   codex)
     echo "launch-brain: using codex (--dangerously-bypass-approvals-and-sandbox, helm-first-mate skill)" >&2
     exec codex --dangerously-bypass-approvals-and-sandbox \
-      "You are the Helm First Mate. Use the helm-first-mate skill (~/.agents/skills/helm-first-mate), then run 'helm-brain sessions' and greet me."
+      "You are the Helm First Mate. Use the helm-first-mate skill (~/.agents/skills/helm-first-mate), then run 'helm-brain sessions' and 'helm-brain last-session' (offer a y/n restore if the latter is non-empty), and greet me."
     ;;
 esac

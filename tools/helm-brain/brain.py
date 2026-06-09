@@ -50,6 +50,7 @@ from pathlib import Path
 
 HOME = Path.home()
 RUNTIME_JSON = HOME / ".helm" / "sessions" / "runtime.json"
+LAST_SESSION_JSON = HOME / ".helm" / "sessions" / "last_session.json"
 REPO_ROOT = Path(__file__).resolve().parents[2]
 QUOTA_PY = REPO_ROOT / "tools" / "helm-quota" / "quota.py"
 
@@ -257,9 +258,48 @@ def cmd_spawn(args):
               file=sys.stderr)
         return 1
 
-    # Spawn a new tab running the harness in cwd. `kaku cli spawn` prints the
-    # new pane id on stdout. The `--` separates spawn's options from the program.
-    rc, out, err = _run(cli + ["spawn", "--cwd", cwd_abs, "--"] + prog)
+    # Keep every worker session visible at once: tile them in ONE "Work" tab.
+    # The first worker opens a new tab; each later worker SPLITS an existing
+    # worker pane in that tab instead of opening a separate (hidden) tab. We
+    # find the Work tab via runtime.json (the GUI keys it by worker pane id) and
+    # split its largest still-live pane. `--` separates cli options from the
+    # program; split-pane/spawn both print the new pane id on stdout.
+    panes = list_panes()
+    by_id = {}
+    for p in panes:
+        pid = p.get("pane_id")
+        if pid is not None:
+            by_id[int(pid)] = p
+    live = set(by_id.keys())
+    try:
+        with open(RUNTIME_JSON) as _rf:
+            workers = [int(k) for k in json.load(_rf).keys()]
+    except Exception:
+        workers = []
+    # Exclude the calling pane: helm-brain is invoked FROM the Brain, so the
+    # Brain's own pane must never be used as a split anchor (that would tile the
+    # worker right next to the Brain instead of into the dedicated Work tab).
+    try:
+        _origin_id = int(os.environ.get("WEZTERM_PANE", ""))
+    except (TypeError, ValueError):
+        _origin_id = None
+    cand = [w for w in workers if w in live and w != _origin_id]
+    if cand:
+        # Balanced tiling: split the LARGEST worker pane along its longer side.
+        # Splitting the biggest pane each time keeps the Work grid even as it
+        # grows (2 -> equal columns, 4 -> even 2x2) instead of degrading into
+        # thin slivers. Orientation uses true pixel aspect: wide -> left/right,
+        # tall -> top/bottom.
+        def _area(w):
+            s = by_id[w].get("size") or {}
+            return (s.get("pixel_width") or 0) * (s.get("pixel_height") or 0)
+        anchor = max(cand, key=_area)
+        s = by_id[anchor].get("size") or {}
+        direction = "--right" if (s.get("pixel_width") or 0) >= (s.get("pixel_height") or 0) else "--bottom"
+        rc, out, err = _run(cli + ["split-pane", "--pane-id", str(anchor),
+                                   "--cwd", cwd_abs, direction, "--"] + prog)
+    else:
+        rc, out, err = _run(cli + ["spawn", "--cwd", cwd_abs, "--"] + prog)
     if rc != 0:
         print(json.dumps({"error": err.strip() or "spawn failed (is Helm running?)"}),
               file=sys.stderr)
@@ -274,6 +314,14 @@ def cmd_spawn(args):
         return 1
 
     result = {"pane_id": pane_id, "harness": harness, "cwd": cwd_abs}
+
+    # Don't steal focus. Spawning/splitting activates the new worker pane, but
+    # the captain lives in the Brain — return focus there immediately. The task
+    # send below targets the worker by pane id, so it doesn't need focus.
+    origin = os.environ.get("WEZTERM_PANE")
+    if origin:
+        _run(cli + ["activate-pane", "--pane-id", str(origin)])
+
     if task:
         # Give the harness a moment to boot its prompt before sending the task.
         time.sleep(2.0)
@@ -340,12 +388,49 @@ usage:
   helm-brain watch                    stream session state changes
 """
 
+def cmd_last_session(_args):
+    """Print the previous run's worker sessions, for the Brain's restore offer.
+
+    Reads last_session.json (written by the GUI at startup, before live tracking
+    resets). Emits a JSON array of {harness, cwd, cwd_full, state}, de-duped by
+    (harness, cwd_full), harness lowercased so it can be passed straight to
+    `helm-brain spawn`. Empty array if there's nothing to restore.
+    """
+    try:
+        with open(LAST_SESSION_JSON) as f:
+            data = json.load(f)
+    except Exception:
+        data = {}
+    seen = set()
+    out = []
+    for _id, s in (data or {}).items():
+        if not isinstance(s, dict):
+            continue
+        harness = (s.get("harness") or "").strip().lower()
+        cwd_full = s.get("cwd_full") or ""
+        if not harness or not cwd_full:
+            continue
+        key = (harness, cwd_full)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append({
+            "harness": harness,
+            "cwd": s.get("cwd") or "",
+            "cwd_full": cwd_full,
+            "state": s.get("state") or "",
+        })
+    print(json.dumps(out))
+    return 0
+
+
 COMMANDS = {
     "sessions": cmd_sessions,
     "send": cmd_send,
     "spawn": cmd_spawn,
     "notify": cmd_notify,
     "watch": cmd_watch,
+    "last-session": cmd_last_session,
 }
 
 
