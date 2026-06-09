@@ -75,7 +75,50 @@ helm-brain notify "pane 3" "claude is waiting for input"
 ### `helm-brain watch`
 
 Polls `sessions` every 3s and prints a line whenever a session's state changes
-(especially `-> waiting`). Ctrl-C to stop.
+(especially `-> waiting`). Ctrl-C to stop. Each transition is also appended to
+the event log.
+
+### `helm-brain timeline [--json] [--pane N]`
+
+Renders the fleet **history** from the event log plus the current snapshot:
+
+```
+Kaji fleet timeline  (~/.helm/sessions/events.jsonl)
+
+now:
+  pane 2   claude/kaji         waiting    14m  1200 tok
+
+events (newest first):
+  15:06:28  pane 2   state     waiting
+  15:06:28  pane 2   dispatch  "run the full test suite"
+  15:04:58  pane 2   spawn     claude in kaji  — "fix #452"
+```
+
+- `--json` dumps the parsed events array — this is what the **Cmd+1 Brain view**
+  reads to render the timeline instead of a chat box.
+- `--pane N` restricts both the snapshot and the feed to one pane.
+
+## Event log (history substrate)
+
+`runtime.json` is the *now* snapshot (overwritten each tick). The append-only
+**`~/.helm/sessions/events.jsonl`** is the *history chain* — one JSON event per
+line — that `timeline` renders and a future First Mate reads. Writers are pure
+rules (0 token):
+
+| event      | written by         | fields                                  |
+| ---------- | ------------------ | --------------------------------------- |
+| `spawn`    | `helm-brain spawn` | `pane, harness, cwd, task`              |
+| `dispatch` | `helm-brain send`  | `pane, text`                            |
+| `state`    | `helm-brain watch` | `pane, to, harness, project`            |
+
+Every event also carries a `ts` (unix seconds) and `ev` (type). All writes are
+best-effort and never raise — logging must not break the command that triggered
+it; corrupt lines are skipped on read. Override the path with `$HELM_EVENTS_JSONL`
+(used by the unit tests). Run them with:
+
+```sh
+cd tools/helm-brain && python3 -m unittest discover -p 'test_*.py'
+```
 
 ## Launching the Brain
 

@@ -46,6 +46,9 @@ jobs:
       - name: Lint Python tools
         run: find tools -name '*.py' | xargs -I{} python3 -m py_compile {}
 
+      - name: helm-brain unit tests
+        run: cd tools/helm-brain && python3 -m unittest discover -p 'test_*.py'
+
       - name: Check required docs exist
         run: |
           test -f README.md || (echo "README.md missing" && exit 1)
