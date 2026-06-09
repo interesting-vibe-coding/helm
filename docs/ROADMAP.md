@@ -1,7 +1,7 @@
 # Helm Roadmap
 
 > Agent-native terminal. You steer — agents execute.
-> Last updated: 2026-06-08
+> Last updated: 2026-06-09
 
 ---
 
@@ -113,6 +113,13 @@ The views are the UX shell; the four layers below are the machinery they expose.
 
 ### Layer 4 — The Brain / First Mate (current headline feature)
 
+> ⚠️ **Under redesign** — see [`BRAIN_DESIGN.md`](BRAIN_DESIGN.md). Open
+> question: is the Brain an LLM orchestrator (the differentiator) or a
+> rules-only visualization layer (marginal over DIY multi-session)? Planning is
+> out of scope (the user always decides next steps). The no-regret move is the
+> shared substrate — per-session state + an append-only event log — under either
+> framing; the top layer is an experiment pending a token-cost measurement.
+
 **The idea**: You shouldn't have to watch N panes. Talk to one Sonnet orchestrator — the **First Mate** — and let it watch the crew. It builds on Layers 1–3: it reads worker **state** from the Session Scheduler and **token usage** from Status Awareness, and acts through the same mux CLI the scheduler uses.
 
 **What it does**:
@@ -184,6 +191,13 @@ A background converter indexes all harness histories into `~/.helm/sessions/`. A
 ---
 
 ## Next Steps (Priority Order)
+
+> **Roadmap endgame — mobile remote control.** The desktop becomes a controlled
+> endpoint; a phone app steers it (cf. Anthropic's remote control). This is why
+> the Brain is designed as a *client of a headless engine* (see
+> [`BRAIN_DESIGN.md`](BRAIN_DESIGN.md)) — the phone is just another client of the
+> same engine API. It favors an engine whose server already serves network
+> clients (Goose's `goosed`), and needs a relay/tunnel + auth (`kaku-relay`).
 
 ### 1. Cross-Harness Memory — Bake Into Helm (HIGH)
 
