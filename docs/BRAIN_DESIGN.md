@@ -133,24 +133,57 @@ forces a build decision — where does the fusion happen?
   conversation is one region, the timeline another; the LLM is a *component* of
   our panel, not the shell that contains it.
 
-**Leading direction: (Y).** Build the Brain as a **purpose-built Helm cockpit
-TUI** — a *partial-capability harness of our own*:
+**Leading direction: (Y) container, opencode-server engine.** The panel is our
+own native surface; the conversation engine is **opencode running headless**,
+driven as a custom client. We own the surface and the fusion; we do **not** own
+the agent engine.
 
-- one surface: a live **timeline + state** region (native render of
-  `events.jsonl`) alongside a **conversation** region;
-- under the conversation, a thin, **model-swappable loop** (model API +
-  `helm-brain` tools: sessions / send / spawn / notify), with the trust gate
-  intact;
-- terminal UI is Helm's home turf (termwiz widgets, overlays, panes), so the
-  cockpit is in range without forking anything.
+Why not a from-scratch thin loop (an earlier proposal, now rejected): even
+though the Brain doesn't *edit code*, it runs a **long-running multi-turn
+conversation** (reads worker output, accumulates fleet state, dialogues with the
+captain). That conversation needs **context orchestration + automatic
+compaction + token control** — the hardest, least-obvious, easiest-to-botch
+engineering, and it is needed regardless of whether the agent has coding
+capability. opencode has evolved this over hundreds of releases; reinventing it
+would almost certainly be worse. So ride proven engineering for the engine.
 
-Why a purpose-built cockpit beats forking opencode:
-- the Brain's scope is already small (no planning — understand / narrate /
-  propose routing), so **writing those few things is less code than maintaining
-  a fork**, and shaped exactly right;
-- no long-term merge tax against a fast-moving upstream (forking fights the
-  less-friction spine);
-- the model stays swappable (Claude / OpenRouter free / local).
+The shape:
+
+- **Engine** — `opencode serve` (headless HTTP + SSE, OpenAPI 3.1, official
+  SDK). Provides the agent loop, **context management / auto-compaction**,
+  provider plumbing (Claude / OpenRouter / local), and tool execution. We do
+  **not** fork, vendor, or maintain this.
+- **Eyes & hands** — register `helm-brain` (sessions / send / spawn / notify) as
+  opencode **custom tools**, so the Brain agent observes the fleet and proposes
+  routing through them. Trust gate intact.
+- **Persona** — a constrained opencode **custom agent** (the First Mate, scoped
+  to understand / narrate / route — no planning).
+- **Cockpit** — our own client that consumes the server's **SSE stream** to
+  render the conversation, and renders the `events.jsonl` **timeline** on the
+  same surface. Every pixel ours = the real fusion. Language-agnostic (the
+  cockpit can be Rust, native to Helm); the engine stays TypeScript behind HTTP.
+- **Model** — swappable via opencode's provider config.
+
+Net: **proven engineering (context / compaction / capability) is reused for
+free; brand and fusion (cockpit UI + persona + custom tools) are entirely ours;
+zero fork.** The "minimal version we maintain" is the cockpit client + agent
+config + a few custom tools — **not the engine.**
+
+The one real cost: a resident **bun/node opencode daemon** in the background —
+genuine weight for a terminal that wants to be light. Accepted trade: not
+carrying the context-engineering burden ourselves is worth it.
+
+Bonus: one `opencode serve` can host **many sessions**, so a future
+Helm-branded **worker** can ride the same server and API. Non-opencode workers
+(claude / kiro / codex) still go through the uniform `helm-brain` abstraction.
+
+Why not the other containers:
+- **(X) fork a harness** — TS monorepo + Zig TUI + ~14k commits / ~816
+  releases; no clean in-TUI widget hook, language-mismatched with Helm's Rust,
+  and a brutal merge tax. Rejected.
+- **Extract / vendor a minimal core** — same fast-moving, language-mismatched
+  core; worst of both. Rejected. The client-server API makes extraction
+  unnecessary.
 
 Consequences:
 - **The cockpit absorbs Monitor** — the timeline *is* Monitor's content. The
@@ -159,23 +192,24 @@ Consequences:
 - **Keep the cockpit thin.** If the Brain needs to *investigate* a stuck worker,
   it does not grow capability — it `spawn`s a worker to do it. Heavy work stays
   in worker harnesses; the cockpit never becomes another general agent.
-- opencode is **not** forked; it stays a worker harness (and an optional Brain
-  backend for users who want a full agent).
 
-Restated: not "fuse the visualization into a harness," but "**fuse the harness
-(a thin loop) into our own panel**." The panel is ours; the LLM is a component.
+Restated: not "fuse the visualization into a harness," but "**drive a headless
+engine from our own panel**." The panel is ours; opencode is the engine behind
+an HTTP boundary.
 
 ---
 
 ## Open decisions
 
-- [ ] **Brain container**: (X) fork a harness vs (Y) our own cockpit TUI.
-      Leading toward (Y) — a purpose-built partial harness. Confirm before
-      building.
-- [ ] **Cockpit build surface**: TUI in the Brain pane (Python/Rust over the
-      event feed) vs a GUI overlay. TUI is the cloud-buildable, lower-risk start.
-- [ ] **Top layer**: visualization-only vs LLM-narrated vs both. Under (Y) these
-      coexist in one cockpit; still measure whether the LLM earns its tokens.
+- [x] **Brain engine**: opencode-server (driven as a custom client), not a
+      fork, not a from-scratch loop. Chosen for its proven context
+      orchestration + auto-compaction.
+- [ ] **Cockpit build surface**: TUI in the Brain pane (Rust/Python client over
+      the SSE stream + event feed) vs a GUI overlay. TUI is the lower-risk start.
+- [ ] **Daemon lifecycle**: how Helm starts / supervises / bundles the
+      `opencode serve` process (and the bun/node runtime weight that implies).
+- [ ] **Top layer**: visualization-only vs LLM-narrated vs both. They coexist in
+      one cockpit; still measure whether the LLM earns its tokens.
 - [ ] **First Mate token cost**: measure in real daily driving before
       committing to it as the headline.
 - [ ] **Lineage depth**: (a) per-session lifecycle timeline + global feed —
