@@ -176,39 +176,69 @@ config + the helm-brain MCP server — **not the engine.**
 | Engine | Lang | Runtime weight | Drivable server/API | MCP | Providers | Stars | License |
 |---|---|---|---|---|---|---|---|
 | **opencode** | TS + Zig | **heavy** (bun/node daemon) | **mature**: REST `POST /session/:id/message` + SSE + OpenAPI 3.1 + official SDK | ✓ | 75+ (OpenRouter, local) | ~172k | MIT |
-| **Crush** (Charm) | **Go** | **lightest** (single binary, no deps) | `crush serve` + SSE exists, but the API is **barely documented** and reads as TUI↔TUI workspace sharing — third-party programmatic drive **unverified** | ✓ (stdio/http/sse) | many (OpenRouter, Ollama, LM Studio) | ~25k | MIT |
-| **Goose** (Block) | **Rust** core (+TS) | medium (goosed daemon, desktop/TS) | API/daemon; **same language as Helm** → potential library-level embed, not just HTTP | ✓ (70+) | 15+ (OpenRouter, Ollama) | ~48k | Apache-2.0 (Linux Foundation) |
+| **Crush** (Charm) | **Go** | **lightest** (single binary, no deps) | `internal/server/` + `crush run` + `POST /v1/workspaces` + SSE exist, but read as **TUI↔TUI sharing**; public prompt-drive API **unverified** (needs source dive) | ✓ (stdio/http/sse) | many (OpenRouter, Ollama, LM Studio) | ~25k | MIT |
+| **Goose** (Block) | **Rust** core (+TS) | flexible: **in-process crate** (no sidecar) / goosed / ACP | **strongest**: embed `goose` crate in-process, *or* goosed REST+SSE (~103 ep), *or* ACP (JSON-RPC). Same language as Helm | ✓ (70+) | 15+ (OpenRouter, Ollama) | ~48k | Apache-2.0 (Linux Foundation) |
 | **Codex** (OpenAI) | Rust | light (single binary) | **none** documented; OpenAI-only | ✗ | OpenAI only | ~90k | Apache-2.0 |
 
-- **Codex** is out: no backend/headless drive, single-provider.
-- **opencode** has the safest API but the heaviest runtime — the bun/node daemon
-  is the one real weight cost for a terminal that wants to be light.
-- **Crush** would *erase that cost* (a Go single binary bundles trivially, fast
-  start, no node), is MIT, Charm-made (terminal-UX pedigree, on-brand for a
-  WezTerm fork), MCP-native. **Decisive unknown: is `crush serve` a real
-  third-party-drivable session API, or sharing-only?** Must verify in source
-  before committing.
-- **Goose** is the Rust-native play: same language as Helm opens *library-level*
-  embedding (no separate-language sidecar), 48k stars, LF governance. Heavier and
-  more desktop-oriented; library embed is more work than HTTP-driving.
+### Drivability deep-dive (researched 2026-06-09)
 
-**Recommendation:** lead with **Crush, gated on verifying `crush serve` is
-programmatically drivable** (create session / send prompt / stream). If it
-isn't: fall back to **opencode** (known-good API, accept the daemon weight) or
-**Goose** (if we want Rust-native depth). The MCP-server instrument layer keeps
-this choice reversible.
+The decisive criterion is: *can an external client fully drive a session
+(create / send prompt / stream output) without being the harness's own TUI?*
 
-Bonus: one `opencode serve` can host **many sessions**, so a future
-Helm-branded **worker** can ride the same server and API. Non-opencode workers
+- **opencode** — **confirmed, best-documented.** Official TS SDK
+  (`@opencode-ai/sdk`): `session.create()`, `session.prompt()`, event stream,
+  and `createOpencodeClient({ baseUrl })` for client-only mode against an
+  already-running server. Endpoint families: sessions (incl. prompt/command/
+  shell/share), files, config, tui, auth, events. Fully external-drivable.
+  Cost: TS+Zig, runtime is a **bun/node daemon** (the weight).
+
+- **Goose** — **strongest programmatic story, and Rust-native.** Three paths:
+  1. the **`goose` core crate** — embed the agent **in-process** in a Rust app
+     (Helm), no sidecar, no IPC at all (the lightest possible integration);
+  2. **goosed** — the agent behind a bespoke **REST + SSE HTTP API (~103
+     endpoints)**; the desktop app, mobile clients, and Slack bots already drive
+     it over the network;
+  3. **goose-acp-server** — the agent behind **ACP (Agent Client Protocol)**, an
+     open JSON-RPC standard (Zed, JetBrains) over streamable HTTP/websocket.
+  48k stars, Apache-2.0, Linux Foundation (AAIF) governance. Crates: `goose`
+  (core), `goose-server` (goosed), `goose-cli`, `goose-mcp`, `goose-acp-*`.
+
+- **Crush** — **lightest runtime, but the external-drive API is the least
+  proven.** Go single binary, no deps; `internal/server/` exists, plus a
+  `crush run` non-interactive one-shot and a `POST /v1/workspaces` + SSE server.
+  But the server reads as **TUI↔TUI workspace sharing** (a workspace lives only
+  while a client holds an SSE stream; keyed by `--cwd`), and a public
+  prompt-driving HTTP API is **undocumented / still evolving** (see open issue
+  "Crush HTTP interface"). MIT, Charm terminal-UX pedigree, MCP-native
+  (stdio/http/sse), many providers. Confirming external session-drive needs a
+  source dive into `internal/server/`.
+
+**Revised recommendation (updated from the earlier "lead with Crush").** Goose
+now looks like the front-runner for a Rust terminal: the **`goose` core crate
+embeds in-process** — lighter than *any* sidecar (including Crush's Go binary,
+which is still a separate process) and same language as Helm — with goosed
+(REST+SSE) and ACP as drop-in alternatives if we want process isolation. Ranking
+for our use:
+
+1. **Goose** — Rust-native, in-process crate embed *or* goosed/ACP; most
+   documented programmatic surfaces; well-governed. Top pick to prototype.
+2. **opencode** — safest HTTP+SDK drive, most mature; accept the node daemon.
+3. **Crush** — most elegant/lightest *if* its server can be externally driven;
+   highest integration risk until `internal/server/` is verified.
+
+The **helm-brain-as-MCP-server** instrument layer keeps this reversible: all
+three speak MCP, so the engine can be swapped without rewriting the tools.
+
+Bonus: goosed / `opencode serve` can each host **many sessions**, so a future
+Helm-branded **worker** can ride the same engine and API. Non-engine workers
 (claude / kiro / codex) still go through the uniform `helm-brain` abstraction.
 
 Why not the other containers:
-- **(X) fork a harness** — TS monorepo + Zig TUI + ~14k commits / ~816
-  releases; no clean in-TUI widget hook, language-mismatched with Helm's Rust,
+- **(X) fork a harness** — fast-moving upstreams, no clean in-TUI widget hook,
   and a brutal merge tax. Rejected.
-- **Extract / vendor a minimal core** — same fast-moving, language-mismatched
-  core; worst of both. Rejected. The client-server API makes extraction
-  unnecessary.
+- **Extract / vendor a minimal core** — same fast-moving core; worst of both.
+  Rejected. The client-server APIs (and Goose's embeddable crate) make
+  extraction unnecessary.
 
 Consequences:
 - **The cockpit absorbs Monitor** — the timeline *is* Monitor's content. The
@@ -229,9 +259,10 @@ an HTTP boundary.
 - [x] **Engine class**: a headless open-source harness driven as a custom
       client — not a fork, not a from-scratch loop. Chosen for proven context
       orchestration + auto-compaction.
-- [ ] **Which engine**: Crush (lightest, verify `serve` drivability first) vs
-      opencode (safe API, heavy daemon) vs Goose (Rust-native, embeddable).
-      Leaning Crush pending source verification.
+- [ ] **Which engine**: Goose (Rust-native, in-process crate embed or
+      goosed/ACP — leaning here after the 2026-06-09 drivability dive) vs
+      opencode (safest HTTP+SDK, heavy node daemon) vs Crush (lightest, but
+      external-drive API unverified). Prototype Goose first.
 - [x] **Instrument layer**: expose `helm-brain` as an MCP server so the engine
       choice stays reversible.
 - [ ] **Cockpit build surface**: TUI in the Brain pane (Rust/Python client over
