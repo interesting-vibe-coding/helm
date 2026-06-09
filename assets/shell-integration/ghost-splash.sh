@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ghost-splash.sh — animated Helm ghost mascot (floats, tail ripples, blinks).
+# ghost-splash.sh — animated Kaji ghost mascot (floats, tail ripples, blinks).
 # Usage: ghost-splash.sh [loops]   (default 3 loops, ~3s). Falls back to a
 # static ghost when not attached to a TTY. Always restores the cursor.
 

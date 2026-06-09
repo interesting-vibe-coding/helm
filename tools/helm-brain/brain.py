@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """helm-brain: the Brain agent's eyes and hands.
 
-The Helm "First Mate" (a Sonnet orchestrator) uses this CLI to observe every
+The Kaji "First Mate" (a Sonnet orchestrator) uses this CLI to observe every
 worker agent session and to route the user's instructions to the right pane.
 
 Commands (the INTERFACE CONTRACT every downstream stage depends on):
 
   helm-brain sessions
-      Print a JSON array of worker sessions, one object per pane that Helm is
+      Print a JSON array of worker sessions, one object per pane that Kaji is
       tracking as an agent session. Each object:
           {
-            "pane_id":      int,      # Helm/wezterm pane id
+            "pane_id":      int,      # Kaji/wezterm pane id
             "harness":      str,      # "claude" | "kiro" | "opencode" | ...
             "project":      str,      # basename of the session cwd
             "state":        str,      # "working" | "waiting" | "background" | ...
@@ -23,10 +23,10 @@ Commands (the INTERFACE CONTRACT every downstream stage depends on):
       Inject <text> followed by Enter into the given worker pane.
 
   helm-brain spawn <harness> <cwd> [initial_task...]
-      Spawn a NEW worker session: open a tab in Helm running <harness>
+      Spawn a NEW worker session: open a tab in Kaji running <harness>
       (kiro | claude | opencode | codex) in <cwd>. Prints {"pane_id": N} as
       JSON on success. If an initial_task is given, it is sent to the new pane
-      once the harness has started. On failure (Helm not running, bad harness,
+      once the harness has started. On failure (Kaji not running, bad harness,
       bad cwd) prints {"error": ...} to stderr and exits non-zero. This is how
       the Brain splits work by project: one spawned session per project dir.
 
@@ -37,7 +37,7 @@ Commands (the INTERFACE CONTRACT every downstream stage depends on):
       Poll `sessions` every 3s and print a line whenever a session's state
       changes (especially -> waiting).
 
-Robustness contract: never crash if Helm is not running or files are missing.
+Robustness contract: never crash if Kaji is not running or files are missing.
 `sessions` prints [] and exits 0 in that case.
 """
 import json
@@ -54,15 +54,15 @@ LAST_SESSION_JSON = HOME / ".helm" / "sessions" / "last_session.json"
 REPO_ROOT = Path(__file__).resolve().parents[2]
 QUOTA_PY = REPO_ROOT / "tools" / "helm-quota" / "quota.py"
 
-# Helm's wezterm-compatible mux CLI. In the Helm.app bundle this is the `kaku`
+# Kaji's wezterm-compatible mux CLI. In the Kaji.app bundle this is the `kaku`
 # binary (the fork of wezterm's main binary). Note: the sibling `k` binary is
 # the agent one-shot CLI, NOT the mux CLI — do not use it here. Allow override
 # via $HELM_CLI, and fall back to `wezterm`/`kaku` on PATH.
-HELM_CLI = os.environ.get("HELM_CLI") or "/Applications/Helm.app/Contents/MacOS/helm"
+HELM_CLI = os.environ.get("HELM_CLI") or "/Applications/Kaji.app/Contents/MacOS/helm"
 
-# harness name -> argv to run in the spawned pane. Mirrors Helm.harnesses.list
+# harness name -> argv to run in the spawned pane. Mirrors Kaji.harnesses.list
 # in kaku.lua so a Brain-spawned session behaves exactly like one started from
-# the Helm launcher (same auto-approve / trust flags). The harness IS the pane
+# the Kaji launcher (same auto-approve / trust flags). The harness IS the pane
 # process (spawned directly, not under a wrapper shell), so the pane lives for
 # as long as the agent does.
 HARNESS_CMDS = {
@@ -74,7 +74,7 @@ HARNESS_CMDS = {
 
 
 def _helm_cli():
-    """Return the argv prefix for the Helm/wezterm mux cli, or None if missing."""
+    """Return the argv prefix for the Kaji/wezterm mux cli, or None if missing."""
     if os.path.exists(HELM_CLI):
         return [HELM_CLI, "cli", "--no-auto-start"]
     for name in ("helm", "kaku", "wezterm"):
@@ -101,7 +101,7 @@ def _run(argv, timeout=10):
 # ── sessions ────────────────────────────────────────────────────────────────
 
 def list_panes():
-    """Return the list of pane dicts from the Helm cli, or [] if unavailable."""
+    """Return the list of pane dicts from the Kaji cli, or [] if unavailable."""
     cli = _helm_cli()
     if not cli:
         return []
@@ -154,8 +154,8 @@ def collect_sessions():
 
     quota = load_quota()
     panes = list_panes()
-    # Pane ids known to Helm right now (so we only report live panes when the
-    # pane list is available). If Helm isn't running we fall back to runtime.
+    # Pane ids known to Kaji right now (so we only report live panes when the
+    # pane list is available). If Kaji isn't running we fall back to runtime.
     live_ids = {str(p.get("pane_id")) for p in panes} if panes else None
 
     now = int(time.time())
@@ -222,7 +222,7 @@ def cmd_send(args):
     text = args[1]
     cli = _helm_cli()
     if not cli:
-        print("helm cli not available (Helm not installed?)", file=sys.stderr)
+        print("helm cli not available (Kaji not installed?)", file=sys.stderr)
         return 1
     rc, err = _send_text(cli, pane_id, text)
     if rc != 0:
@@ -254,7 +254,7 @@ def cmd_spawn(args):
 
     cli = _helm_cli()
     if not cli:
-        print(json.dumps({"error": "helm cli not available (Helm not running?)"}),
+        print(json.dumps({"error": "helm cli not available (Kaji not running?)"}),
               file=sys.stderr)
         return 1
 
@@ -301,7 +301,7 @@ def cmd_spawn(args):
     else:
         rc, out, err = _run(cli + ["spawn", "--cwd", cwd_abs, "--"] + prog)
     if rc != 0:
-        print(json.dumps({"error": err.strip() or "spawn failed (is Helm running?)"}),
+        print(json.dumps({"error": err.strip() or "spawn failed (is Kaji running?)"}),
               file=sys.stderr)
         return rc or 1
 

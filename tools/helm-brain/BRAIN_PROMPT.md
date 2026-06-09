@@ -1,6 +1,6 @@
 # Moved → `helm-first-mate` skill
 
-The Helm First Mate persona now lives in the cross-harness **`helm-first-mate`**
+The Kaji First Mate persona now lives in the cross-harness **`helm-first-mate`**
 skill (single source of truth):
 
 - In the repo: `assets/skills/helm-first-mate/SKILL.md`

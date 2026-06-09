@@ -13,7 +13,7 @@ export CMAKE_OSX_DEPLOYMENT_TARGET="${CMAKE_OSX_DEPLOYMENT_TARGET:-11.0}"
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
-APP_NAME="Helm"
+APP_NAME="Kaji"
 TARGET_DIR="${TARGET_DIR:-target}"
 PROFILE="${PROFILE:-release}"
 OUT_DIR="${OUT_DIR:-dist}"
@@ -260,7 +260,7 @@ cp -R assets/shell-integration/* "$APP_BUNDLE_OUT/Contents/Resources/"
 cp -R assets/shell-completion "$APP_BUNDLE_OUT/Contents/Resources/"
 cp -R assets/fonts "$APP_BUNDLE_OUT/Contents/Resources/"
 cp -R assets/prompts "$APP_BUNDLE_OUT/Contents/Resources/"
-# Helm: bundle ALL helm tools (helm-brain, helm-top, helm-quota, CLI utils) so
+# Kaji: bundle ALL helm tools (helm-brain, helm-top, helm-quota, CLI utils) so
 # the Brain launcher, Monitor (helm-top), and bottom status bar work from the
 # installed .app, not just the dev repo. kaku.lua / launchers resolve
 # Resources/tools/<tool> first, then fall back to the dev repo path.
@@ -270,9 +270,9 @@ if [[ -d "tools" ]]; then
 	# strip any local python caches that may have been copied
 	find "$APP_BUNDLE_OUT/Contents/Resources/tools" -name __pycache__ -type d -exec rm -rf {} + 2>/dev/null || true
 fi
-# Helm: bundle cross-harness skills (e.g. helm-first-mate) so first_run.sh can
+# Kaji: bundle cross-harness skills (e.g. helm-first-mate) so first_run.sh can
 # symlink them into the user's ~/.kiro/skills. The skill is the single source
-# of truth for the Helm Brain / First Mate persona.
+# of truth for the Kaji Brain / First Mate persona.
 if [[ -d "assets/skills" ]]; then
 	mkdir -p "$APP_BUNDLE_OUT/Contents/Resources/skills"
 	cp -R assets/skills/* "$APP_BUNDLE_OUT/Contents/Resources/skills/"

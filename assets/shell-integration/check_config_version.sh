@@ -1,5 +1,5 @@
 #!/bin/bash
-# Helm config version check
+# Kaji config version check
 
 set -euo pipefail
 
@@ -71,7 +71,7 @@ if [[ $user_version -eq 0 || $user_version -ge $CURRENT_CONFIG_VERSION ]]; then
 	exit 0
 fi
 
-echo -e "${BOLD}🎯 Helm shell integration update${NC}  ${YELLOW}v$user_version${NC} → ${GREEN}v$CURRENT_CONFIG_VERSION${NC}"
+echo -e "${BOLD}🎯 Kaji shell integration update${NC}  ${YELLOW}v$user_version${NC} → ${GREEN}v$CURRENT_CONFIG_VERSION${NC}"
 echo ""
 
 echo -e "${BOLD}What's new:${NC}"
@@ -118,7 +118,7 @@ fi
 persist_config_version
 
 echo ""
-echo -e "\033[1;32m✅  Helm is ready. Enjoy the ride.\033[0m"
+echo -e "\033[1;32m✅  Kaji is ready. Enjoy the ride.\033[0m"
 echo ""
 echo "Press any key to continue..."
 read -n 1 -s
