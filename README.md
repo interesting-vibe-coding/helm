@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="assets/helm-logo.png" width="120" alt="Kaji" />
+  <img src="assets/kaji-logo.png" width="120" alt="Kaji" />
   <h1>Kaji</h1>
   <p><em>The agent-native terminal. You steer — agents execute.</em></p>
 
@@ -7,17 +7,6 @@
     <a href="LICENSE.md"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License"></a>
     <img src="https://img.shields.io/badge/macOS-Apple%20Silicon%20%2B%20Intel-lightgrey?style=flat-square" alt="macOS">
   </p>
-</div>
-
-<div align="center">
-  <b>English</b> ·
-  <a href="README.zh-CN.md">简体中文</a> ·
-  <a href="README.ja.md">日本語</a> ·
-  <a href="README.ko.md">한국어</a> ·
-  <a href="README.es.md">Español</a> ·
-  <a href="README.fr.md">Français</a> ·
-  <a href="README.de.md">Deutsch</a> ·
-  <a href="README.pt-BR.md">Português</a>
 </div>
 
 ---
@@ -38,11 +27,11 @@ The Brain is a Sonnet orchestrator. It watches every session for you — who's w
 
 ### Three views, one keystroke each
 
-**Brain** — talk to your First Mate.  
-**Work** — every agent tiled in one place; jump in when you need to.  
-**Terminal** — a plain shell, always there.
+**Brain** `Cmd+1` — talk to your First Mate.  
+**Work** `Cmd+2` — every agent tiled in one place; jump in when you need to.  
+**Terminal** `Cmd+4` — a plain shell, always there.
 
-Flip between them instantly. Kaji surfaces the keys when you need them — nothing to memorize.
+Flip between them instantly.
 
 ---
 
