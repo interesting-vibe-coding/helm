@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""helm-brain MCP server — the Brain dispatcher's constrained instrument layer.
+"""kaji-brain MCP server — the Brain dispatcher's constrained instrument layer.
 
-Exposes `helm-brain` (sessions / timeline / spawn / send / notify) as MCP tools
+Exposes `kaji-brain` (sessions / timeline / spawn / send / notify) as MCP tools
 over stdio, so the lightweight **dispatcher** (a cheap-model harness — Crush /
 Goose / any MCP client) can fan one natural-language instruction out into
 worker sessions while staying *scoped to these tools* — it can dispatch but not
@@ -9,7 +9,7 @@ wander. Harness-agnostic: switching the dispatcher harness never touches this
 layer. See docs/BRAIN_DESIGN.md § "The dispatcher".
 
 Design:
-- **Thin adapter.** It shells out to the already-tested `helm-brain` CLI (the
+- **Thin adapter.** It shells out to the already-tested `kaji-brain` CLI (the
   JSON contract), rather than re-implementing session logic. A `HelmBrain`
   object isolates that I/O so the protocol layer is unit-tested with a fake.
 - **Hand-rolled minimal MCP.** stdio transport = newline-delimited JSON-RPC 2.0.
@@ -35,15 +35,15 @@ from typing import Any, Callable, Dict, List, Optional
 # Default protocol version we advertise if the client doesn't send one. We echo
 # the client's requested version when present (the recommended behavior).
 DEFAULT_PROTOCOL_VERSION = "2025-06-18"
-SERVER_INFO = {"name": "helm-brain", "version": "0.1.0"}
+SERVER_INFO = {"name": "kaji-brain", "version": "0.1.0"}
 
 HARNESSES = ["kiro", "claude", "opencode", "codex"]
 
 
-# ── helm-brain CLI adapter (the only I/O) ─────────────────────────────────────
+# ── kaji-brain CLI adapter (the only I/O) ─────────────────────────────────────
 
 class HelmBrain:
-    """Locates and shells out to the `helm-brain` CLI. Never raises."""
+    """Locates and shells out to the `kaji-brain` CLI. Never raises."""
 
     def __init__(self, argv: Optional[List[str]] = None):
         self._argv = argv if argv is not None else self._locate()
@@ -51,15 +51,15 @@ class HelmBrain:
     @staticmethod
     def _locate() -> Optional[List[str]]:
         here = os.path.dirname(os.path.abspath(__file__))
-        local = os.path.join(here, "helm-brain")
+        local = os.path.join(here, "kaji-brain")
         if os.path.exists(local):
             return [local]
-        found = shutil.which("helm-brain")
+        found = shutil.which("kaji-brain")
         return [found] if found else None
 
     def _run(self, args: List[str], timeout: int = 15) -> (int, str, str):
         if not self._argv:
-            return 1, "", "helm-brain CLI not found"
+            return 1, "", "kaji-brain CLI not found"
         try:
             p = subprocess.run(self._argv + args, stdout=subprocess.PIPE,
                                stderr=subprocess.PIPE, timeout=timeout)

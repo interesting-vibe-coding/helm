@@ -139,7 +139,7 @@ fi
 # ── Choose your Brain ─────────────────────────────────────────────────────────
 # The Brain is the First Mate that orchestrates all your agents. Let the user
 # pick which harness powers it; persist to ~/.config/helm/brain.conf so the
-# launcher (tools/helm-brain/launch-brain.sh) can honor the choice.
+# launcher (tools/kaji-brain/launch-brain.sh) can honor the choice.
 # Read a single keypress into the global REPLY_KEY. Decodes escape sequences
 # (arrow keys arrive as ESC [ A/B). Empty result = Enter. bash 3.2 safe.
 # Guarded with `|| true` so a timed-out/EOF read never trips `set -e`.

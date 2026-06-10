@@ -19,7 +19,7 @@ STATE        HARNESS    PROJECT              RUNTIME  TOKENS   PANE
 
 ## What it does
 
-- Reads session data from the existing `helm-brain sessions` CLI (the single
+- Reads session data from the existing `kaji-brain sessions` CLI (the single
   interface contract). It does **not** track sessions itself — it's a thin,
   read-only viewer.
 - Renders a full-screen table, refreshing every **1.5 s**:
@@ -34,7 +34,7 @@ STATE        HARNESS    PROJECT              RUNTIME  TOKENS   PANE
 - Jumping focuses the pane via Helm's mux CLI:
   `kaku cli activate-pane --pane-id <id>`.
 
-If there are no sessions (or `helm-brain` is missing/errors), it shows a calm
+If there are no sessions (or `kaji-brain` is missing/errors), it shows a calm
 empty state — it never crashes.
 
 ## Keys
@@ -67,7 +67,7 @@ tools/helm-top/helm-top --selftest
 
 ## How it finds things
 
-- **helm-brain** is resolved relative to this file (`../helm-brain/helm-brain`),
+- **kaji-brain** is resolved relative to this file (`../kaji-brain/kaji-brain`),
   then the app bundle (`/Applications/Helm.app/Contents/Resources/tools/…`),
   then the dev repo (`~/workspace/helm-terminal/tools/…`).
 - The **mux CLI** is `kaku` (`$HELM_CLI`, then

@@ -9,14 +9,14 @@ stdlib `curses` only, no external dependencies).
 It does NOT track sessions itself. It is a thin viewer over the existing
 interface contract:
 
-    helm-brain sessions   ->  JSON array of
+    kaji-brain sessions   ->  JSON array of
         { pane_id, harness, project, state, runtime_secs, tokens_today }
 
 Jumping to a pane shells out to Helm's wezterm-compatible mux CLI:
 
     kaku cli activate-pane --pane-id <id>
 
-(The mux binary is `kaku`, not the sibling `k` agent CLI — see helm-brain.)
+(The mux binary is `kaku`, not the sibling `k` agent CLI — see kaji-brain.)
 
 Keys:
     ↑/↓ or j/k   move the selection
@@ -28,7 +28,7 @@ Keys:
 Run `helm-top --selftest` for a non-interactive, plain-text dump of the parsed
 table (handy for tests / CI — no curses, no TTY required).
 
-Robustness contract: never crash. If helm-brain is missing, returns [], or
+Robustness contract: never crash. If kaji-brain is missing, returns [], or
 errors, we show a calm empty state.
 """
 
@@ -62,12 +62,12 @@ STATE_GLYPH = {
 # ── binary resolution ────────────────────────────────────────────────────────
 
 def resolve_brain():
-    """Locate the helm-brain CLI. Returns a path str or None."""
+    """Locate the kaji-brain CLI. Returns a path str or None."""
     here = Path(__file__).resolve().parent
     candidates = [
-        here.parent / "helm-brain" / "helm-brain",
-        Path("/Applications/Helm.app/Contents/Resources/tools/helm-brain/helm-brain"),
-        Path.home() / "workspace" / "helm-terminal" / "tools" / "helm-brain" / "helm-brain",
+        here.parent / "kaji-brain" / "kaji-brain",
+        Path("/Applications/Helm.app/Contents/Resources/tools/kaji-brain/kaji-brain"),
+        Path.home() / "workspace" / "helm-terminal" / "tools" / "kaji-brain" / "kaji-brain",
     ]
     for c in candidates:
         try:
@@ -99,7 +99,7 @@ def resolve_kaku():
 # ── data ──────────────────────────────────────────────────────────────────────
 
 def fetch_sessions():
-    """Return the list of session dicts from helm-brain, or [] on any failure."""
+    """Return the list of session dicts from kaji-brain, or [] on any failure."""
     brain = resolve_brain()
     if not brain:
         return []

@@ -17,8 +17,8 @@ harness (state + quota + steering) across the fleet** — reframed the whole
 architecture:
 
 - The phone and the desktop cockpit are **the same client shape**, both talking
-  to a machine-side **helm-brain network service**. So the trunk is *making
-  helm-brain a service + a relay + auth*, **not** picking an engine.
+  to a machine-side **kaji-brain network service**. So the trunk is *making
+  kaji-brain a service + a relay + auth*, **not** picking an engine.
 - The mobile-remote space is **already crowded** (Anthropic's own Remote
   Control, Omnara, Nimbalyst, Forge Remote, …) but every one is **single-vendor
   locked** (Claude-only / Claude+Codex). Kaji's wedge is **harness-agnostic
@@ -27,18 +27,18 @@ architecture:
   confirm-gated, no long conversation, no planning), so the heavy-engine
   justification (context mgmt / auto-compaction) largely collapses. The engine
   (Goose/opencode/Crush) becomes one *optional* client for synthesis — kept
-  reversible by the helm-brain MCP layer. **Goose spike archived** (PR #116),
+  reversible by the kaji-brain MCP layer. **Goose spike archived** (PR #116),
   not merged.
 - **Quota is achievable after all.** No scriptable CLI exists, but Kaji holds
   the pane: inject `/usage` → scrape rendered output. A per-harness scraper
   adapter gives a **unified fleet quota view** nobody else has. (Currently
   `helm-quota` only sums *consumed* tokens; remaining/reset is the scrape TODO.)
 
-**Build order (revised):** ✅ substrate (`events.jsonl`) → ✅ **helm-brain HTTP
-service** (`helm-brain serve`, this change) → unified quota scraper → relay +
+**Build order (revised):** ✅ substrate (`events.jsonl`) → ✅ **kaji-brain HTTP
+service** (`kaji-brain serve`, this change) → unified quota scraper → relay +
 auth. Engine choice stays deferred.
 
-### `helm-brain serve` (shipped 2026-06-10)
+### `kaji-brain serve` (shipped 2026-06-10)
 REST + SSE over stdlib `http.server`. Reads (sessions / quota / timeline /
 state) run in-process; writes (send / spawn / notify) shell out to the tested
 CLI — same thin-adapter philosophy as the MCP server. Binds `127.0.0.1` by
@@ -127,13 +127,13 @@ An append-only `~/.helm/sessions/events.jsonl`, one line per event:
 ```
 
 Writers (all rules, 0 token):
-- `helm-brain spawn` → logs the `spawn` event (with the initial task).
-- `helm-brain send`  → logs the `dispatch` event (records what the user sent).
+- `kaji-brain spawn` → logs the `spawn` event (with the initial task).
+- `kaji-brain send`  → logs the `dispatch` event (records what the user sent).
 - the `watch` poll loop → logs a `state` event on every transition. The event
   source is the **existing watch loop** — pure Python, no Lua tracker change.
 
 ### Renderer
-`helm-brain timeline` → reads `events.jsonl`, renders a global feed (who / when
+`kaji-brain timeline` → reads `events.jsonl`, renders a global feed (who / when
 / what / current state) plus the current snapshot. Per-pane swimlanes or
 reverse-chronological. The Brain view (`Cmd+1`) can render this directly instead
 of a chat box. Dispatch stays manual: pick a pane, type the next step.
@@ -150,7 +150,7 @@ If/when we layer the LLM back on:
 - It maintains a **compact state digest**, not transcripts.
 - It reads the **digested feed** (cheap), and dips to `cli get-text` for a
   pane's last message only when it needs the low-level detail.
-- Optional `helm-brain digest <pane>`: a cheap model compresses a worker's noisy
+- Optional `kaji-brain digest <pane>`: a cheap model compresses a worker's noisy
   last output into one line for the feed. **Default off.** Polish, not core.
 
 ---
@@ -196,7 +196,7 @@ The shape:
   **context management / auto-compaction**, provider plumbing (Claude /
   OpenRouter / local), and tool execution. We do **not** fork, vendor, or
   maintain this. (Candidate selection below.)
-- **Eyes & hands** — expose `helm-brain` (sessions / send / spawn / notify) as an
+- **Eyes & hands** — expose `kaji-brain` (sessions / send / spawn / notify) as an
   **MCP server**. Every candidate engine speaks MCP, so this **decouples the
   Brain's instruments from the engine choice** — switching engines later doesn't
   rewrite the tool layer. Trust gate intact.
@@ -211,7 +211,7 @@ The shape:
 Net: **proven engineering (context / compaction / capability) is reused for
 free; brand and fusion (cockpit UI + persona + MCP tools) are entirely ours;
 zero fork.** The "minimal version we maintain" is the cockpit client + agent
-config + the helm-brain MCP server — **not the engine.**
+config + the kaji-brain MCP server — **not the engine.**
 
 ### Engine candidates (researched 2026-06-09)
 
@@ -268,12 +268,12 @@ for our use:
 3. **Crush** — most elegant/lightest *if* its server can be externally driven;
    highest integration risk until `internal/server/` is verified.
 
-The **helm-brain-as-MCP-server** instrument layer keeps this reversible: all
+The **kaji-brain-as-MCP-server** instrument layer keeps this reversible: all
 three speak MCP, so the engine can be swapped without rewriting the tools.
 
 Bonus: goosed / `opencode serve` can each host **many sessions**, so a future
 Helm-branded **worker** can ride the same engine and API. Non-engine workers
-(claude / kiro / codex) still go through the uniform `helm-brain` abstraction.
+(claude / kiro / codex) still go through the uniform `kaji-brain` abstraction.
 
 Why not the other containers:
 - **(X) fork a harness** — fast-moving upstreams, no clean in-TUI widget hook,
@@ -333,13 +333,13 @@ demo-ware.
 Agreed build order:
 
 1. ✅ **Prove the existing loop end-to-end (done, 2026-06-09).** Using what
-   already ships — `helm-brain` + claude workers, no new engine: spawn worker
+   already ships — `kaji-brain` + claude workers, no new engine: spawn worker
    (Cmd+Shift+K) → Monitor (Cmd+3) lists it → worker hits *waiting* → Brain
    `notify` fires → session restore after restart. Walked each link; working.
    (This was the long-standing ROADMAP P0 "Core agent loop, end-to-end.")
 2. ✅ **Substrate `events.jsonl` (done, 2026-06-09).** No-regret, cloud-built,
-   unit-tested, engine-independent. `helm-brain` now appends `spawn`/`dispatch`/
-   `state` events and renders `helm-brain timeline [--json]`. This is the data
+   unit-tested, engine-independent. `kaji-brain` now appends `spawn`/`dispatch`/
+   `state` events and renders `kaji-brain timeline [--json]`. This is the data
    layer the cockpit renders. (PR #115.)
 3. **Pure-visualization cockpit (now — the next task).** See § "Visualization
    first" below. Build the cockpit as render-only and **live in it for several
@@ -370,7 +370,7 @@ but make it as light as possible. Why the order and the shape still hold:
 **Mobile is a relay problem, not an engine problem (consensus 2026-06-09).** A
 render-only Brain does not need `goosed` for remote control — the phone just
 needs a lightweight **relay** exposing `runtime.json` + `events.jsonl` +
-`helm-brain send`. Goose's network engine only wins *if* the Brain top layer is
+`kaji-brain send`. Goose's network engine only wins *if* the Brain top layer is
 a live LLM conversation you want to chat with from the phone. So mobile is
 **decoupled** from the engine choice and must not drive it prematurely.
 
@@ -381,7 +381,7 @@ not planning; user gives intent; confirm-gated.
 
 **Key consequence of having built the substrate: the dispatcher is near
 *stateless*, so it needs no heavy engine.** Each dispatch reads the current
-fleet fresh from the substrate (`helm-brain sessions` + `timeline`), adds the
+fleet fresh from the substrate (`kaji-brain sessions` + `timeline`), adds the
 user's instruction, and emits tool calls. There is no giant accumulating
 conversation to compact — so **auto-compaction / context-orchestration, the
 main reason Goose was ranked #1, is no longer required.** That re-opens
@@ -394,10 +394,10 @@ main reason Goose was ranked #1, is no longer required.** That re-opens
      fleet state / history        │  (events.jsonl + sessions)
   dispatcher = lightest harness ──┘  + cheap model (DeepSeek / Flash)
         │  acts only through ↓ (scoped + confirm-gated)
-  helm-brain as MCP server  (sessions / send / spawn / notify / timeline)
+  kaji-brain as MCP server  (sessions / send / spawn / notify / timeline)
 ```
 
-- **Constraint framework = `helm-brain` exposed as an MCP server.** The model
+- **Constraint framework = `kaji-brain` exposed as an MCP server.** The model
   gets only those scoped tools — it can dispatch but can't wander; the trust /
   confirm gate stays. Harness-agnostic: swapping the harness doesn't touch the
   tool layer. **This is the next no-regret, cloud-buildable piece.**
@@ -434,7 +434,7 @@ live run.**
       drivability spike (PR #116) is code-ready but the headless-drive concern
       it tests is **moot** if we run the harness locally rather than driving it.
       Confirm Crush with a live run.
-- [x] **Instrument layer**: expose `helm-brain` as an **MCP server** — the
+- [x] **Instrument layer**: expose `kaji-brain` as an **MCP server** — the
       constraint framework the dispatcher acts through. Harness-agnostic; the
       next no-regret, cloud-buildable piece.
 - [~] **Cockpit build surface**: **TUI-first** (render-only, in the Brain pane,
@@ -446,7 +446,7 @@ live run.**
 - [ ] **Token cost**: measure the dispatcher on a cheap model (DeepSeek / Flash)
       in real use; keep per-dispatch context to the fleet snapshot + instruction.
 - [ ] **Mobile relay**: render-only mobile needs a `runtime.json` +
-      `events.jsonl` + `helm-brain send` relay (cf. `kaku-relay`) + auth —
+      `events.jsonl` + `kaji-brain send` relay (cf. `kaku-relay`) + auth —
       independent of the engine choice.
 - [ ] **Lineage depth**: (a) per-session lifecycle timeline + global feed —
       do this for V1; (b) cross-session dependency DAG (task A done → triggers
@@ -459,7 +459,7 @@ live run.**
 
 The Work view (`Cmd+2`) is a backup "see all live workers" surface — you live in
 the Brain; Work is for an eyeball glance. Workers are tiled in one tab: the first
-opens the Work tab, each later worker is added by `helm-brain spawn` splitting the
+opens the Work tab, each later worker is added by `kaji-brain spawn` splitting the
 **largest** existing worker pane along its longer (pixel) side. This self-balances:
 2 → equal columns, 4 → even 2×2, 3 → a balanced 2+1 (not three equal columns).
 

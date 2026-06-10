@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Tests for the helm-brain MCP server's JSON-RPC + tool dispatch.
+"""Tests for the kaji-brain MCP server's JSON-RPC + tool dispatch.
 
 The live handshake against a real MCP client is a separate macOS step; here we
 pin the protocol logic with a fake HelmBrain (no subprocess, no Kaji).
 
-    cd tools/helm-brain && python3 -m unittest discover -p 'test_*.py'
+    cd tools/kaji-brain && python3 -m unittest discover -p 'test_*.py'
 """
 import io
 import json
@@ -45,7 +45,7 @@ class InitializeTests(unittest.TestCase):
         self.assertEqual(resp["id"], 1)
         self.assertEqual(resp["result"]["protocolVersion"], "2025-03-26")
         self.assertIn("tools", resp["result"]["capabilities"])
-        self.assertEqual(resp["result"]["serverInfo"]["name"], "helm-brain")
+        self.assertEqual(resp["result"]["serverInfo"]["name"], "kaji-brain")
 
     def test_initialize_defaults_protocol_version(self):
         req = {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}

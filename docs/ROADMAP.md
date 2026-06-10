@@ -30,7 +30,7 @@ Helm is in **V0 — daily-usable, actively iterating**. Public repo, CI green.
 - **Guided onboarding** that actually runs on first launch: animated ghost mascot, shell setup, cross-harness memory symlink, and the Choose-your-Brain picker.
 - **One-line install** — `curl … | bash` from the latest release.
 - **Ghost logo** (terminal-prompt face) + clean namespaced `kaku.lua`.
-- **Tools** (all bundled in the .app): `helm-brain` (sessions/send/notify/spawn), `helm-top` (monitor), `helm-quota`, plus CLI utilities.
+- **Tools** (all bundled in the .app): `kaji-brain` (sessions/send/notify/spawn), `helm-top` (monitor), `helm-quota`, plus CLI utilities.
 
 ### 🛣️ Road to V1
 V1 ships when Helm is something we use **daily and comfortably** — then we tag it, announce, and promote. Criteria:
@@ -59,7 +59,7 @@ Concrete, prioritized task list toward V1. Tiers by impact: **P0** = correctness
 > `spawn`/`send` fan-out + session creation (dispatch, not planning,
 > confirm-gated). Because the substrate makes dispatch **near-stateless**, no
 > heavy engine/compaction is needed → ride the **lightest MCP-native harness**
-> (leaning **Crush**) on a cheap/free model, acting only through **helm-brain
+> (leaning **Crush**) on a cheap/free model, acting only through **kaji-brain
 > exposed as an MCP server** (the next no-regret build). Mobile is a **relay**
 > problem, decoupled from the harness choice. See `docs/BRAIN_DESIGN.md`
 > § "The dispatcher".
@@ -73,7 +73,7 @@ Concrete, prioritized task list toward V1. Tiers by impact: **P0** = correctness
 
 ### ✅ Shipped 2026-06-08 (evening)
 - **Cmd+W close semantics + dynamic compass** — per-view close (Brain→quit w/ confirm, Work→close session, Monitor/Terminal→close); compass draws one dot per live view. (PR #95)
-- **Brain session-tracking crash fixed** — `helm-brain` track called `table.concat` on `get_lines_as_text` (which returns a String), erroring every tick on any agent pane and breaking session tracking + tab fallback. (PR #96)
+- **Brain session-tracking crash fixed** — `kaji-brain` track called `table.concat` on `get_lines_as_text` (which returns a String), erroring every tick on any agent pane and breaking session tracking + tab fallback. (PR #96)
 - **Kaku Light / Auto fully adapted** — ported `Kaku Light` palette + appearance-resolve; theme-aware window_frame / tab_bar / status compass; settings TUI (`helm config`) now recovers theme intent from the config file when `color_scheme` is unevaluated (was painting pure black on light systems); config_tui title `Kaku`→`Helm`; active compass dot is Anthropic orange on cream; `foreground_color_overrides` for legible Claude text on cream. (PR #97)
 - **Blank tab titles (no cwd leak)** — the compass is the single source of tab identity; the engine no longer falls back to the pane cwd (which surfaced `Users/Users/Users/` after the settings window closed). (PR #101)
 - **Upstream Kaku fixes ported** — #448 scroll snap-to-bottom (no more jump-to-top during long AI output, PR #101); #446/#450 powerline separators keep their color, exempt block glyphs from min-contrast (PR #102); #449 Cmd+Q close-confirmation scoped to the foreground process group, so background daemons like gitstatusd don't force a prompt at an idle shell (PR #103); #452 repaint after resize + suppress phantom second window on cold start (PR #104).
@@ -142,8 +142,8 @@ The views are the UX shell; the four layers below are the machinery they expose.
 - **Reports** — a single feed: who's blocked, who's burning quota, who finished. macOS notifications when a worker needs input.
 - **Routes** — you give one instruction in natural language; the First Mate picks the right pane and injects it, behind a **confirm gate** so nothing lands without your nod.
 
-**Plumbing** (shipped): `helm-brain` CLI under `tools/helm-brain/` —
-`helm-brain sessions` (merges `kaku cli list` + `runtime.json` state + `quota.py` tokens → JSON), `helm-brain send <pane> "<text>"`, `helm-brain notify`, `helm-brain watch`. These are the Brain's eyes and hands; the Sonnet orchestrator is the mind on top.
+**Plumbing** (shipped): `kaji-brain` CLI under `tools/kaji-brain/` —
+`kaji-brain sessions` (merges `kaku cli list` + `runtime.json` state + `quota.py` tokens → JSON), `kaji-brain send <pane> "<text>"`, `kaji-brain notify`, `kaji-brain watch`. These are the Brain's eyes and hands; the Sonnet orchestrator is the mind on top.
 
 **Toggle**: `Cmd+Shift+Return` switches between the Brain view and your workers.
 

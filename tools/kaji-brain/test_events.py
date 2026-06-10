@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Unit tests for the helm-brain event-log substrate (events.jsonl).
+"""Unit tests for the kaji-brain event-log substrate (events.jsonl).
 
 Pure stdlib (unittest) so CI can run them with no extra deps:
 
-    cd tools/helm-brain && python3 -m unittest discover -p 'test_*.py'
+    cd tools/kaji-brain && python3 -m unittest discover -p 'test_*.py'
 
 The event log is the no-regret history chain underneath both the timeline
 renderer and any future First Mate, so its append / read / render contract is

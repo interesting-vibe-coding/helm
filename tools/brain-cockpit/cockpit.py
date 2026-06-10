@@ -4,7 +4,7 @@
 A pure-visualization cockpit for the fleet: brand + session list + status dots +
 "most-neglected first" ordering + the selected session's history. NO model —
 see docs/BRAIN_DESIGN.md § "Visualization first". It reads the substrate
-(`helm-brain sessions` for the live snapshot, `helm-brain timeline --json` for
+(`kaji-brain sessions` for the live snapshot, `kaji-brain timeline --json` for
 history) and renders one calm screen.
 
 This is **TUI-first**: cloud-buildable, lower-risk, and the layout the eventual
@@ -209,10 +209,10 @@ def render(sessions: List[Dict], events: List[Dict], selected: int = 0,
 
 def _helm_brain_argv() -> Optional[List[str]]:
     here = os.path.dirname(os.path.abspath(__file__))
-    candidate = os.path.join(here, "..", "helm-brain", "helm-brain")
+    candidate = os.path.join(here, "..", "kaji-brain", "kaji-brain")
     if os.path.exists(candidate):
         return [candidate]
-    found = __import__("shutil").which("helm-brain")
+    found = __import__("shutil").which("kaji-brain")
     return [found] if found else None
 
 
@@ -226,7 +226,7 @@ def _run_json(argv: List[str], default):
 
 
 def fetch_live() -> Tuple[List[Dict], List[Dict]]:
-    """Pull sessions + events from helm-brain. Empty lists if unavailable."""
+    """Pull sessions + events from kaji-brain. Empty lists if unavailable."""
     hb = _helm_brain_argv()
     if not hb:
         return [], []
@@ -237,10 +237,10 @@ def fetch_live() -> Tuple[List[Dict], List[Dict]]:
 
 
 def fetch_http(base: str, token: Optional[str] = None) -> Tuple[List[Dict], List[Dict]]:
-    """Pull sessions + events from a helm-brain HTTP service (the spine).
+    """Pull sessions + events from a kaji-brain HTTP service (the spine).
 
     This is the same shape the phone app uses: the cockpit is just one client
-    of `helm-brain serve`. Empty lists if the server is unreachable.
+    of `kaji-brain serve`. Empty lists if the server is unreachable.
     """
     import urllib.request
 
@@ -293,7 +293,7 @@ def main(argv: List[str]) -> int:
     ap.add_argument("--selected", type=int, default=0, help="selected row index")
     ap.add_argument("--width", type=int, default=0, help="override terminal width")
     ap.add_argument("--no-color", action="store_true", help="disable ANSI color")
-    ap.add_argument("--server", default="", help="fetch from a helm-brain serve URL (e.g. http://127.0.0.1:8765) instead of shelling out")
+    ap.add_argument("--server", default="", help="fetch from a kaji-brain serve URL (e.g. http://127.0.0.1:8765) instead of shelling out")
     ap.add_argument("--token", default="", help="bearer token for --server")
     args = ap.parse_args(argv)
 
