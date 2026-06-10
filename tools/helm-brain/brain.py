@@ -553,6 +553,10 @@ usage:
   helm-brain timeline [--json] [--pane N]
                                       render the fleet history (events.jsonl)
                                       + the current snapshot
+  helm-brain serve [--host H] [--port P] [--token T]
+                                      run the fleet HTTP+SSE API (default
+                                      127.0.0.1:8765). Non-loopback host needs
+                                      a token. Clients: cockpit, phone, scripts.
 """
 
 def cmd_last_session(_args):
@@ -599,6 +603,7 @@ COMMANDS = {
     "watch": cmd_watch,
     "timeline": cmd_timeline,
     "last-session": cmd_last_session,
+    "serve": lambda args: __import__("serve").cmd_serve(args),
 }
 
 
