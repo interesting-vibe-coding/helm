@@ -236,6 +236,30 @@ def fetch_live() -> Tuple[List[Dict], List[Dict]]:
             events if isinstance(events, list) else [])
 
 
+def fetch_http(base: str, token: Optional[str] = None) -> Tuple[List[Dict], List[Dict]]:
+    """Pull sessions + events from a helm-brain HTTP service (the spine).
+
+    This is the same shape the phone app uses: the cockpit is just one client
+    of `helm-brain serve`. Empty lists if the server is unreachable.
+    """
+    import urllib.request
+
+    def _get(path):
+        req = urllib.request.Request(base.rstrip("/") + path)
+        if token:
+            req.add_header("Authorization", "Bearer " + token)
+        try:
+            with urllib.request.urlopen(req, timeout=5) as r:
+                return json.loads(r.read().decode("utf-8"))
+        except Exception:
+            return None
+
+    sessions = _get("/api/sessions")
+    events = _get("/api/timeline")
+    return (sessions if isinstance(sessions, list) else [],
+            events if isinstance(events, list) else [])
+
+
 def demo_data() -> Tuple[List[Dict], List[Dict]]:
     """Built-in fake fleet so the layout can be previewed with no Kaji running."""
     sessions = [
@@ -269,9 +293,16 @@ def main(argv: List[str]) -> int:
     ap.add_argument("--selected", type=int, default=0, help="selected row index")
     ap.add_argument("--width", type=int, default=0, help="override terminal width")
     ap.add_argument("--no-color", action="store_true", help="disable ANSI color")
+    ap.add_argument("--server", default="", help="fetch from a helm-brain serve URL (e.g. http://127.0.0.1:8765) instead of shelling out")
+    ap.add_argument("--token", default="", help="bearer token for --server")
     args = ap.parse_args(argv)
 
-    sessions, events = demo_data() if args.demo else fetch_live()
+    if args.demo:
+        sessions, events = demo_data()
+    elif args.server:
+        sessions, events = fetch_http(args.server, args.token or None)
+    else:
+        sessions, events = fetch_live()
     width = args.width or (os.get_terminal_size().columns if sys.stdout.isatty() else 80)
     color = not args.no_color and (args.demo or sys.stdout.isatty())
 

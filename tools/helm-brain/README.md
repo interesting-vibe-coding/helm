@@ -181,3 +181,34 @@ from the repo and when bundled in `Helm.app/Contents/Resources/tools/helm-brain/
 - Brain model = **Sonnet**.
 - Robustness: the script never crashes when Kaji isn't running or files are
   missing — `sessions` prints `[]`, other commands report a clear error.
+
+## `helm-brain serve` — the fleet over HTTP
+
+The trunk of Kaji's remote story. Same eyes & hands as the CLI, over HTTP + SSE,
+so any client (desktop cockpit, phone app behind a relay, scripts) drives one
+fleet through one API. The cockpit and the phone are **peers** — same endpoints.
+
+```sh
+helm-brain serve                       # 127.0.0.1:8765, localhost only
+helm-brain serve --host 0.0.0.0 --token $T   # network bind REQUIRES a token
+```
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/healthz` | liveness (no auth) |
+| GET | `/api/state` | `{sessions, quota, ts}` — one glance |
+| GET | `/api/sessions` | live worker sessions |
+| GET | `/api/quota` | `{harness: tokens_today}` |
+| GET | `/api/timeline[?pane=N]` | event history (oldest first) |
+| GET | `/api/events` | SSE: a `state` push every 2s + new events |
+| POST | `/api/send` | `{pane_id, text}` → inject + Enter |
+| POST | `/api/spawn` | `{harness, cwd, task?}` → `{pane_id}` |
+| POST | `/api/notify` | `{title, msg}` |
+
+Reads run in-process; writes shell out to this same CLI (thin adapter, like the
+MCP server). **Security**: binds loopback by default; a non-loopback bind
+without a token is refused, so the fleet API is never silently exposed. When a
+token is set (`HELM_BRAIN_TOKEN` or `--token`), every `/api/*` call needs
+`Authorization: Bearer <token>`.
+
+The cockpit consumes it with `cockpit.py --server http://127.0.0.1:8765 [--token T]`.

@@ -10,6 +10,46 @@ should actually be. It supersedes the "Layer 4 is the headline" framing in
 
 ---
 
+## Update 2026-06-10 — the trunk is the service, the engine is a leaf
+
+Reasoning backwards from the **killer feature — a phone app that manages every
+harness (state + quota + steering) across the fleet** — reframed the whole
+architecture:
+
+- The phone and the desktop cockpit are **the same client shape**, both talking
+  to a machine-side **helm-brain network service**. So the trunk is *making
+  helm-brain a service + a relay + auth*, **not** picking an engine.
+- The mobile-remote space is **already crowded** (Anthropic's own Remote
+  Control, Omnara, Nimbalyst, Forge Remote, …) but every one is **single-vendor
+  locked** (Claude-only / Claude+Codex). Kaji's wedge is **harness-agnostic
+  unified fleet** — all harnesses, one app, shared memory/skills.
+- The First Mate is a **thin stateless dispatcher** (NL → spawn/send,
+  confirm-gated, no long conversation, no planning), so the heavy-engine
+  justification (context mgmt / auto-compaction) largely collapses. The engine
+  (Goose/opencode/Crush) becomes one *optional* client for synthesis — kept
+  reversible by the helm-brain MCP layer. **Goose spike archived** (PR #116),
+  not merged.
+- **Quota is achievable after all.** No scriptable CLI exists, but Kaji holds
+  the pane: inject `/usage` → scrape rendered output. A per-harness scraper
+  adapter gives a **unified fleet quota view** nobody else has. (Currently
+  `helm-quota` only sums *consumed* tokens; remaining/reset is the scrape TODO.)
+
+**Build order (revised):** ✅ substrate (`events.jsonl`) → ✅ **helm-brain HTTP
+service** (`helm-brain serve`, this change) → unified quota scraper → relay +
+auth. Engine choice stays deferred.
+
+### `helm-brain serve` (shipped 2026-06-10)
+REST + SSE over stdlib `http.server`. Reads (sessions / quota / timeline /
+state) run in-process; writes (send / spawn / notify) shell out to the tested
+CLI — same thin-adapter philosophy as the MCP server. Binds `127.0.0.1` by
+default; a non-loopback bind **requires a token** (refuses to start otherwise),
+so the fleet API is never silently exposed. The cockpit gained a `--server URL`
+mode and is now just one HTTP client — proving the client/server split the phone
+will reuse.
+
+---
+
+
 ## The question that decides everything
 
 > If Helm's Brain is **just a visualization layer** showing each session's
