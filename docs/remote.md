@@ -7,21 +7,42 @@
 
 One-time setup:
 
-1. Mac: `brew install --cask tailscale-app` → open Tailscale.app → log in.
+1. Mac — two variants:
+   - **GUI**: `brew install --cask tailscale-app` → open Tailscale.app → log
+     in. Needs admin rights (pkg + system extension).
+   - **CLI userspace (no admin, verified)**: `brew install tailscale`, then
+     ```sh
+     tailscaled --tun=userspace-networking \
+       --statedir ~/.local/share/tailscaled \
+       --socket ~/.local/share/tailscaled/sock &
+     tailscale --socket ~/.local/share/tailscaled/sock up --hostname kaji-mac
+     ```
+     No root, no kernel/system extension; netstack forwards inbound tailnet
+     connections to localhost services, so `kaji-brain serve` can stay bound
+     to `127.0.0.1`.
 2. Phone: install Tailscale app → same account. Both devices now share a
    private tailnet (WireGuard, end-to-end encrypted, no ports opened).
 3. Find the Mac's tailnet IP: `tailscale ip -4` (e.g. `100.x.y.z`).
 
-Start the server (non-loopback bind **requires** a token — refuses to start
-without one):
+Start the server. A token is always recommended; a non-loopback bind
+**requires** one (refuses to start otherwise):
 
 ```sh
-KAJI_BRAIN_TOKEN=<long-random-string> kaji-brain serve --host 0.0.0.0 --port 8787
+KAJI_BRAIN_TOKEN=<long-random-string> kaji-brain serve --host 127.0.0.1 --port 8787
 ```
+
+(Bind `0.0.0.0` instead if using the GUI variant — its tun device delivers
+inbound traffic to the real interface, not localhost.)
 
 Generate a token: `openssl rand -hex 24`.
 
-From the phone (any HTTP client, or a browser for GET endpoints):
+From the phone, open `http://100.x.y.z:8787/` in the browser — the built-in
+**mobile cockpit**. Enter the token once (kept in localStorage); it shows the
+fleet (sessions, state dots, runtime, quota) and sends instructions to any
+worker. Add to Home Screen for an app-like feel. A native app may come later;
+the web page is deliberately first.
+
+Raw API (any HTTP client):
 
 ```
 GET  http://100.x.y.z:8787/api/state      # fleet snapshot (sessions + quota)

@@ -128,6 +128,13 @@ class TestServeAuth(unittest.TestCase):
         code, _ = _get(self.base, "/api/sessions", token="sekret")
         self.assertEqual(code, 200)
 
+    def test_mobile_page_open_even_with_token(self):
+        for path in ("/", "/mobile"):
+            code, body = _get(self.base, path)
+            self.assertEqual(code, 200)
+            self.assertIn("<!DOCTYPE html>", body)
+            self.assertIn("Kaji", body)
+
 
 class TestServeWrites(unittest.TestCase):
     def setUp(self):

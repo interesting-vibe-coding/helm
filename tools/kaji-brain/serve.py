@@ -14,6 +14,7 @@ Design mirrors the MCP server (tools/kaji-brain/mcp_server.py): a thin adapter.
     `kaji-brain` CLI, so the action logic lives in exactly one place.
 
 Endpoints
+  GET  /                        → mobile cockpit page          (no auth; static)
   GET  /healthz                 → {"ok": true}                 (no auth)
   GET  /api/state               → {sessions, quota, ts}        (one glance)
   GET  /api/sessions            → [ {pane_id, harness, ...} ]
@@ -49,6 +50,10 @@ import brain  # noqa: E402
 POLL_SECS = float(os.environ.get("KAJI_BRAIN_SSE_POLL", "2"))
 
 LOOPBACK_HOSTS = {"127.0.0.1", "::1", "localhost", ""}
+
+# The phone-facing cockpit page. Static, no secrets — served without auth;
+# every API call it makes still carries the bearer token.
+MOBILE_HTML = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mobile.html")
 
 
 def _spawn_via_cli(harness, cwd, task):
@@ -123,6 +128,18 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _html_file(self, path):
+        try:
+            with open(path, "rb") as f:
+                body = f.read()
+        except OSError:
+            return self._json({"error": "page not bundled"}, 404)
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
     def _read_body(self):
         try:
             n = int(self.headers.get("Content-Length", 0))
@@ -140,6 +157,8 @@ class Handler(BaseHTTPRequestHandler):
     # ── routing ───────────────────────────────────────────────────────────
     def do_GET(self):
         path = self.path.split("?", 1)[0]
+        if path in ("/", "/mobile"):
+            return self._html_file(MOBILE_HTML)
         if path == "/healthz":
             return self._json({"ok": True})
         if not self._authed():
