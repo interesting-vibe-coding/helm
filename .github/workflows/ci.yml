@@ -49,6 +49,9 @@ jobs:
       - name: helm-brain unit tests
         run: cd tools/helm-brain && python3 -m unittest discover -p 'test_*.py'
 
+      - name: brain-cockpit unit tests
+        run: cd tools/brain-cockpit && python3 -m unittest discover -p 'test_*.py'
+
       - name: Check required docs exist
         run: |
           test -f README.md || (echo "README.md missing" && exit 1)

@@ -49,11 +49,20 @@ Until then we keep iterating in the **V0.x** series.
 
 Concrete, prioritized task list toward V1. Tiers by impact: **P0** = correctness / data-loss prevention, **P1** = core UX, **P2** = polish.
 
-> **Current focus (2026-06-09): functionality, not redesign.** The UI looks
-> good and the **core agent loop is now verified end-to-end** (spawn → Monitor →
-> waiting → notify → restore). The next task is the `events.jsonl` substrate,
-> then the post-V1 engine spike. The Brain engine redesign (Goose / cockpit /
-> mobile) is a north star — see `docs/BRAIN_DESIGN.md` § Decision & sequencing.
+> **Current focus (2026-06-09 evening): the render-only Brain cockpit.** Core
+> agent loop is **verified end-to-end** and the **`events.jsonl` substrate is
+> shipped** (PR #115). Next is a **pure-visualization cockpit** for `Cmd+1` —
+> brand + session switcher + chat history + status dots + "most-neglected
+> first" ordering — built **TUI-first** (cloud-buildable; promote to a GUI
+> overlay later). **Decision:** the cockpit ships first, then a **lightweight
+> dispatcher** LLM whose job is concrete — turn one NL instruction into
+> `spawn`/`send` fan-out + session creation (dispatch, not planning,
+> confirm-gated). Because the substrate makes dispatch **near-stateless**, no
+> heavy engine/compaction is needed → ride the **lightest MCP-native harness**
+> (leaning **Crush**) on a cheap/free model, acting only through **helm-brain
+> exposed as an MCP server** (the next no-regret build). Mobile is a **relay**
+> problem, decoupled from the harness choice. See `docs/BRAIN_DESIGN.md`
+> § "The dispatcher".
 
 ### ✅ Shipped this week
 - **Scroll no longer crashes** — `mouse_common` called `[NSEvent clickCount]` on scroll-wheel events, raising an uncaught NSException that aborted the app. Now guarded to press/release only. (PR #92)

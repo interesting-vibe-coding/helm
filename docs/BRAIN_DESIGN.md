@@ -59,9 +59,11 @@ visualization needs it to render. **Build the substrate first.** The top layer
 (render-only vs Sonnet-narrated vs both) is an **experiment**, fork-friendly,
 decided after the substrate exists and token cost is measured.
 
-Note: **planning is explicitly out of scope.** The user always decides the next
-step and what each session does. So the LLM layer is "understand & narrate," not
-"decide / plan." That removes the most expensive model use entirely.
+Note: **autonomous planning is out of scope.** The user always decides *what* to
+do; the LLM layer's job is to **dispatch** that intent — fan one instruction out
+into `spawn`/`send` calls and create sessions — plus understand & narrate. It
+does not decide the work itself, and every action is confirm-gated. (See § "The
+dispatcher".) That keeps the model's job bounded and cheap.
 
 ---
 
@@ -295,47 +297,117 @@ Agreed build order:
    (Cmd+Shift+K) → Monitor (Cmd+3) lists it → worker hits *waiting* → Brain
    `notify` fires → session restore after restart. Walked each link; working.
    (This was the long-standing ROADMAP P0 "Core agent loop, end-to-end.")
-2. **Substrate `events.jsonl` (right after).** No-regret, cloud-buildable,
-   unit-testable, engine-independent; upgrades `Cmd+1` from a chat box to a real
-   timeline.
-3. **Engine spike (post-V1).** Time-box ~1 day to confirm an external client can
-   fully drive a Goose session (create → prompt → consume SSE). If it works,
-   commit to Goose; if not, fall back to opencode (accept the node daemon). The
-   `helm-brain`-as-MCP-server layer makes this fallback near-free — build that
-   layer first so the engine choice stays reversible.
+2. ✅ **Substrate `events.jsonl` (done, 2026-06-09).** No-regret, cloud-built,
+   unit-tested, engine-independent. `helm-brain` now appends `spawn`/`dispatch`/
+   `state` events and renders `helm-brain timeline [--json]`. This is the data
+   layer the cockpit renders. (PR #115.)
+3. **Pure-visualization cockpit (now — the next task).** See § "Visualization
+   first" below. Build the cockpit as render-only and **live in it for several
+   days** before adding any model. This both ships real value and answers the
+   north-star test from evidence rather than assumption.
+4. **The dispatcher (a lightweight LLM) — needed, built on top of the cockpit.**
+   The LLM's job is now concrete: **dispatch** — turn one natural-language
+   instruction ("fix the failing tests in kaji and mira") into `spawn` / `send`
+   calls and create/route worker sessions. This is the fan-out the user
+   shouldn't do by hand; it is *not* autonomous planning (the user gives the
+   intent, every action is confirm-gated). See § "The dispatcher" below.
 
-**Correction to the Goose rationale above.** Goose was ranked #1 partly because
-its in-process crate embed is "lighter than any sidecar." Under our own mobile
-endgame that advantage is **moot**: remote control needs a network API, so we
-will run **goosed (the server)** anyway and the in-process path is unused. The
-real, still-valid reasons to prefer Goose are **same language as Helm (Rust,
-compiles into the .app bundle), no bun/node runtime to ship, built to serve
-network clients, and LF governance** — not "lightest embed." Decide it at
-server-vs-server parity with opencode, not crate-vs-daemon.
+**Visualization first, then a lightweight dispatcher (consensus, evolved
+2026-06-09 evening).** The cockpit ships first (it is necessary either way and
+is the surface the dispatcher acts beside), but we **do** want the LLM layer —
+not for narration, but because **something has to fan a single instruction out
+into multiple sessions**. The earlier "maybe no LLM at all" resolved to: yes,
+but make it as light as possible. Why the order and the shape still hold:
+
+- **The cockpit is necessary either way**, so build it first with zero regret:
+  it is the render-only product *and* the surface the dispatcher acts beside
+  (the LLM is a component, not the shell).
+- **Marginal-on-its-own is still worth it.** Even bare, the cockpit collapses
+  "scan N panes" into an O(1) glance + persistent history, on top of Kaji's real
+  differentiators — cross-harness **memory** + **chat history** — on an
+  already-handsome terminal. The dispatcher then adds the active half.
+
+**Mobile is a relay problem, not an engine problem (consensus 2026-06-09).** A
+render-only Brain does not need `goosed` for remote control — the phone just
+needs a lightweight **relay** exposing `runtime.json` + `events.jsonl` +
+`helm-brain send`. Goose's network engine only wins *if* the Brain top layer is
+a live LLM conversation you want to chat with from the phone. So mobile is
+**decoupled** from the engine choice and must not drive it prematurely.
+
+## The dispatcher (the lightweight LLM layer)
+
+**Job:** one NL instruction → `spawn` / `send` fan-out across sessions. Dispatch,
+not planning; user gives intent; confirm-gated.
+
+**Key consequence of having built the substrate: the dispatcher is near
+*stateless*, so it needs no heavy engine.** Each dispatch reads the current
+fleet fresh from the substrate (`helm-brain sessions` + `timeline`), adds the
+user's instruction, and emits tool calls. There is no giant accumulating
+conversation to compact — so **auto-compaction / context-orchestration, the
+main reason Goose was ranked #1, is no longer required.** That re-opens
+"lightest wins."
+
+**Shape (elegant, minimal):**
+
+```
+  cockpit (render-only, built)  ──┐  shared substrate
+     fleet state / history        │  (events.jsonl + sessions)
+  dispatcher = lightest harness ──┘  + cheap model (DeepSeek / Flash)
+        │  acts only through ↓ (scoped + confirm-gated)
+  helm-brain as MCP server  (sessions / send / spawn / notify / timeline)
+```
+
+- **Constraint framework = `helm-brain` exposed as an MCP server.** The model
+  gets only those scoped tools — it can dispatch but can't wander; the trust /
+  confirm gate stays. Harness-agnostic: swapping the harness doesn't touch the
+  tool layer. **This is the next no-regret, cloud-buildable piece.**
+- **Lightest harness — leaning Crush.** With compaction no longer needed, Crush
+  (Charm; Go single static binary; MCP-native; OpenRouter/Ollama → free models)
+  becomes the front-runner. Its earlier weakness (unverified external HTTP
+  drive) does **not** apply when we run it *locally as the dispatcher the user
+  types into* rather than driving it headless. Goose drops to second; opencode's
+  node daemon is heaviest. Confirm the pick with a live run.
+- **Surface — dispatcher-as-pane beside the cockpit** (lightest; no headless
+  drive plumbing). Mobile later = a relay forwarding instructions to it +
+  streaming cockpit state.
+
+**Correction to the earlier Goose rationale.** Goose was ranked #1 for its
+in-process crate embed and proven context management. The mobile endgame already
+mooted the embed (remote control needs a network API). Now the substrate moots
+the context-management edge too (stateless dispatch). What's left for Goose is
+"Rust, no node runtime, LF governance" — real but no longer decisive against a
+lighter MCP-native harness like Crush. **Decide on lightness + MCP fit, with a
+live run.**
 
 ---
 
 ## Open decisions
 
-- [x] **Engine class**: a headless open-source harness driven as a custom
-      client — not a fork, not a from-scratch loop. Chosen for proven context
-      orchestration + auto-compaction.
-- [ ] **Which engine**: Goose vs opencode vs Crush — **deferred to a post-V1
-      spike** (see Decision & sequencing). Decide Goose vs opencode at
-      **server-vs-server parity** (goosed vs `opencode serve`), not
-      crate-vs-daemon; the in-process advantage is moot under the mobile
-      endgame. Prototype Goose first; fall back to opencode if external drive
-      doesn't pan out.
-- [x] **Instrument layer**: expose `helm-brain` as an MCP server so the engine
-      choice stays reversible.
-- [ ] **Cockpit build surface**: TUI in the Brain pane (Rust/Python client over
-      the SSE stream + event feed) vs a GUI overlay. TUI is the lower-risk start.
-- [ ] **Daemon lifecycle**: how Helm starts / supervises / bundles the
-      `opencode serve` process (and the bun/node runtime weight that implies).
-- [ ] **Top layer**: visualization-only vs LLM-narrated vs both. They coexist in
-      one cockpit; still measure whether the LLM earns its tokens.
-- [ ] **First Mate token cost**: measure in real daily driving before
-      committing to it as the headline.
+- [x] **LLM layer needed?** **Yes** — as a lightweight **dispatcher** (NL →
+      spawn/send fan-out + session creation), not narration, not planning. Kept
+      as light as possible (near-stateless on the substrate).
+- [x] **Engine class**: not a heavy headless engine after all. The substrate
+      makes dispatch near-stateless, removing the need for auto-compaction. Ride
+      the **lightest MCP-native harness** as a local dispatcher.
+- [~] **Which harness**: **leaning Crush** (Go single binary, MCP-native, free
+      models via OpenRouter). Goose second; opencode (node) heaviest. The Goose
+      drivability spike (PR #116) is code-ready but the headless-drive concern
+      it tests is **moot** if we run the harness locally rather than driving it.
+      Confirm Crush with a live run.
+- [x] **Instrument layer**: expose `helm-brain` as an **MCP server** — the
+      constraint framework the dispatcher acts through. Harness-agnostic; the
+      next no-regret, cloud-buildable piece.
+- [~] **Cockpit build surface**: **TUI-first** (render-only, in the Brain pane,
+      reading `events.jsonl` + `runtime.json`; shipped in PR #117). Promote to a
+      native GUI overlay only after the TUI proves the layout.
+- [~] **Dispatcher surface**: **lean dispatcher-as-pane** the user types into,
+      beside the cockpit (lightest; no headless-drive plumbing). Revisit only if
+      a cockpit-drives-headless shape proves clearly better.
+- [ ] **Token cost**: measure the dispatcher on a cheap model (DeepSeek / Flash)
+      in real use; keep per-dispatch context to the fleet snapshot + instruction.
+- [ ] **Mobile relay**: render-only mobile needs a `runtime.json` +
+      `events.jsonl` + `helm-brain send` relay (cf. `kaku-relay`) + auth —
+      independent of the engine choice.
 - [ ] **Lineage depth**: (a) per-session lifecycle timeline + global feed —
       do this for V1; (b) cross-session dependency DAG (task A done → triggers
       task B) — deferred, it requires the user to declare deps and adds
