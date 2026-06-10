@@ -111,3 +111,6 @@ assets/kaku.jpeg
 assets/kaku.jpg
 assets/card.png
 *.pyc
+
+# embedded scratch repo (old Desk experiment)
+/desk-terminal/
