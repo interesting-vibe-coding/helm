@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="45%" r="65%">
+      <stop offset="0%" stop-color="#1e1a15"/>
+      <stop offset="100%" stop-color="#0d0b09"/>
+    </radialGradient>
+    <clipPath id="shape">
+      <rect width="256" height="256" rx="54" ry="54"/>
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#shape)">
+    <rect width="256" height="256" fill="url(#bg)"/>
+
+    <!--
+      Layout math (stroke-width=16, linecap=round → visual overhang ~8px each end):
+      ">" : left arm x=60, tip x=100, arm span y ±36 from center 128 → y=92..164
+            Lower arm endpoint: (60, 164)
+      "_" : same y=164, x1=112 x2=192
+      Total visual bbox: x≈52 to x≈200 = 148px → centered in 256 = margin 54 each side ✓
+      Gap between ">" tip and "_" start = 12px (tight, like a real prompt)
+    -->
+
+    <!-- ">" — shifted right by 20px for true optical center -->
+    <polyline
+      points="80,92  120,128  80,164"
+      fill="none"
+      stroke="#c8b87e"
+      stroke-width="16"
+      stroke-linecap="round"
+      stroke-linejoin="round"/>
+
+    <!-- "_" — tighter gap after ">" tip -->
+    <line
+      x1="124" y1="156"
+      x2="210" y2="156"
+      stroke="#c8b87e"
+      stroke-width="13"
+      stroke-linecap="round"/>
+
+    <!-- Red seal -->
+    <circle cx="207" cy="203" r="10" fill="#5c1616" opacity="0.9"/>
+    <circle cx="207" cy="203" r="6.5" fill="#a02828" opacity="0.85"/>
+    <circle cx="207" cy="203" r="3.5" fill="#c43c3c" opacity="0.7"/>
+  </g>
+</svg>
