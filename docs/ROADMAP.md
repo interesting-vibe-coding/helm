@@ -63,6 +63,13 @@ Concrete, prioritized task list toward V1. Tiers by impact: **P0** = correctness
 > exposed as an MCP server** (the next no-regret build). Mobile is a **relay**
 > problem, decoupled from the harness choice. See `docs/BRAIN_DESIGN.md`
 > § "The dispatcher".
+>
+> **Update (2026-06-10): trunk reframed.** The dispatcher is a thin stateless
+> leaf, so the engine/harness choice is a swappable detail. The **trunk
+> priority is now `helm-brain` as a network service + relay + unified quota**
+> (the mobile-remote backbone — cockpit and phone are both clients), with the
+> MCP layer keeping the harness reversible. The Goose spike (#116) is archived
+> as research. See `docs/BRAIN_DESIGN.md` § "Decision (2026-06-10)".
 
 ### ✅ Shipped this week
 - **Scroll no longer crashes** — `mouse_common` called `[NSEvent clickCount]` on scroll-wheel events, raising an uncaught NSException that aborted the app. Now guarded to press/release only. (PR #92)
