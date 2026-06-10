@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-"""helm-brain serve — the fleet over HTTP.
+"""kaji-brain serve — the fleet over HTTP.
 
 The trunk of Kaji's remote story. Exposes the same eyes & hands as the
-`helm-brain` CLI, but over HTTP + Server-Sent Events, so that *any* client —
+`kaji-brain` CLI, but over HTTP + Server-Sent Events, so that *any* client —
 the desktop cockpit, a phone app behind a relay, a script — drives one fleet
 through one API. The cockpit and the phone are peers: same endpoints, same
 event stream, different device.
 
-Design mirrors the MCP server (tools/helm-brain/mcp_server.py): a thin adapter.
+Design mirrors the MCP server (tools/kaji-brain/mcp_server.py): a thin adapter.
   • Reads  (sessions / quota / timeline / state)  → in-process functions from
     brain.py (fast, no subprocess).
   • Writes (send / spawn / notify)                → shell out to the tested
-    `helm-brain` CLI, so the action logic lives in exactly one place.
+    `kaji-brain` CLI, so the action logic lives in exactly one place.
 
 Endpoints
   GET  /healthz                 → {"ok": true}                 (no auth)
@@ -29,7 +29,7 @@ Security
   Binds 127.0.0.1 by default (localhost only). Binding a non-loopback host
   (for a relay) REQUIRES a token — the server refuses to start otherwise, so a
   fleet-control API is never silently exposed unauthenticated. When a token is
-  set (env HELM_BRAIN_TOKEN or --token), every /api/* request must carry
+  set (env KAJI_BRAIN_TOKEN or --token), every /api/* request must carry
   `Authorization: Bearer <token>`; /healthz stays open for liveness checks.
 """
 
@@ -46,13 +46,13 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import brain  # noqa: E402
 
 # SSE state-push cadence (secs). The history tail is checked on the same beat.
-POLL_SECS = float(os.environ.get("HELM_BRAIN_SSE_POLL", "2"))
+POLL_SECS = float(os.environ.get("KAJI_BRAIN_SSE_POLL", "2"))
 
 LOOPBACK_HOSTS = {"127.0.0.1", "::1", "localhost", ""}
 
 
 def _spawn_via_cli(harness, cwd, task):
-    """Run `helm-brain spawn ...`; return (rc, parsed_json_or_error_dict)."""
+    """Run `kaji-brain spawn ...`; return (rc, parsed_json_or_error_dict)."""
     argv = ["spawn", str(harness), str(cwd)]
     if task:
         argv.append(str(task))
@@ -99,13 +99,13 @@ def build_state():
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "helm-brain/1.0"
+    server_version = "kaji-brain/1.0"
     # Set by the factory below.
     token = None
 
     # ── helpers ───────────────────────────────────────────────────────────
     def log_message(self, fmt, *args):  # quieter than the default
-        if os.environ.get("HELM_BRAIN_VERBOSE"):
+        if os.environ.get("KAJI_BRAIN_VERBOSE"):
             super().log_message(fmt, *args)
 
     def _authed(self):
@@ -239,18 +239,18 @@ def make_handler(token=None):
 
 
 def run(host="127.0.0.1", port=8765, token=None):
-    token = token or os.environ.get("HELM_BRAIN_TOKEN") or None
+    token = token or os.environ.get("KAJI_BRAIN_TOKEN") or None
     if host not in LOOPBACK_HOSTS and not token:
         sys.stderr.write(
             "refusing to bind non-loopback host %r without a token.\n"
-            "set HELM_BRAIN_TOKEN or pass --token to expose the fleet safely.\n"
+            "set KAJI_BRAIN_TOKEN or pass --token to expose the fleet safely.\n"
             % host
         )
         return 2
     httpd = ThreadingHTTPServer((host, port), make_handler(token))
     where = "%s:%d" % (host or "127.0.0.1", port)
     auth = "token-protected" if token else "localhost-only, no token"
-    sys.stderr.write("helm-brain serve → http://%s  (%s)\n" % (where, auth))
+    sys.stderr.write("kaji-brain serve → http://%s  (%s)\n" % (where, auth))
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
@@ -261,7 +261,7 @@ def run(host="127.0.0.1", port=8765, token=None):
 
 
 def cmd_serve(args):
-    """CLI entry: helm-brain serve [--host H] [--port P] [--token T]."""
+    """CLI entry: kaji-brain serve [--host H] [--port P] [--token T]."""
     host, port, token = "127.0.0.1", 8765, None
     i = 0
     while i < len(args):
@@ -277,7 +277,7 @@ def cmd_serve(args):
         elif a == "--token" and i + 1 < len(args):
             token = args[i + 1]; i += 2
         else:
-            sys.stderr.write("usage: helm-brain serve [--host H] [--port P] [--token T]\n")
+            sys.stderr.write("usage: kaji-brain serve [--host H] [--port P] [--token T]\n")
             return 2
     return run(host=host, port=port, token=token)
 

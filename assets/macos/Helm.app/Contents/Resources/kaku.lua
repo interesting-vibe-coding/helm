@@ -558,7 +558,7 @@ function Helm.sessions.track(pane)
   if not harness then return end  -- only track known harnesses
   -- The Brain (and the other dedicated slots) are agent sessions too, but they
   -- are NOT workers. Never record them in helm_sessions/runtime.json: otherwise
-  -- the Brain shows up as a "session" in the Monitor and — worse — helm-brain
+  -- the Brain shows up as a "session" in the Monitor and — worse — kaji-brain
   -- spawn would pick the Brain pane as a split anchor and tile a worker right
   -- next to the Brain instead of opening the Work tab.
   if not Helm.workspace.is_worker(pane:pane_id()) then return end
@@ -890,9 +890,9 @@ function Helm.brain.launcher()
   end
   local home = os.getenv('HOME') or ''
   local candidates = {
-    wezterm.executable_dir:gsub('MacOS/?$', 'Resources') .. '/tools/helm-brain/launch-brain.sh',
-    home .. '/workspace/helm-terminal/tools/helm-brain/launch-brain.sh',
-    home .. '/.config/kaku/tools/helm-brain/launch-brain.sh',
+    wezterm.executable_dir:gsub('MacOS/?$', 'Resources') .. '/tools/kaji-brain/launch-brain.sh',
+    home .. '/workspace/helm-terminal/tools/kaji-brain/launch-brain.sh',
+    home .. '/.config/kaku/tools/kaji-brain/launch-brain.sh',
   }
   for _, p in ipairs(candidates) do
     local f = io.open(p, 'r')
@@ -990,7 +990,7 @@ end
 -- Kaji.top — the Monitor layer (helm-top, an htop-style session list)
 -- ════════════════════════════════════════════════════════════
 -- Philosophy: zero friction, out of the box, focus on shipping. helm-top is a
--- stdlib-only Python viewer over `helm-brain sessions` — no deps, no state of
+-- stdlib-only Python viewer over `kaji-brain sessions` — no deps, no state of
 -- its own. You stay at the helm; this just shows who's working / waiting so you
 -- can jump to the one that needs you and get back to shipping.
 Helm.top = {}
@@ -1485,8 +1485,8 @@ function Helm.apply(config)
 
     -- Restore is now Brain-driven (opt-in): we do NOT auto-rebuild workers here.
     -- The snapshot was saved to last_session.json above; on boot the Brain runs
-    -- `helm-brain last-session` and offers the captain a Y/N restore (see the
-    -- helm-first-mate skill), respawning via `helm-brain spawn` so restored
+    -- `kaji-brain last-session` and offers the captain a Y/N restore (see the
+    -- helm-first-mate skill), respawning via `kaji-brain spawn` so restored
     -- workers tile into the Work view exactly like fresh ones.
 
     -- land on the Brain tab last so it's the front/active view

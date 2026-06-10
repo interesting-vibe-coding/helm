@@ -260,7 +260,7 @@ cp -R assets/shell-integration/* "$APP_BUNDLE_OUT/Contents/Resources/"
 cp -R assets/shell-completion "$APP_BUNDLE_OUT/Contents/Resources/"
 cp -R assets/fonts "$APP_BUNDLE_OUT/Contents/Resources/"
 cp -R assets/prompts "$APP_BUNDLE_OUT/Contents/Resources/"
-# Kaji: bundle ALL helm tools (helm-brain, helm-top, helm-quota, CLI utils) so
+# Kaji: bundle ALL helm tools (kaji-brain, helm-top, helm-quota, CLI utils) so
 # the Brain launcher, Monitor (helm-top), and bottom status bar work from the
 # installed .app, not just the dev repo. kaku.lua / launchers resolve
 # Resources/tools/<tool> first, then fall back to the dev repo path.
@@ -305,7 +305,7 @@ for bin in helm helm-gui k; do
 done
 
 # Backward-compat symlinks: legacy callers (shell-integration wrappers, kaku.lua
-# fallbacks, helm-brain/helm-top defaults, toast notifications, old PATH wrappers)
+# fallbacks, kaji-brain/helm-top defaults, toast notifications, old PATH wrappers)
 # still reference the `kaku` / `kaku-gui` names. Relative symlinks inside the
 # bundle keep them all working after the rename to helm / helm-gui.
 ( cd "$APP_BUNDLE_OUT/Contents/MacOS" && ln -sfn helm kaku && ln -sfn helm-gui kaku-gui )

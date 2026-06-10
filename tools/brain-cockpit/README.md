@@ -16,8 +16,8 @@ It reads the substrate and renders one calm screen:
 
 ## Data sources
 
-- `helm-brain sessions` → the live snapshot (`runtime.json` + quota).
-- `helm-brain timeline --json` → the `events.jsonl` history chain.
+- `kaji-brain sessions` → the live snapshot (`runtime.json` + quota).
+- `kaji-brain timeline --json` → the `events.jsonl` history chain.
 
 Rendering is a **pure function** of `(sessions, events, selection, width)`, so
 it is unit-tested and screenshot-able with no Kaji running.

@@ -46,8 +46,8 @@ jobs:
       - name: Lint Python tools
         run: find tools -name '*.py' | xargs -I{} python3 -m py_compile {}
 
-      - name: helm-brain unit tests
-        run: cd tools/helm-brain && python3 -m unittest discover -p 'test_*.py'
+      - name: kaji-brain unit tests
+        run: cd tools/kaji-brain && python3 -m unittest discover -p 'test_*.py'
 
       - name: brain-cockpit unit tests
         run: cd tools/brain-cockpit && python3 -m unittest discover -p 'test_*.py'
@@ -65,7 +65,7 @@ jobs:
             --include="*.md" \
             assets/shell-integration/ \
             assets/skills/ \
-            tools/helm-brain/ \
+            tools/kaji-brain/ \
             install.sh \
             scripts/build.sh scripts/dev-link.sh \
             kaku/src/config_tui/ \

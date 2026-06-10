@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""helm-brain: the Brain agent's eyes and hands.
+"""kaji-brain: the Brain agent's eyes and hands.
 
 The Kaji "First Mate" (a Sonnet orchestrator) uses this CLI to observe every
 worker agent session and to route the user's instructions to the right pane.
 
 Commands (the INTERFACE CONTRACT every downstream stage depends on):
 
-  helm-brain sessions
+  kaji-brain sessions
       Print a JSON array of worker sessions, one object per pane that Kaji is
       tracking as an agent session. Each object:
           {
@@ -19,10 +19,10 @@ Commands (the INTERFACE CONTRACT every downstream stage depends on):
           }
       Panes with no runtime.json entry (not agent sessions) are skipped.
 
-  helm-brain send <pane_id> <text>
+  kaji-brain send <pane_id> <text>
       Inject <text> followed by Enter into the given worker pane.
 
-  helm-brain spawn <harness> <cwd> [initial_task...]
+  kaji-brain spawn <harness> <cwd> [initial_task...]
       Spawn a NEW worker session: open a tab in Kaji running <harness>
       (kiro | claude | opencode | codex) in <cwd>. Prints {"pane_id": N} as
       JSON on success. If an initial_task is given, it is sent to the new pane
@@ -30,15 +30,15 @@ Commands (the INTERFACE CONTRACT every downstream stage depends on):
       bad cwd) prints {"error": ...} to stderr and exits non-zero. This is how
       the Brain splits work by project: one spawned session per project dir.
 
-  helm-brain notify <title> <msg>
+  kaji-brain notify <title> <msg>
       Pop a macOS notification.
 
-  helm-brain watch
+  kaji-brain watch
       Poll `sessions` every 3s and print a line whenever a session's state
       changes (especially -> waiting). Also appends each transition to the
       event log.
 
-  helm-brain timeline [--json] [--pane N]
+  kaji-brain timeline [--json] [--pane N]
       Render the fleet history from the event log plus the current snapshot.
       --json dumps the parsed events array (for the Cmd+1 Brain view to render).
 
@@ -288,7 +288,7 @@ def _send_text(cli, pane_id, text):
 
 def cmd_send(args):
     if len(args) < 2:
-        print("usage: helm-brain send <pane_id> <text>", file=sys.stderr)
+        print("usage: kaji-brain send <pane_id> <text>", file=sys.stderr)
         return 2
     pane_id = args[0]
     text = args[1]
@@ -309,7 +309,7 @@ def cmd_send(args):
 
 def cmd_spawn(args):
     if len(args) < 2:
-        print(json.dumps({"error": "usage: helm-brain spawn <harness> <cwd> [task...]"}),
+        print(json.dumps({"error": "usage: kaji-brain spawn <harness> <cwd> [task...]"}),
               file=sys.stderr)
         return 2
     harness = (args[0] or "").strip().lower()
@@ -351,7 +351,7 @@ def cmd_spawn(args):
             workers = [int(k) for k in json.load(_rf).keys()]
     except Exception:
         workers = []
-    # Exclude the calling pane: helm-brain is invoked FROM the Brain, so the
+    # Exclude the calling pane: kaji-brain is invoked FROM the Brain, so the
     # Brain's own pane must never be used as a split anchor (that would tile the
     # worker right next to the Brain instead of into the dedicated Work tab).
     try:
@@ -420,7 +420,7 @@ def _osa_escape(s):
 
 def cmd_notify(args):
     if len(args) < 2:
-        print("usage: helm-brain notify <title> <msg>", file=sys.stderr)
+        print("usage: kaji-brain notify <title> <msg>", file=sys.stderr)
         return 2
     title, msg = args[0], args[1]
     script = 'display notification "%s" with title "%s"' % (_osa_escape(msg), _osa_escape(title))
@@ -435,7 +435,7 @@ def cmd_notify(args):
 
 def cmd_watch(_args):
     prev = {}
-    print("helm-brain watch — polling every 3s (Ctrl-C to stop)", file=sys.stderr)
+    print("kaji-brain watch — polling every 3s (Ctrl-C to stop)", file=sys.stderr)
     try:
         while True:
             for s in collect_sessions():
@@ -539,21 +539,21 @@ def cmd_timeline(args):
 
 # ── dispatch ──────────────────────────────────────────────────────────────────
 
-USAGE = """helm-brain — the Brain agent's eyes and hands
+USAGE = """kaji-brain — the Brain agent's eyes and hands
 
 usage:
-  helm-brain sessions                 print JSON array of worker sessions
-  helm-brain send <pane_id> <text>    inject text + Enter into a pane
-  helm-brain spawn <harness> <cwd> [task...]
+  kaji-brain sessions                 print JSON array of worker sessions
+  kaji-brain send <pane_id> <text>    inject text + Enter into a pane
+  kaji-brain spawn <harness> <cwd> [task...]
                                       open a new worker session (kiro|claude|
                                       opencode|codex) in <cwd>, optionally
                                       sending an initial task. Prints {"pane_id":N}.
-  helm-brain notify <title> <msg>     pop a macOS notification
-  helm-brain watch                    stream session state changes
-  helm-brain timeline [--json] [--pane N]
+  kaji-brain notify <title> <msg>     pop a macOS notification
+  kaji-brain watch                    stream session state changes
+  kaji-brain timeline [--json] [--pane N]
                                       render the fleet history (events.jsonl)
                                       + the current snapshot
-  helm-brain serve [--host H] [--port P] [--token T]
+  kaji-brain serve [--host H] [--port P] [--token T]
                                       run the fleet HTTP+SSE API (default
                                       127.0.0.1:8765). Non-loopback host needs
                                       a token. Clients: cockpit, phone, scripts.
@@ -565,7 +565,7 @@ def cmd_last_session(_args):
     Reads last_session.json (written by the GUI at startup, before live tracking
     resets). Emits a JSON array of {harness, cwd, cwd_full, state}, de-duped by
     (harness, cwd_full), harness lowercased so it can be passed straight to
-    `helm-brain spawn`. Empty array if there's nothing to restore.
+    `kaji-brain spawn`. Empty array if there's nothing to restore.
     """
     try:
         with open(LAST_SESSION_JSON) as f:

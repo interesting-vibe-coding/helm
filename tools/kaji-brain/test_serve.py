@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests for helm-brain serve (the fleet HTTP API).
+"""Tests for kaji-brain serve (the fleet HTTP API).
 
 Cloud-buildable: spins the real ThreadingHTTPServer on 127.0.0.1:0, monkeypatches
 brain.py's data layer so no running Kaji / mux is needed, and drives it with
@@ -167,7 +167,7 @@ class TestServeWrites(unittest.TestCase):
 class TestNonLoopbackGuard(unittest.TestCase):
     def test_refuses_public_bind_without_token(self):
         # run() must refuse a non-loopback host with no token (rc 2), not bind.
-        os.environ.pop("HELM_BRAIN_TOKEN", None)
+        os.environ.pop("KAJI_BRAIN_TOKEN", None)
         rc = serve.run(host="0.0.0.0", port=0, token=None)
         self.assertEqual(rc, 2)
 
@@ -177,7 +177,7 @@ class TestSSE(unittest.TestCase):
         brain.collect_sessions = lambda: []
         brain.load_quota = lambda: {}
         brain.read_events = lambda: []
-        os.environ["HELM_BRAIN_SSE_POLL"] = "0.1"
+        os.environ["KAJI_BRAIN_SSE_POLL"] = "0.1"
         serve.POLL_SECS = 0.1
         self.httpd, self.base = _start()
 
