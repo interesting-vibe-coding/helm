@@ -120,6 +120,38 @@ it; corrupt lines are skipped on read. Override the path with `$HELM_EVENTS_JSON
 cd tools/helm-brain && python3 -m unittest discover -p 'test_*.py'
 ```
 
+## MCP server — the dispatcher's instrument layer
+
+`mcp_server.py` exposes helm-brain as an **MCP server** over stdio, so a
+lightweight **dispatcher** harness (Crush / Goose / any MCP client, on a cheap
+model) can turn one natural-language instruction into worker actions — while
+staying *scoped to these tools*. Harness-agnostic: swapping the dispatcher
+harness never touches this layer. See `docs/BRAIN_DESIGN.md` § "The dispatcher".
+
+Tools:
+
+| tool | kind | does |
+|------|------|------|
+| `list_sessions` | read | the live fleet (= `helm-brain sessions`) |
+| `fleet_timeline` | read | history events (= `helm-brain timeline --json`), optional `pane` |
+| `spawn_worker` | **write** | create a worker (`harness`, `cwd`, optional `task`) |
+| `send_to_worker` | **write** | dispatch text to a pane (`pane_id`, `text`) |
+| `notify` | write | macOS notification (`title`, `message`) |
+
+Write tools are annotated `destructiveHint: true` so the client keeps a
+**confirm gate** in front of them — this server is the hands, not the gate.
+
+Run it / register it with a harness:
+
+```sh
+python3 tools/helm-brain/mcp_server.py        # speaks newline-delimited JSON-RPC on stdio
+```
+
+Transport is newline-delimited JSON-RPC 2.0 (`initialize` / `tools/list` /
+`tools/call` / `ping`). The protocol dispatch is unit-tested; the **live
+handshake against a real MCP client must be verified on macOS** with Kaji
+running (the tools shell out to the `helm-brain` CLI).
+
 ## Launching the Brain
 
 The cross-harness **`helm-first-mate` skill** is the persona that turns a Sonnet
