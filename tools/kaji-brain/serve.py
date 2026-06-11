@@ -24,6 +24,7 @@ Endpoints
                                   POLL secs + new timeline events as they land
   POST /api/send    {pane_id, text}            → inject text + Enter
   POST /api/spawn   {harness, cwd, task?}      → open a worker, {"pane_id": N}
+  POST /api/plan    {order}                     → NL → {action: send|spawn|none, …}
   POST /api/notify  {title, msg}               → macOS notification
 
 Security
@@ -87,6 +88,20 @@ def _send_via_cli(pane_id, text):
     if rc == 0:
         brain.append_event("dispatch", pane=brain._as_pane(pane_id), text=text)
     return rc, err
+
+
+def _plan_via_cli(order):
+    """Run `kaji-brain plan "<order>"`; return (rc, plan_dict)."""
+    import io
+    import contextlib
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(io.StringIO()):
+        rc = brain.cmd_plan([str(order)])
+    out = buf.getvalue().strip()
+    try:
+        return rc, json.loads(out) if out else {"action": "none", "why": "no output"}
+    except Exception:
+        return rc, {"action": "none", "why": out or "plan failed"}
 
 
 def _notify_via_cli(title, msg):
@@ -199,6 +214,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"error": "harness and cwd required"}, 400)
             rc, payload = _spawn_via_cli(harness, cwd, body.get("task", ""))
             return self._json(payload, 200 if rc == 0 else 502)
+        if path == "/api/plan":
+            order = (body.get("order") or "").strip()
+            if not order:
+                return self._json({"error": "order required"}, 400)
+            rc, plan = _plan_via_cli(order)
+            return self._json(plan, 200)
         if path == "/api/notify":
             title, msg = body.get("title", "Kaji"), body.get("msg", "")
             rc, err = _notify_via_cli(title, msg)

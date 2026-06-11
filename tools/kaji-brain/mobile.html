@@ -88,6 +88,16 @@
 
   .spacer { flex: 1; min-height: 18px; }
 
+  #planbar { display: none; border: 1px solid var(--faint); border-left: 3px solid var(--sun);
+             border-radius: 12px; background: var(--card); padding: 12px 14px; margin-top: 14px; }
+  #planbar.open { display: block; }
+  #planbar .pline { font-size: 13px; margin-bottom: 10px; word-break: break-all; }
+  #planbar .pline b { color: var(--sun); font-weight: 600; }
+  #planbar .chips { display: flex; gap: 8px; }
+  .chip { border-radius: 999px; padding: 7px 18px; font: inherit; font-size: 13px; border: 1px solid var(--faint); background: none; color: var(--dim); }
+  .chip.go { background: var(--ink); color: var(--paper); border-color: var(--ink); font-weight: 600; }
+  .chip:active { opacity: .75; }
+
   #helm { display: flex; align-items: center; gap: 10px;
           border: 1.5px solid var(--ink); border-radius: 13px;
           background: var(--card); padding: 4px 6px 4px 15px; margin-top: 14px; }
@@ -138,9 +148,17 @@
     </div>
   </div>
   <div class="spacer"></div>
+  <div id="planbar">
+    <div class="pline" id="ptext"></div>
+    <div class="chips">
+      <button class="chip go" onclick="execPlan()">执行</button>
+      <button class="chip" onclick="closePlan()">取消</button>
+      <button class="chip" onclick="editPlan()">改一改</button>
+    </div>
+  </div>
   <div id="helm">
     <span class="rudder">舵</span>
-    <input id="order" placeholder="说一句…" enterkeyhint="send" autocomplete="off">
+    <input id="order" placeholder="说一句，比如：开个 codex 去 wu 修路由…" enterkeyhint="send" autocomplete="off">
     <button class="solid" onclick="sendOrder()">Send</button>
   </div>
   <div id="target"></div>
@@ -251,15 +269,70 @@ function render(state) {
     : "";
 }
 
+let pendingPlan = null;
+
 async function sendOrder() {
   const text = $("order").value.trim();
-  if (!text || selected == null) return;
+  if (!text) return;
+  $("order").value = "";
+  $("ptext").innerHTML = "…";
+  $("planbar").classList.add("open");
   try {
-    await api("/api/send", { method: "POST",
-      body: JSON.stringify({ pane_id: selected, text }) });
-    $("order").value = "";
+    const plan = await api("/api/plan", { method: "POST",
+      body: JSON.stringify({ order: text }) });
+    if (plan.action === "send") {
+      pendingPlan = plan;
+      $("ptext").innerHTML = "→ 回 <b>pane " + esc(plan.pane_id) + "</b>：" + esc(plan.text || "");
+    } else if (plan.action === "spawn") {
+      pendingPlan = plan;
+      $("ptext").innerHTML = "→ <b>spawn " + esc(plan.harness) + "</b> · " +
+        esc(plan.cwd || "") + "：" + esc(plan.task || "");
+    } else {
+      pendingPlan = null;
+      $("ptext").innerHTML = "× " + esc(plan.why || "没看懂");
+      setTimeout(closePlan, 3500);
+    }
+  } catch (e) {
+    closePlan();
+    showErr("plan failed: " + e.message);
+  }
+}
+
+function closePlan() { pendingPlan = null; $("planbar").classList.remove("open"); }
+
+function editPlan() {
+  if (!pendingPlan) return;
+  $("order").value = pendingPlan.action === "send" ? (pendingPlan.text || "")
+                                                   : (pendingPlan.task || "");
+  $("order").focus();
+  // edited text replaces the plan's payload on the next 执行
+  $("order").onkeydown = e => {
+    if (e.key === "Enter") {
+      if (pendingPlan.action === "send") pendingPlan.text = $("order").value.trim();
+      else pendingPlan.task = $("order").value.trim();
+      $("order").value = "";
+      $("order").onkeydown = ev => { if (ev.key === "Enter") sendOrder(); };
+      execPlan();
+    }
+  };
+}
+
+async function execPlan() {
+  const plan = pendingPlan;
+  if (!plan) return;
+  closePlan();
+  try {
+    if (plan.action === "send") {
+      await api("/api/send", { method: "POST",
+        body: JSON.stringify({ pane_id: plan.pane_id, text: plan.text || "" }) });
+    } else {
+      const r = await api("/api/spawn", { method: "POST",
+        body: JSON.stringify({ harness: plan.harness || "claude",
+                               cwd: plan.cwd || "", task: plan.task || "" }) });
+      if (r && r.pane_id != null) selected = r.pane_id;
+    }
     refresh();
-  } catch (e) { showErr("send failed: " + e.message); }
+  } catch (e) { showErr("failed: " + e.message); }
 }
 
 function toggleSheet() {
