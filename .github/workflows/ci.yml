@@ -98,8 +98,8 @@ jobs:
 
       - name: Info.plist bundle id check
         run: |
-          id=$(plutil -extract CFBundleIdentifier raw \
-               assets/macos/Helm.app/Contents/Info.plist)
+          # plistlib not plutil — this job runs on ubuntu (plutil is macOS-only).
+          id=$(python3 -c "import plistlib; print(plistlib.load(open('assets/macos/Helm.app/Contents/Info.plist','rb'))['CFBundleIdentifier'])")
           [[ "$id" == "dev.kaji.app" ]] || \
             (echo "ERROR: bundle id is '$id', expected 'dev.kaji.app'" && exit 1)
           echo "✓ bundle id: $id"
