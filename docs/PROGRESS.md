@@ -109,4 +109,11 @@ fleet + 共享 memory/skills**.
 
 **远期已定（2026-06-11）**: 自有手机 App — 扫码即连（QR 配对换密钥, Happy 模式）, 界面 = Kaji Sun 设计语言。先 web cockpit 养形状, App 收割。
 
+**Dogfood 实测（2026-06-11 晚, v0.5.0）**:
+- ✅ Brain(Sonnet+MCP) 全链通: 人话 → 计划 → spawn_worker/send_to_worker → worker 收到执行 → waiting 事件回报。
+- ✅ 原生确认上线(PR #138): Brain 去 skip-permissions, spawn/send 走 Claude Code 原生上下键确认; 只读工具白名单免弹。
+- ⚠️ 用户体验结论: **借壳 claude code 的交互天花板已现**(确认框样式/对话流不可控) → 不影响当前推进, 但**自研轻引擎+自绘对话 UI = 既定终态**, MCP 工具协议届时原样平移。
+- 🐛 #139 waiting 误报 → 修(PR #140): BUSY_MARKERS — 尾部画面含 'esc to interrupt' 等忙碌标记时, 指纹再稳也不判 waiting。
+- 坑: `open -a Kaji` 可能被 LaunchServices 解析到 repo 里 dist/Kaji.app(dev build) — 验证装机版要 `open /Applications/Kaji.app` 绝对路径。
+
 **Next（当前队列）**: ① cockpit 交互循环 + mobile/desktop UI 设计打磨（主战场: 轻量·交互·可视化, 管多 harness 必须比终端切换方便得多）② 统一额度 scraper ③ relay 加 QR 配对 + E2E 加密（launch 前安全叙事）④ demo（最后录）。
