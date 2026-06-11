@@ -105,9 +105,15 @@ case "$BRAIN_HARNESS" in
     # cross-app config file (claude_desktop_config.json) pops a TCC "access
     # data from other apps" prompt on every Brain launch, so we opt out.
     MCP_CONFIG=$(printf '{"mcpServers":{"kaji-brain":{"command":"python3","args":["%s/mcp_server.py"]}}}' "$SCRIPT_DIR")
-    exec claude --model sonnet --dangerously-skip-permissions \
+    # NO --dangerously-skip-permissions for the Brain: the harness's native
+    # permission prompt (arrow-key allow/deny) IS the confirm gate for
+    # destructive fleet actions (spawn_worker / send_to_worker) — better UX
+    # than a typed y/n. Read-only tools + the kaji-brain CLI are pre-allowed
+    # so observation stays frictionless.
+    exec claude --model sonnet \
+      --allowedTools "mcp__kaji-brain__list_sessions" "mcp__kaji-brain__fleet_timeline" "mcp__kaji-brain__notify" "Bash(kaji-brain:*)" \
       --mcp-config "$MCP_CONFIG" --strict-mcp-config \
-      "You are the Kaji First Mate. Use the /helm-first-mate skill. Prefer the kaji-brain MCP tools (list_sessions, fleet_timeline, spawn_worker, send_to_worker, notify) over shelling out. Start: call list_sessions, run 'kaji-brain last-session' (offer a y/n restore if non-empty), and greet me."
+      "You are the Kaji First Mate. Use the /helm-first-mate skill. Prefer the kaji-brain MCP tools (list_sessions, fleet_timeline, spawn_worker, send_to_worker, notify) over shelling out; the permission prompt on spawn/send is the captain's confirm gate, so call the tool directly after a one-line plan. Start: call list_sessions, run 'kaji-brain last-session' (offer a y/n restore if non-empty), and greet me."
     ;;
   kiro)
     echo "launch-brain: using kiro-cli (--model claude-sonnet-4.6, helm-first-mate skill)" >&2
