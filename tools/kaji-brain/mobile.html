@@ -59,6 +59,12 @@
 
   .empty { color: var(--ash); text-align: center; padding: 40px 0 28px; font-size: 13px; }
 
+  .hist { display: none; padding: 4px 0 12px 17px; border-bottom: 1px solid var(--track); }
+  .hist.open { display: block; }
+  .hist .ev { font-size: 12px; color: var(--dim); line-height: 1.9; }
+  .hist .ev .t { color: var(--ash); margin-right: 8px; }
+  .hist .ev b { color: var(--ink); font-weight: 500; }
+
   #newbar { display: flex; justify-content: center; padding: 14px 0 0; }
   .ghost { background: none; border: 1px solid var(--faint); color: var(--dim);
            border-radius: 999px; padding: 7px 16px; font: inherit; font-size: 12px; }
@@ -260,8 +266,21 @@ function render(state) {
       '<span class="who"><b>' + esc(s.harness) + '</b> <span>· ' + esc(s.project || "?") + '</span></span>' +
       '<span class="st' + (st === "waiting" ? " you" : "") + '">' +
         esc(st) + ' ' + fmtRuntime(s.runtime_secs || 0) + esc(ctx) + '</span>';
-    row.onclick = () => { selected = s.pane_id; render(state); };
+    row.onclick = () => {
+      if (selected === s.pane_id) { toggleHist(s.pane_id, row); return; }
+      selected = s.pane_id;
+      openHist = null;
+      render(state);
+    };
     list.appendChild(row);
+    if (openHist === s.pane_id) {
+      const h = document.createElement("div");
+      h.className = "hist open";
+      h.id = "hist-" + s.pane_id;
+      h.innerHTML = '<div class="ev">…</div>';
+      list.appendChild(h);
+      fillHist(s.pane_id, h);
+    }
   }
   const sel = sessions.find(s => s.pane_id === selected);
   $("target").innerHTML = sel
@@ -270,6 +289,31 @@ function render(state) {
 }
 
 let pendingPlan = null;
+let openHist = null;          // pane_id whose history is expanded
+
+function toggleHist(paneId) {
+  openHist = (openHist === paneId) ? null : paneId;
+  refresh();
+}
+
+async function fillHist(paneId, el) {
+  try {
+    const evs = await api("/api/timeline?pane=" + paneId);
+    const last = (evs || []).slice(-5).reverse();
+    if (!last.length) { el.innerHTML = '<div class="ev">(no history yet)</div>'; return; }
+    el.innerHTML = last.map(e => {
+      const t = new Date((e.ts || 0) * 1000);
+      const hm = String(t.getHours()).padStart(2, "0") + ":" + String(t.getMinutes()).padStart(2, "0");
+      const what = e.ev === "spawn" ? (e.task || "(no task)")
+                 : e.ev === "dispatch" ? (e.text || "")
+                 : e.ev === "state" ? (e.to || "") : "";
+      return '<div class="ev"><span class="t">' + hm + '</span><b>' + esc(e.ev || "?") +
+             '</b> ' + esc(String(what).slice(0, 80)) + '</div>';
+    }).join("");
+  } catch (err) {
+    el.innerHTML = '<div class="ev">(history unavailable)</div>';
+  }
+}
 
 async function sendOrder() {
   const text = $("order").value.trim();
