@@ -488,6 +488,23 @@ function Helm.harnesses.detect(process_name)
   return nil
 end
 
+-- Pane → harness, looking at the foreground process's NAME and ARGV. The
+-- executable alone misses node-shim CLIs (codex runs as `node …/bin/codex`,
+-- so the process name is just "node") — argv carries the real identity.
+function Helm.harnesses.detect_pane(pane)
+  local okn, proc = pcall(function() return pane:get_foreground_process_name() end)
+  local hit = okn and Helm.harnesses.detect(proc) or nil
+  if hit then return hit end
+  local oki, info = pcall(function() return pane:get_foreground_process_info() end)
+  if not (oki and info) then return nil end
+  local argv = info.argv or {}
+  for i = 1, math.min(#argv, 3) do
+    hit = Helm.harnesses.detect(tostring(argv[i]))
+    if hit then return hit end
+  end
+  return nil
+end
+
 -- launcher choices derived from the list (id = command to exec)
 function Helm.harnesses.choices()
   local out = {}
@@ -575,8 +592,7 @@ end
 function Helm.sessions.track(pane)
   local sessions = wezterm.GLOBAL.helm_sessions
   local id = tostring(pane:pane_id())
-  local proc = pane:get_foreground_process_name()
-  local harness = Helm.harnesses.detect(proc)
+  local harness = Helm.harnesses.detect_pane(pane)
   if not harness then return end  -- only track known harnesses
   -- The Brain (and the other dedicated slots) are agent sessions too, but they
   -- are NOT workers. Never record them in helm_sessions/runtime.json: otherwise
@@ -1306,6 +1322,20 @@ function Helm.keys.bind(config)
     end),
   })
 
+  -- Cmd+Shift+A: toggle the cockpit's dispatch mode (confirm ⇄ auto). Only
+  -- meaningful on the Brain pane — forwards a Tab, which the cockpit maps to
+  -- the mode switch. No-op elsewhere.
+  table.insert(config.keys, {
+    key = 'A',
+    mods = 'CMD|SHIFT',
+    action = wezterm.action_callback(function(window, pane)
+      local b = Helm.brain.pane()
+      if b and pane:pane_id() == b:pane_id() then
+        pane:send_text('\t')
+      end
+    end),
+  })
+
   -- Cmd+Shift+M: 轮转 kiro 模型 sonnet ↔ opus
   table.insert(config.keys, {
     key = 'M',
@@ -1322,7 +1352,9 @@ function Helm.keys.bind(config)
     end),
   })
 
-  -- Cmd+Shift+K: Kaji Harness Launcher 🚀
+  -- Cmd+Shift+K: Kaji Harness Launcher 🚀 — workers live in the WORK area.
+  -- Never split the pane you happen to be on (that tiled workers next to the
+  -- Brain): anchor on a live worker pane and split it, or open a new tab.
   table.insert(config.keys, {
     key = 'K',
     mods = 'CMD|SHIFT',
@@ -1331,15 +1363,29 @@ function Helm.keys.bind(config)
         wezterm.action.InputSelector {
           action = wezterm.action_callback(function(w, p, id, label)
             if not id then return end
-            w:perform_action(
-              wezterm.action.SplitPane {
-                direction = 'Right',
-                -- exec so the agent takes over the shell process; without exec
-                -- bash exits when the command ends and the pane closes (looks like a crash)
-                command = { args = { '/bin/bash', '-l', '-c', 'exec ' .. id } },
-              },
-              p
-            )
+            local cmd = { args = { '/bin/bash', '-l', '-c', 'exec ' .. id } }
+            -- find a live worker pane to anchor on
+            local anchor = nil
+            for _, win in ipairs(wezterm.mux.all_windows()) do
+              for _, tab in ipairs(win:tabs()) do
+                for _, wp in ipairs(tab:panes()) do
+                  local wid = wp:pane_id()
+                  if Helm.workspace.is_worker(wid)
+                     and wezterm.GLOBAL.helm_sessions
+                     and wezterm.GLOBAL.helm_sessions[tostring(wid)] then
+                    anchor = wp
+                    break
+                  end
+                end
+                if anchor then break end
+              end
+              if anchor then break end
+            end
+            if anchor then
+              anchor:split { direction = 'Right', args = cmd.args }
+            else
+              w:mux_window():spawn_tab { args = cmd.args }
+            end
           end),
           fuzzy = true,
           title = '  Launch Harness',
