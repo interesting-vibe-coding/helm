@@ -3,6 +3,39 @@
 All notable changes to Kaji are documented here.
 Format: [version] - date - description
 
+## [0.6.0] - 2026-06-11
+
+### Kaji Sun — the terminal wears its own design
+- **Sun day/night palettes everywhere** (#143, #145, #146, #150) — paper/ink/
+  persimmon visual language: cockpit TUI, mobile page, README hero shot.
+  Night = warm cream on charcoal; persimmon means ONE thing: needs you.
+- **New mark** (#152) — ink wheel + persimmon spoke (logo / README / app icon).
+- **Two views only** (#149) — Cmd+/ flips Mission Control ⇄ Work; Cmd+1/2/4
+  retired (Terminal slot → Cmd+T). Top bar always shows where Cmd+/ goes.
+- **Brain view = our own cockpit** (#147) — the Sun TUI replaces the
+  claude-code shell as the default Brain (BRAIN_HARNESS=claude to revert).
+- **Instant paint** (#150) — first frame in ~35ms; data loads behind a
+  skeleton; refreshes are async (no more 1s blank).
+
+### The helm line — say it, don't type forms
+- **NL dispatch** (#151, #153) — type directly into the cockpit (no prefix):
+  one sentence → planner (claude -p sonnet) → {send|spawn} plan → arrow-key
+  confirm (执行/取消/改一改) or auto mode (Tab / Cmd+Shift+A toggles).
+
+### Authoritative quota + per-session context
+- **Dual-window limits** (#144, #145) — claude oauth usage API + codex
+  app-server: 5h/weekly used% on cockpit, status bar, phone.
+- **Per-session ctx%** (#145) — each session shows how full its context
+  window is (e.g. ctx 18%).
+
+### Fixes
+- **Relay stale-job loop** (#148) — an offline connector + an open phone page
+  self-sustained a 404 loop; connector now skips expired jobs, worker prunes
+  its queue. Lint's plist check now runs on ubuntu (plutil → plistlib).
+- **Spawn placement + codex detection** (#153) — Cmd+Shift+K anchors workers
+  in the Work area (never beside the Brain); codex (a node shim) is now
+  detected via argv; codex spawn tasks submit reliably (boot-wait + CR).
+
 ## [0.5.0] - 2026-06-11
 
 ### Remote — steer the fleet from anywhere
