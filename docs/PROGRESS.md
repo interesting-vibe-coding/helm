@@ -122,4 +122,7 @@ fleet + 共享 memory/skills**.
 - Claude Code 1M 模型 auto-compact override 失效(官方 bug #53801, 阈值按硬编码 200k 算) → 1M session 只能手动 /compact。
 - wrangler OAuth 过期 → 用 about-me 的 CF API token 走 env(CLOUDFLARE_API_TOKEN+ACCOUNT_ID)。
 
+**舵 NL 派活过渡方案（2026-06-11）**: `kaji-brain plan "<order>"` — 一句人话 → claude -p sonnet → {send|spawn|none} JSON；cockpit `i`/`/` 唤舵输入 → 计划回显 → y/N → 执行。~9s 延迟。自研引擎前的过渡面。
+**踩坑**: ⌘/ 在本机被豆包输入法全局快捷键抢占（弹它的设置面板, 按键到不了 Kaji）→ 用户需在豆包设置改掉; Kaji 侧 ⌘⇧⏎ 同款 toggle 兜底。
+
 **Next（当前队列）**: ① cockpit 交互循环 + mobile/desktop UI 设计打磨（主战场: 轻量·交互·可视化, 管多 harness 必须比终端切换方便得多）② 统一额度 scraper ③ relay 加 QR 配对 + E2E 加密（launch 前安全叙事）④ demo（最后录）。

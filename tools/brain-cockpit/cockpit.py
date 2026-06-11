@@ -284,6 +284,19 @@ def _run_json(argv: List[str], default):
         return default
 
 
+def nl_plan(order: str) -> Dict:
+    """One captain sentence → structured fleet action via `kaji-brain plan`."""
+    hb = _helm_brain_argv()
+    if not hb:
+        return {"action": "none", "why": "kaji-brain not found"}
+    try:
+        out = subprocess.run(hb + ["plan", order], stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE, timeout=90)
+        return json.loads(out.stdout.decode("utf-8", "replace").strip() or "{}")
+    except Exception as e:
+        return {"action": "none", "why": str(e)}
+
+
 def fetch_live() -> Tuple[List[Dict], List[Dict], Dict]:
     """Pull sessions + events + quota from kaji-brain. Empty if unavailable."""
     hb = _helm_brain_argv()
@@ -439,10 +452,12 @@ def parse_key(buf: bytes) -> str:
         return "spawn"
     if buf in (b"r", b"R"):
         return "refresh"
+    if buf in (b"i", b"I", b"/"):
+        return "helm"
     return "none"
 
 
-HINTS = "↑↓ select · ⏎ send · s spawn · r refresh · q quit"
+HINTS = "舵 i 说一句 · ↑↓ select · ⏎ send · s spawn · r refresh · q quit"
 
 
 def _prompt(line: str) -> str:
@@ -550,6 +565,40 @@ def interactive(args) -> int:
                     ok, err = spawn_worker(args.server, args.token or None,
                                            harness, cwd, task)
                     flash = "spawned ✓" if ok else ("spawn failed: " + (err or "?"))
+                kick()
+            elif action == "helm":
+                # 舵 line: one sentence → plan (small model) → y/n → execute.
+                termios.tcsetattr(fd, termios.TCSADRAIN, old_attrs)
+                order = _prompt("\n 舵 > ")
+                if order:
+                    sys.stdout.write("   …\n")
+                    sys.stdout.flush()
+                    plan = nl_plan(order)
+                    act = plan.get("action")
+                    if act == "send":
+                        line = "→ send to pane %s: %s" % (plan.get("pane_id"), plan.get("text", ""))
+                    elif act == "spawn":
+                        line = "→ spawn %s in %s: %s" % (
+                            plan.get("harness"), plan.get("cwd"), plan.get("task", ""))
+                    else:
+                        line = "× " + (plan.get("why") or "no plan")
+                    if act in ("send", "spawn"):
+                        yn = _prompt(" %s\n   execute? [y/N] " % line)
+                        if yn.strip().lower() == "y":
+                            if act == "send":
+                                ok, err = send_text(args.server, args.token or None,
+                                                    plan.get("pane_id"), plan.get("text", ""))
+                            else:
+                                ok, err = spawn_worker(args.server, args.token or None,
+                                                       plan.get("harness") or "claude",
+                                                       plan.get("cwd") or "",
+                                                       plan.get("task") or "")
+                            flash = "done ✓" if ok else ("failed: " + (err or "?"))
+                        else:
+                            flash = "cancelled"
+                    else:
+                        flash = line
+                tty.setcbreak(fd)
                 kick()
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, old_attrs)
