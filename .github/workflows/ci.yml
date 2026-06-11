@@ -10,18 +10,31 @@ jobs:
   # Only runs when Rust/Cargo source actually changes. Skipped for docs,
   # scripts, Lua, Python, and asset-only PRs — no need to spend 5 min on
   # cargo check when only README.md changed.
+  # Real path filter (the old `if` had a stray `|| true` — every PR paid the
+  # 5-minute cargo check even for docs). A skipped required check counts as
+  # satisfied for branch protection, so docs/python PRs merge in ~1 min.
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      rust: ${{ steps.filter.outputs.rust }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            rust:
+              - '**/*.rs'
+              - '**/Cargo.toml'
+              - 'Cargo.lock'
+              - '.github/workflows/ci.yml'
+
   cargo:
     name: Cargo Check
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     runs-on: macos-latest
-    if: |
-      contains(toJson(github.event.commits), '.rs"') ||
-      contains(toJson(github.event.commits), 'Cargo.toml') ||
-      contains(toJson(github.event.commits), 'Cargo.lock') ||
-      github.event_name == 'pull_request' && (
-        contains(toJson(github.event.pull_request.title), 'rust') ||
-        contains(toJson(github.event.pull_request.title), 'cargo') ||
-        true
-      )
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -34,14 +47,17 @@ jobs:
   # ── Scripts + assets lint (always runs, fast) ─────────────────────────────
   lint:
     name: Lint & Brand Guards
-    runs-on: macos-latest
+    # ubuntu spins up much faster than the macos runner queue — everything in
+    # this job is platform-independent.
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - name: Check kaku.lua syntax
         run: |
-          brew install lua 2>/dev/null || true
-          luac -p assets/macos/Helm.app/Contents/Resources/kaku.lua
+          sudo apt-get install -y -qq lua5.4 >/dev/null 2>&1 || sudo apt-get install -y -qq lua5.3 >/dev/null 2>&1 || true
+          LUAC=$(command -v luac5.4 || command -v luac5.3 || command -v luac)
+          "$LUAC" -p assets/macos/Helm.app/Contents/Resources/kaku.lua
 
       - name: Lint Python tools
         run: find tools -name '*.py' | xargs -I{} python3 -m py_compile {}

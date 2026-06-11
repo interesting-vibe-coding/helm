@@ -88,6 +88,33 @@ SOCK_DIR = Path(os.environ.get("HELM_SOCK_DIR") or HOME / ".local" / "share" / "
 # the Kaji launcher (same auto-approve / trust flags). The harness IS the pane
 # process (spawned directly, not under a wrapper shell), so the pane lives for
 # as long as the agent does.
+# Kaji.app launched from Finder/`open -a` gets the minimal GUI PATH
+# (/usr/bin:/bin:/usr/sbin:/sbin), so the mux can't find harness binaries that
+# live in user dirs ("Unable to spawn codex: No viable candidates found in
+# PATH"). Resolve to an absolute path before handing the program to the mux.
+EXTRA_BIN_DIRS = [
+    "/opt/homebrew/bin",
+    "/usr/local/bin",
+    str(HOME / ".local" / "bin"),
+    str(HOME / ".npm-global" / "bin"),
+]
+
+
+def _resolve_prog(prog):
+    """Return prog with argv[0] made absolute (searching PATH + EXTRA_BIN_DIRS)."""
+    name = prog[0]
+    if os.path.isabs(name):
+        return prog
+    exe = shutil.which(name)
+    if not exe:
+        for d in EXTRA_BIN_DIRS:
+            cand = os.path.join(d, name)
+            if os.path.isfile(cand) and os.access(cand, os.X_OK):
+                exe = cand
+                break
+    return ([exe] + list(prog[1:])) if exe else list(prog)
+
+
 HARNESS_CMDS = {
     "kiro": ["kiro-cli", "chat", "--trust-all-tools", "--agent", "default", "--effort", "medium"],
     "claude": ["claude", "--dangerously-skip-permissions"],
@@ -398,6 +425,8 @@ def cmd_spawn(args):
     task = " ".join(args[2:]).strip() if len(args) > 2 else ""
 
     prog = HARNESS_CMDS.get(harness)
+    if prog:
+        prog = _resolve_prog(prog)
     if not prog:
         print(json.dumps({"error": "unknown harness: %s" % harness,
                           "known": sorted(HARNESS_CMDS)}), file=sys.stderr)

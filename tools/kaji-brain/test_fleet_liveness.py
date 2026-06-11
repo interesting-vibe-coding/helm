@@ -158,5 +158,43 @@ class TestListPanesNone(unittest.TestCase):
             brain._helm_cli, brain._cli_run = orig_cli, orig_run
 
 
+class TestResolveProg(unittest.TestCase):
+    """GUI PATH lacks user bin dirs (kaji spawn-from-phone bug)."""
+
+    def test_absolute_passthrough(self):
+        self.assertEqual(brain._resolve_prog(["/usr/bin/true", "-x"]),
+                         ["/usr/bin/true", "-x"])
+
+    def test_resolves_via_which(self):
+        out = brain._resolve_prog(["sh", "-c", "x"])
+        self.assertTrue(os.path.isabs(out[0]), out)
+        self.assertEqual(out[1:], ["-c", "x"])
+
+    def test_falls_back_to_extra_dirs(self):
+        import shutil as _sh
+        import tempfile as _tf
+        with _tf.TemporaryDirectory() as d:
+            exe = os.path.join(d, "fakeharness")
+            open(exe, "w").write("#!/bin/sh\n")
+            os.chmod(exe, 0o755)
+            orig_which, orig_dirs = brain.shutil.which, brain.EXTRA_BIN_DIRS
+            brain.shutil.which = lambda n: None
+            brain.EXTRA_BIN_DIRS = [d]
+            try:
+                self.assertEqual(brain._resolve_prog(["fakeharness", "--go"]),
+                                 [exe, "--go"])
+            finally:
+                brain.shutil.which, brain.EXTRA_BIN_DIRS = orig_which, orig_dirs
+
+    def test_unresolvable_left_as_is(self):
+        orig_which, orig_dirs = brain.shutil.which, brain.EXTRA_BIN_DIRS
+        brain.shutil.which = lambda n: None
+        brain.EXTRA_BIN_DIRS = []
+        try:
+            self.assertEqual(brain._resolve_prog(["nope-bin"]), ["nope-bin"])
+        finally:
+            brain.shutil.which, brain.EXTRA_BIN_DIRS = orig_which, orig_dirs
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
