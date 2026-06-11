@@ -99,6 +99,7 @@ def build_state():
     return {
         "sessions": brain.collect_sessions(),
         "quota": brain.load_quota(),
+        "limits": brain.load_limits(),
         "ts": int(time.time()),
     }
 
