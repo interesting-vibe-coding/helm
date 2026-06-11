@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kaji Sun — light mission control + logo · design v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Zen+Old+Mincho:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* ───────────────────────────────────────────────────────────────
+     KAJI SUN — daylight visual language (v2)
+
+     日系简洁：纸白、墨黑、一味柿橙。橙 = 太阳/能量/船长的手。
+     可视化原则（dataviz best practice）：
+       · 数据用条形长度说话，不用装饰说话（Tufte: data-ink ratio）
+       · 每张图自带刻度与数值标签，不让人猜
+       · 灰是图表的底色，橙只给"当前重要"
+     ─────────────────────────────────────────────────────────────── */
+  :root {
+    --paper: #fbf8f2;    /* warm paper white */
+    --card:  #ffffff;
+    --ink:   #211c15;    /* warm ink, never pure black */
+    --dim:   #8a8174;
+    --faint: #d9d2c6;    /* hairline */
+    --track: #f0ebe1;    /* chart track */
+    --sun:   #f25c05;    /* 柿 persimmon orange — the one hero */
+    --sun-soft: #fde8da;
+    --amber: #d9930d;    /* waiting */
+    --moss:  #4c9a7a;    /* working — calm green-teal, reads on white */
+    --ash:   #b5ab9c;   /* quiet grey-beige */
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: var(--paper); color: var(--ink);
+    font: 14px/1.6 "IBM Plex Mono", ui-monospace, Menlo, monospace;
+    padding: 40px clamp(20px, 5vw, 72px) 110px;
+  }
+  .frame { max-width: 1020px; margin: 0 auto; }
+  .serif { font-family: "Zen Old Mincho", Georgia, serif; }
+
+  /* ── §0 logo proposal ─────────────────────────────────────── */
+  .logoshow {
+    display: flex; align-items: center; gap: 34px; flex-wrap: wrap;
+    border: 1px solid var(--faint); border-radius: 16px; background: var(--card);
+    padding: 30px 34px; margin-bottom: 14px;
+  }
+  .logoshow .words { max-width: 430px; color: var(--dim); font-size: 12px; line-height: 1.8; }
+  .logoshow .words b { color: var(--ink); }
+  .lockup { display: flex; align-items: center; gap: 16px; }
+  .lockup .name { font: 700 40px/1 "Zen Old Mincho", serif; letter-spacing: .1em; }
+  .lockup .name i { font-style: normal; color: var(--sun); }
+  .lockup .kanji { color: var(--dim); font-size: 13px; letter-spacing: .3em; margin-top: 4px; }
+  .markrow { display: flex; gap: 18px; align-items: center; }
+  .chip { border-radius: 14px; padding: 14px; display: grid; place-items: center; }
+  .chip.light { background: var(--paper); border: 1px solid var(--faint); }
+  .chip.dark  { background: #16100b; }
+  .caption { text-align: center; color: var(--ash); font-size: 10.5px; margin-top: 6px; letter-spacing: .12em; }
+
+  /* ── §1 mission control (light) ───────────────────────────── */
+  .mc {
+    border: 1px solid var(--faint); border-radius: 18px; background: var(--card);
+    padding: 34px 38px 30px; margin-top: 36px;
+    box-shadow: 0 18px 50px -38px rgba(33, 28, 21, .35);
+  }
+  header { display: flex; align-items: center; gap: 14px; }
+  header .hname { font: 700 21px/1 "Zen Old Mincho", serif; letter-spacing: .14em; }
+  header .hname i { font-style: normal; color: var(--sun); }
+  header .hsub { color: var(--ash); font-size: 10.5px; letter-spacing: .26em; text-transform: uppercase; margin-top: 3px; }
+  header .clock { margin-left: auto; color: var(--dim); font-size: 12px; }
+  .switch {
+    border: 1px solid var(--faint); border-radius: 999px; padding: 5px 14px;
+    font-size: 11px; color: var(--dim); background: var(--paper);
+  }
+  .switch b { color: var(--sun); font-weight: 600; }
+  .rule { height: 1px; background: var(--faint); margin: 22px 0 26px; position: relative; }
+  .rule::before { content: ""; position: absolute; left: 0; top: -1px; height: 3px; width: 64px;
+                  background: var(--sun); border-radius: 3px; }
+
+  .seclabel { color: var(--ash); font-size: 10.5px; letter-spacing: .26em;
+              text-transform: uppercase; margin-bottom: 14px; }
+
+  /* fuel — horizontal bar chart, labeled, with scale */
+  .fuel { margin-bottom: 34px; }
+  .frow { display: grid; grid-template-columns: 88px 1fr 130px; gap: 14px;
+          align-items: center; padding: 7px 0; }
+  .frow .hname2 { font-size: 12.5px; color: var(--ink); font-weight: 500; }
+  .frow .track { height: 14px; background: var(--track); border-radius: 4px; position: relative; }
+  .frow .fill { position: absolute; inset: 0 auto 0 0; border-radius: 4px; background: var(--sun); }
+  .frow .fill.quiet { background: #e9c19e; }
+  .frow .val { font-size: 12px; color: var(--dim); }
+  .frow .val b { color: var(--ink); font-weight: 600; }
+  .scale { display: grid; grid-template-columns: 88px 1fr 130px; gap: 14px; margin-top: 2px; }
+  .scale .ticks { display: flex; justify-content: space-between; color: var(--ash); font-size: 10px; }
+
+  /* fleet — clean rows, orange = selection only */
+  .fleet { display: flex; flex-direction: column; margin-bottom: 34px; }
+  .wrow { display: grid; grid-template-columns: 14px 1fr auto auto; gap: 14px; align-items: center;
+          padding: 13px 6px; border-bottom: 1px solid var(--track); position: relative; }
+  .wrow:last-child { border-bottom: 0; }
+  .wrow.sel { background: linear-gradient(90deg, var(--sun-soft) 0%, transparent 55%); border-radius: 8px; }
+  .wrow.sel::before { content: ""; position: absolute; left: -14px; top: 9px; bottom: 9px;
+                      width: 3px; border-radius: 3px; background: var(--sun); }
+  .dot { width: 9px; height: 9px; border-radius: 50%; }
+  .dot.wait { background: var(--amber); animation: pulse 1.6s ease-in-out infinite; }
+  .dot.work { background: var(--moss); }
+  .dot.idle { background: var(--ash); }
+  @keyframes pulse { 50% { opacity: .3; } }
+  .wwho .t { font-weight: 600; font-size: 13.5px; }
+  .wwho .t .proj { color: var(--dim); font-weight: 400; }
+  .wwho .l { color: var(--dim); font-size: 12px; }
+  .wwho .l b { color: var(--ink); font-weight: 500; }
+  .wstate { text-align: right; font-size: 12px; }
+  .wstate .wait { color: var(--amber); font-weight: 600; }
+  .wstate .work { color: var(--moss); }
+  .wstate .idle { color: var(--ash); }
+  .wstate .rt { display: block; color: var(--ash); font-size: 10.5px; }
+  .wkeys { color: var(--ash); font-size: 11px; }
+  .wrow.sel .wkeys b { color: var(--sun); font-weight: 600; }
+
+  /* river — activity strip (dot plot per hour) + recent events */
+  .strip { display: grid; grid-template-columns: repeat(24, 1fr); gap: 4px; margin-bottom: 14px; }
+  .cell { height: 26px; border-radius: 4px; background: var(--track); position: relative; }
+  .cell.q1 { background: #f6d9c4; } .cell.q2 { background: #f0a368; } .cell.q3 { background: var(--sun); }
+  .cell.now { outline: 2px solid var(--ink); outline-offset: 1px; }
+  .striplegend { display: flex; justify-content: space-between; color: var(--ash); font-size: 10px; margin: 4px 2px 18px; }
+  .ev { display: flex; gap: 12px; font-size: 12.5px; color: var(--dim); padding: 4px 0; }
+  .ev .t { color: var(--ash); flex: none; width: 44px; }
+  .ev b { color: var(--ink); font-weight: 500; }
+  .ev .you { color: var(--sun); font-weight: 600; }
+
+  /* helm line */
+  .helm { display: flex; align-items: center; gap: 13px; margin-top: 30px;
+          border: 1.5px solid var(--ink); border-radius: 13px; padding: 14px 18px;
+          background: var(--card); }
+  .helm .rudder { color: var(--sun); font: 700 16px/1 "Zen Old Mincho", serif; }
+  .helm .hint { color: var(--ash); }
+  .helm .keys { margin-left: auto; color: var(--ash); font-size: 11px; }
+  .helm .keys b { color: var(--dim); }
+
+  .designnote { margin-top: 30px; color: var(--ash); font-size: 11.5px; line-height: 1.9; }
+  .designnote b { color: var(--dim); }
+</style>
+</head>
+<body>
+<div class="frame">
+
+  <!-- ═══ §0 · 新 logo 提案 ═══ -->
+  <div class="logoshow">
+    <div>
+      <div class="markrow">
+        <div>
+          <div class="chip light">
+            <svg width="84" height="84" viewBox="0 0 64 64" aria-label="Kaji mark">
+              <circle cx="32" cy="32" r="19.5" fill="none" stroke="#211c15" stroke-width="4.6"/>
+              <line x1="32" y1="32" x2="51.5" y2="12.5" stroke="#f25c05" stroke-width="4.6" stroke-linecap="round"/>
+              <circle cx="32" cy="32" r="4.6" fill="#f25c05"/>
+            </svg>
+          </div>
+          <div class="caption">PAPER</div>
+        </div>
+        <div>
+          <div class="chip dark">
+            <svg width="84" height="84" viewBox="0 0 64 64" aria-label="Kaji mark dark">
+              <circle cx="32" cy="32" r="19.5" fill="none" stroke="#f0e7d8" stroke-width="4.6"/>
+              <line x1="32" y1="32" x2="51.5" y2="12.5" stroke="#ff7a1f" stroke-width="4.6" stroke-linecap="round"/>
+              <circle cx="32" cy="32" r="4.6" fill="#ff7a1f"/>
+            </svg>
+          </div>
+          <div class="caption">INK · night</div>
+        </div>
+        <div class="lockup">
+          <svg width="56" height="56" viewBox="0 0 64 64">
+            <circle cx="32" cy="32" r="19.5" fill="none" stroke="#211c15" stroke-width="4.6"/>
+            <line x1="32" y1="32" x2="51.5" y2="12.5" stroke="#f25c05" stroke-width="4.6" stroke-linecap="round"/>
+            <circle cx="32" cy="32" r="4.6" fill="#f25c05"/>
+          </svg>
+          <div>
+            <div class="name">KA<i>JI</i></div>
+            <div class="kanji">舵 · YOU STEER</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="words">
+      <b>The wheel and the hand.</b><br>
+      墨色圆环 = 舵轮（也是 enso，禅意的圆）；一根柿橙辐条从轴心伸出、越过轮缘 —
+      <b>船长握着的那一根舵柄</b>。一眼可读、单色可用、16px favicon 不糊。
+      orange 只此一处 — 这就是品牌的全部语法：<b>万物安静，唯舵手有色</b>。
+    </div>
+  </div>
+
+  <!-- ═══ §1 · Mission Control · 白昼 ═══ -->
+  <div class="mc">
+    <header>
+      <svg width="30" height="30" viewBox="0 0 64 64">
+        <circle cx="32" cy="32" r="19.5" fill="none" stroke="#211c15" stroke-width="5"/>
+        <line x1="32" y1="32" x2="51.5" y2="12.5" stroke="#f25c05" stroke-width="5" stroke-linecap="round"/>
+        <circle cx="32" cy="32" r="5" fill="#f25c05"/>
+      </svg>
+      <div>
+        <div class="hname">KA<i>JI</i></div>
+        <div class="hsub">mission control</div>
+      </div>
+      <span class="clock">09:42 · 4 workers</span>
+      <span class="switch"><b>⌘/</b> Work view</span>
+    </header>
+    <div class="rule"></div>
+
+    <!-- fuel: labeled horizontal bars with a real scale -->
+    <div class="seclabel">Fuel · today</div>
+    <div class="fuel">
+      <div class="frow">
+        <span class="hname2">claude</span>
+        <span class="track"><span class="fill" style="width:66%"></span></span>
+        <span class="val"><b>657k</b> tokens</span>
+      </div>
+      <div class="frow">
+        <span class="hname2">codex</span>
+        <span class="track"><span class="fill" style="width:38%"></span></span>
+        <span class="val"><b>38%</b> used · plus</span>
+      </div>
+      <div class="frow">
+        <span class="hname2">kiro</span>
+        <span class="track"><span class="fill quiet" style="width:12%"></span></span>
+        <span class="val"><b>3</b> sessions</span>
+      </div>
+      <div class="scale"><span></span><span class="ticks"><span>0</span><span>25</span><span>50</span><span>75</span><span>100%</span></span><span></span></div>
+    </div>
+
+    <!-- fleet -->
+    <div class="seclabel">Fleet · most-neglected first</div>
+    <div class="fleet">
+      <div class="wrow sel">
+        <span class="dot wait"></span>
+        <span class="wwho">
+          <span class="t">claude <span class="proj">· helm-terminal</span></span><br>
+          <span class="l">finished: <b>README summary ready — asks where to put it</b></span>
+        </span>
+        <span class="wstate"><span class="wait">waiting 4m</span><span class="rt">up 1h12m</span></span>
+        <span class="wkeys"><b>⏎</b> reply · <b>o</b> open</span>
+      </div>
+      <div class="wrow">
+        <span class="dot work"></span>
+        <span class="wwho">
+          <span class="t">codex <span class="proj">· wu</span></span><br>
+          <span class="l">running: <b>migrate license API to D1</b></span>
+        </span>
+        <span class="wstate"><span class="work">working</span><span class="rt">up 22m</span></span>
+        <span class="wkeys"></span>
+      </div>
+      <div class="wrow">
+        <span class="dot work"></span>
+        <span class="wwho">
+          <span class="t">kiro <span class="proj">· doabit</span></span><br>
+          <span class="l">running: <b>newsletter route fix</b></span>
+        </span>
+        <span class="wstate"><span class="work">working</span><span class="rt">up 9m</span></span>
+        <span class="wkeys"></span>
+      </div>
+      <div class="wrow">
+        <span class="dot idle"></span>
+        <span class="wwho">
+          <span class="t">claude <span class="proj">· paper-plot</span></span><br>
+          <span class="l">done: <b>chart viewer shipped, tests green</b></span>
+        </span>
+        <span class="wstate"><span class="idle">done</span><span class="rt">up 3h05m</span></span>
+        <span class="wkeys"></span>
+      </div>
+    </div>
+
+    <!-- river: 24h activity strip + events -->
+    <div class="seclabel">River · fleet activity (24h)</div>
+    <div class="strip">
+      <span class="cell"></span><span class="cell"></span><span class="cell"></span><span class="cell"></span>
+      <span class="cell"></span><span class="cell"></span><span class="cell q1"></span><span class="cell q1"></span>
+      <span class="cell q2"></span><span class="cell q3"></span><span class="cell q3"></span><span class="cell q2"></span>
+      <span class="cell q1"></span><span class="cell q2"></span><span class="cell q3"></span><span class="cell q3"></span>
+      <span class="cell q2"></span><span class="cell q2"></span><span class="cell q1"></span><span class="cell q2"></span>
+      <span class="cell q3"></span><span class="cell q3 now"></span><span class="cell"></span><span class="cell"></span>
+    </div>
+    <div class="striplegend"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>now ▲</span></div>
+    <div class="ev"><span class="t">09:38</span><span><b>helm-terminal</b> → waiting · README summary ready</span></div>
+    <div class="ev"><span class="t">09:31</span><span><span class="you">you</span> → <b>wu</b> · "migrate license API to D1"</span></div>
+    <div class="ev"><span class="t">09:30</span><span>spawned <b>codex · wu</b></span></div>
+    <div class="ev"><span class="t">09:17</span><span><span class="you">you</span> → <b>doabit</b> · "fix the newsletter route"</span></div>
+
+    <!-- helm line -->
+    <div class="helm">
+      <span class="rudder">舵</span>
+      <span class="hint">give an order — "spawn codex in wu and migrate the license API"</span>
+      <span class="keys"><b>↑↓</b> select · <b>⏎</b> reply · <b>s</b> spawn · <b>⌘/</b> work</span>
+    </div>
+  </div>
+
+  <div class="designnote">
+    <b>Kaji Sun · 设计要点.</b><br>
+    · 白昼 = 纸白 + 墨 + 一味柿橙（#f25c05）。夜间沿用 Ember 暗版同构（自动随系统外观切换，Kaku Light+Auto 传统）。<br>
+    · 可视化三原则：条形长度说话（fuel 横条 + 真刻度）、数值永远标出、灰为底橙为重点 — 参考 Tufte data-ink / Datawrapper 实践。<br>
+    · River 活动条 = 24h 密度图（GitHub contributions 语法，人人秒懂），当前小时墨框标记。<br>
+    · 字体：Zen Old Mincho（品牌衬线，日系明朝体）+ IBM Plex Mono（数据）。<br>
+    · Logo：舵轮 + 出缘舵柄。圆环 = enso；橙辐条 = 船长的手。单色可用、favicon 可用、TUI 里两字符可表（◯╱）。
+  </div>
+
+</div>
+</body>
+</html>
