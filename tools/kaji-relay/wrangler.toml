@@ -1,0 +1,19 @@
+name = "kaji-relay"
+main = "worker.js"
+compatibility_date = "2026-06-01"
+account_id = "5aa4edb5f180ecd501e8beb99d5f137a"
+workers_dev = true
+
+# Custom domain: *.workers.dev is SNI-blocked from China (direct); a custom
+# domain on the same CF edge is reachable both direct and via proxy exits.
+routes = [
+  { pattern = "relay.doabit.dev", custom_domain = true }
+]
+
+[[durable_objects.bindings]]
+name = "SESSIONS"
+class_name = "RelaySession"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["RelaySession"]

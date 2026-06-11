@@ -97,8 +97,12 @@ function logout(msg) {
   if (msg) { $("gate").querySelector("p").textContent = msg; }
 }
 
+// Served either at "/" (tailnet / funnel) or under "/c/<rid>/" (relay).
+// Resolve API paths against the page's own directory so both work.
+const API_BASE = location.pathname.replace(/\/(mobile)?$/, "");
+
 async function api(path, opts) {
-  const r = await fetch(path, Object.assign({
+  const r = await fetch(API_BASE + path, Object.assign({
     headers: { "Authorization": "Bearer " + token, "Content-Type": "application/json" },
   }, opts));
   if (r.status === 401) { logout("token rejected — enter it again"); throw new Error("401"); }
