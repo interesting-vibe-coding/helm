@@ -431,6 +431,17 @@ Helm.cfg = {
   -- waiting after real subsequent work.
   NOTIFY_COOLDOWN = 20,
   RUNTIME_JSON   = (os.getenv('HOME') or '/tmp') .. '/.helm/sessions/runtime.json',
+  -- Busy markers (#139): when the trailing pane text contains one of these,
+  -- the agent is mid-task no matter how long the fingerprint stays stable —
+  -- a long tool run / generation can freeze the screen for >IDLE_THRESHOLD
+  -- and must NOT flip the session to 'waiting'. Lowercase substrings.
+  BUSY_MARKERS = {
+    'esc to interrupt',      -- claude code / codex while working
+    'ctrl+c to interrupt',
+    'esc again to interrupt',
+    'running…', 'running...',
+    'thinking…', 'thinking...',
+  },
 }
 
 -- ════════════════════════════════════════════════════════════
@@ -547,6 +558,17 @@ local function sessions_to_json(sessions)
   return '{' .. table.concat(parts, ',') .. '}'
 end
 
+-- True when the trailing pane text shows a known in-progress marker (#139):
+-- a stable screen with "esc to interrupt" on it is a WORKING agent whose
+-- output happens to be frozen, not one waiting for input.
+function Helm.sessions.looks_busy(text)
+  local lower = (text or ''):lower()
+  for _, m in ipairs(Helm.cfg.BUSY_MARKERS) do
+    if lower:find(m, 1, true) then return true end
+  end
+  return false
+end
+
 -- Update or insert a session record for this pane.
 -- State detection via idle heuristic: content changing = working,
 -- content stable > IDLE_THRESHOLD = waiting (agent finished, awaiting input).
@@ -592,7 +614,8 @@ function Helm.sessions.track(pane)
         s.fp = fp
         s.last_change = t
         s.state = 'working'
-      elseif (t - (s.last_change or t)) > Helm.cfg.IDLE_THRESHOLD then
+      elseif (t - (s.last_change or t)) > Helm.cfg.IDLE_THRESHOLD
+          and not Helm.sessions.looks_busy(text) then
         -- working → waiting transition: fire the Brain event exactly ONCE
         -- (the guard `s.state ~= 'waiting'` prevents re-firing every idle tick).
         if s.state ~= 'waiting' then
