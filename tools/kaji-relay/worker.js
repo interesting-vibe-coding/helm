@@ -40,6 +40,9 @@ export class RelaySession {
 
   // ── connector side ──────────────────────────────────────────────────────
   agentPoll() {
+    // Drop already-expired jobs before handing one out.
+    this.queue = this.queue.filter(
+      (j) => Date.now() - (j.queued_at || 0) < CLIENT_WAIT_MS);
     const job = this.queue.shift();
     if (job) return jsonResponse(job);
     // Hold the poll open until a job lands or the window closes.
@@ -110,6 +113,14 @@ export class RelaySession {
       clearTimeout(w.timer);
       w.resolve(jsonResponse(job));
     } else {
+      // Stamp + cap the backlog: when the connector is away, an open phone
+      // page queues a job every few seconds. Old jobs are pointless (their
+      // pending entry expires after CLIENT_WAIT_MS) — keep only the fresh
+      // tail so a returning connector doesn't drain garbage.
+      job.queued_at = Date.now();
+      this.queue = this.queue.filter(
+        (j) => Date.now() - (j.queued_at || 0) < CLIENT_WAIT_MS);
+      if (this.queue.length >= 20) this.queue.shift();
       this.queue.push(job);
     }
     return responsePromise;
