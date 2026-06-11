@@ -125,4 +125,7 @@ fleet + 共享 memory/skills**.
 **舵 NL 派活过渡方案（2026-06-11）**: `kaji-brain plan "<order>"` — 一句人话 → claude -p sonnet → {send|spawn|none} JSON；cockpit `i`/`/` 唤舵输入 → 计划回显 → y/N → 执行。~9s 延迟。自研引擎前的过渡面。
 **踩坑**: ⌘/ 在本机被豆包输入法全局快捷键抢占（弹它的设置面板, 按键到不了 Kaji）→ 用户需在豆包设置改掉; Kaji 侧 ⌘⇧⏎ 同款 toggle 兜底。
 
+**v0.6.0 已发布（2026-06-11 晚）**: Kaji Sun 全家桶 — 日/夜双套色、⌘/ 两视图、Brain=自家 TUI、舵 NL 派活（直接打字+方向键确认+auto 模式）、双窗口权威配额、ctx%、新 logo、relay 修复、codex 检测/发送修复。发版法: 无 Rust 变更 → 基于上版 zip 覆盖 Resources + ad-hoc 重签 + gh release create。
+**Chat 后端现状**: `claude -p --model sonnet` 单发无状态（每次带舰队快照, ~9s）。终态自研常驻引擎。
+
 **Next（当前队列）**: ① cockpit 交互循环 + mobile/desktop UI 设计打磨（主战场: 轻量·交互·可视化, 管多 harness 必须比终端切换方便得多）② 统一额度 scraper ③ relay 加 QR 配对 + E2E 加密（launch 前安全叙事）④ demo（最后录）。
