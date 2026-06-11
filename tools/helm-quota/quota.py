@@ -57,16 +57,37 @@ def ago(ts: float) -> str:
     return f"{int(d/86400)}d ago"
 
 
+def munge_cwd(cwd):
+    """A cwd path the way ~/.claude/projects names its dirs (/ and . -> -)."""
+    return str(cwd or "").replace("/", "-").replace(".", "-").replace("_", "-")
+
+
 def claude_code():
-    """Returns (sessions_today, tokens_today, last_active_ts)."""
+    """Returns (sessions_today, tokens_today, last_active_ts, by_project).
+
+    by_project: {munged project dir name: tokens_today} — keys match
+    munge_cwd(session cwd), so a fleet session maps to its own burn.
+    """
     base = HOME / ".claude" / "projects"
     if not base.exists():
-        return 0, 0, None
+        return 0, 0, None, {}
     tokens_today, last = 0, None
     session_ids_today = set()
+    by_project = {}
     for jsonl in base.rglob("*.jsonl"):
         if "subagents" in str(jsonl):
             continue
+        try:
+            mtime = jsonl.stat().st_mtime
+        except OSError:
+            continue
+        if last is None or mtime > last:
+            last = mtime
+        # A file not touched today cannot contain today's records — skip the
+        # (potentially large) content scan entirely.
+        if mtime < TODAY_START:
+            continue
+        proj = jsonl.parent.name
         try:
             with open(jsonl) as f:
                 for line in f:
@@ -81,18 +102,18 @@ def claude_code():
                         ts = datetime.fromisoformat(ts_str.replace("Z", "+00:00")).timestamp()
                     except Exception:
                         continue
-                    if last is None or ts > last:
-                        last = ts
                     if ts >= TODAY_START:
                         sid = d.get("sessionId")
                         if sid:
                             session_ids_today.add(sid)
                         usage = d.get("message", {}).get("usage") if isinstance(d.get("message"), dict) else None
                         if usage:
-                            tokens_today += usage.get("input_tokens", 0) + usage.get("output_tokens", 0)
+                            n = usage.get("input_tokens", 0) + usage.get("output_tokens", 0)
+                            tokens_today += n
+                            by_project[proj] = by_project.get(proj, 0) + n
         except Exception:
             pass
-    return len(session_ids_today), tokens_today, last
+    return len(session_ids_today), tokens_today, last, by_project
 
 
 def kiro():
@@ -160,11 +181,20 @@ def opencode():
 
 
 def _codex_last_token_count(path):
-    """Last token_count payload in a rollout file: (info, rate_limits)."""
-    info, rl = None, None
+    """Last token_count payload + session cwd in a rollout file:
+    (info, rate_limits, cwd)."""
+    info, rl, cwd = None, None, None
     try:
         with open(path, encoding="utf-8", errors="replace") as f:
             for line in f:
+                if cwd is None and '"cwd"' in line:
+                    try:
+                        rec0 = json.loads(line)
+                        pl0 = rec0.get("payload") if isinstance(rec0, dict) else None
+                        if isinstance(pl0, dict) and pl0.get("cwd"):
+                            cwd = pl0["cwd"]
+                    except Exception:
+                        pass
                 if '"token_count"' not in line:
                     continue
                 try:
@@ -182,11 +212,11 @@ def _codex_last_token_count(path):
                 rl = payload.get("rate_limits") or rl
     except OSError:
         pass
-    return info, rl
+    return info, rl, cwd
 
 
 def codex():
-    """Returns (sessions_today, tokens_today, last_active_ts, limits|None).
+    """Returns (sessions_today, tokens_today, last_active_ts, limits|None, by_project).
 
     tokens: token_count events are session-CUMULATIVE — take the LAST event
     per file and sum across today's files (UTC date dirs).
@@ -195,16 +225,20 @@ def codex():
     """
     base = CODEX_SESSIONS
     if not base.exists():
-        return 0, None, None, None
+        return 0, None, None, None, {}
     today = datetime.now(timezone.utc)
     day_dir = base / f"{today:%Y}" / f"{today:%m}" / f"{today:%d}"
     files_today = sorted(day_dir.glob("rollout-*.jsonl")) if day_dir.exists() else []
 
     tokens_today, last = 0, None
+    by_project = {}
     for p in files_today:
-        info, _ = _codex_last_token_count(p)
+        info, _, cwd = _codex_last_token_count(p)
         if info:
-            tokens_today += ((info.get("total_token_usage") or {}).get("total_tokens") or 0)
+            n = ((info.get("total_token_usage") or {}).get("total_tokens") or 0)
+            tokens_today += n
+            if cwd:
+                by_project[cwd] = by_project.get(cwd, 0) + n
         try:
             last = max(last or 0, p.stat().st_mtime)
         except OSError:
@@ -216,7 +250,7 @@ def codex():
     except OSError:
         all_files = []
     if all_files:
-        _, rl = _codex_last_token_count(all_files[-1])
+        _, rl, _ = _codex_last_token_count(all_files[-1])
         if rl:
             limits = {}
             for key in ("primary", "secondary"):
@@ -229,7 +263,7 @@ def codex():
                 limits["plan"] = rl["plan_type"]
             limits = limits or None
 
-    return len(files_today), (tokens_today or None), last, limits
+    return len(files_today), (tokens_today or None), last, limits, by_project
 
 
 def fmt_tokens(n):
@@ -244,11 +278,12 @@ def fmt_last(ts):
 
 
 def collect():
-    """Return per-harness tuples (name, sessions, tokens, last, limits|None)."""
+    """Per-harness tuples (name, sessions, tokens, last, limits|None, by_project)."""
+    c_sess, c_tok, c_last, c_proj = claude_code()
     return [
-        ("claude", *claude_code(), None),
-        ("kiro",   *kiro(), None),
-        ("opencode", *opencode(), None),
+        ("claude", c_sess, c_tok, c_last, None, c_proj),
+        ("kiro",   *kiro(), None, {}),
+        ("opencode", *opencode(), None, {}),
         ("codex", *codex()),
     ]
 
@@ -256,7 +291,7 @@ def collect():
 def emit_json():
     rows = collect()
     out = {}
-    for name, sess, tok, _last, limits in rows:
+    for name, sess, tok, _last, limits, by_project in rows:
         out[name] = {
             "tokens_today": tok if tok is not None else 0,
             "sessions_today": sess,
@@ -265,6 +300,8 @@ def emit_json():
             # Additive key — existing consumers (kaku.lua status bar) read
             # tokens_today/sessions_today only and are unaffected.
             out[name]["limits"] = limits
+        if by_project:
+            out[name]["by_project"] = by_project
     # compact, no spaces — small payload for run_child_process
     sys.stdout.write(json.dumps(out, separators=(",", ":")))
     sys.stdout.write("\n")
@@ -278,7 +315,7 @@ def emit_table():
     print("=================")
     print(f"{'harness':<14} {'sessions_today':<16} {'tokens_today':<13} {'last_active'}")
     print(f"{'-'*14} {'-'*14} {'-'*11} {'-'*12}")
-    for name, sess, tok, last, limits in rows:
+    for name, sess, tok, last, limits, _bp in rows:
         extra = ""
         if limits:
             pct = limits.get("secondary_used_percent", limits.get("primary_used_percent"))

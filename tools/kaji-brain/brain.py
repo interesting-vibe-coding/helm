@@ -260,6 +260,20 @@ def load_quota():
     return tokens
 
 
+def _munge_cwd(cwd):
+    """cwd path the way ~/.claude/projects names dirs (mirror of quota.py)."""
+    return str(cwd or "").replace("/", "-").replace(".", "-").replace("_", "-")
+
+
+def load_by_project():
+    """{harness: {project-key: tokens_today}} from quota.py (cached)."""
+    out = {}
+    for name, info in load_quota_raw().items():
+        if isinstance(info, dict) and isinstance(info.get("by_project"), dict):
+            out[name.lower()] = info["by_project"]
+    return out
+
+
 def load_limits():
     """Return {harness: limits-dict} for harnesses exposing real quota
     (used_percent / resets_at / plan — currently codex only). {} if none."""
@@ -336,6 +350,7 @@ def collect_sessions():
         # report it as a live fleet (kaji#125 phantom sessions).
         return []
     quota = load_quota()
+    by_project = load_by_project()
     live_ids = {str(p.get("pane_id")) for p in panes}
 
     now = int(time.time())
@@ -359,13 +374,22 @@ def collect_sessions():
             pid = int(pane_id)
         except Exception:
             pid = pane_id
+        # Per-session burn: this session's own tokens today + share of the
+        # harness total. claude keys by munged cwd, codex by the exact cwd.
+        cwd_full = s.get("cwd_full") or cwd
+        proj_map = by_project.get(harness, {})
+        own = int(proj_map.get(_munge_cwd(cwd_full))
+                  or proj_map.get(cwd_full) or 0)
+        total = int(quota.get(harness, 0) or 0)
         sessions.append({
             "pane_id": pid,
             "harness": harness,
             "project": project,
             "state": s.get("state") or "working",
             "runtime_secs": runtime_secs,
-            "tokens_today": int(quota.get(harness, 0) or 0),
+            "tokens_today": total,
+            "tokens_session": own,
+            "tokens_share": (round(100.0 * own / total) if total and own else 0),
         })
 
     sessions.sort(key=lambda x: str(x["pane_id"]))
