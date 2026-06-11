@@ -7,81 +7,168 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Kaji — fleet</title>
 <style>
+  /* Deep-luxury: warm espresso base, cream ink, bronze hairlines,
+     terracotta as the single accent. Never pure black, never #fff. */
   :root {
-    --ink: #14121c; --panel: #1d1a28; --line: #2c2838;
-    --cream: #ece5d8; --dim: #8d8798; --accent: #8d7bd4;
-    --busy: #6fbf8f; --wait: #e0a458; --idle: #5c5768;
+    --espresso: #211a15; --panel: #2a211a; --deep: #1d1712;
+    --line: #3a2f25; --cream: #ece3d4; --cream-dim: #a89a86;
+    --bronze: #b08d57; --accent: #d97757;
+    --busy: #7fb78f; --wait: #e0a458; --idle: #6b5f50;
   }
   * { box-sizing: border-box; margin: 0; }
+  html { -webkit-text-size-adjust: 100%; }
   body {
-    background: var(--ink); color: var(--cream); min-height: 100vh;
+    background: linear-gradient(180deg, var(--espresso) 0%, var(--deep) 100%);
+    color: var(--cream); min-height: 100vh;
     font: 15px/1.5 ui-monospace, "SF Mono", Menlo, monospace;
-    padding: max(16px, env(safe-area-inset-top)) 16px 32px;
+    padding: max(16px, env(safe-area-inset-top)) 16px
+             max(28px, env(safe-area-inset-bottom));
   }
-  header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 14px; }
-  header h1 { font-size: 17px; font-weight: 600; letter-spacing: .04em; }
-  header .sub { color: var(--dim); font-size: 12px; }
-  #quota { color: var(--dim); font-size: 12px; margin-bottom: 14px; }
+  .wrap { max-width: 920px; margin: 0 auto; }
+
+  header { display: flex; align-items: baseline; gap: 10px; margin: 4px 0 4px; }
+  header h1 {
+    font: 300 22px/1.2 Georgia, "Times New Roman", serif;
+    letter-spacing: .06em;
+  }
+  header h1 em { font-style: italic; color: var(--accent); }
+  header .sub { color: var(--cream-dim); font-size: 11px; margin-left: auto; }
+  .hairline { height: 1px; background: linear-gradient(90deg, var(--bronze), transparent 70%); opacity: .5; margin: 10px 0 14px; }
+
+  #quota { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+  .chip {
+    border: 1px solid var(--line); border-radius: 999px;
+    padding: 3px 11px; font-size: 11px; color: var(--cream-dim);
+  }
+  .chip b { color: var(--bronze); font-weight: 600; }
+
+  #list { display: grid; grid-template-columns: 1fr; gap: 10px; }
+  @media (min-width: 760px) { #list { grid-template-columns: 1fr 1fr; } }
+
   .card {
-    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
-    padding: 12px 14px; margin-bottom: 10px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    padding: 13px 15px; cursor: pointer;
+    transition: border-color .15s ease;
   }
-  .row { display: flex; align-items: center; gap: 8px; }
+  .card.open { border-color: var(--bronze); cursor: default; }
+  .row { display: flex; align-items: center; gap: 9px; }
   .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
   .dot.waiting { background: var(--wait); animation: pulse 1.4s ease-in-out infinite; }
-  .dot.busy, .dot.running { background: var(--busy); }
+  .dot.busy, .dot.running, .dot.working { background: var(--busy); }
   .dot.idle, .dot.unknown { background: var(--idle); }
-  @keyframes pulse { 50% { opacity: .35; } }
-  .name { font-weight: 600; }
-  .meta { color: var(--dim); font-size: 12px; margin-left: auto; }
-  .sendbox { display: none; margin-top: 10px; gap: 8px; }
-  .card.open .sendbox { display: flex; }
-  .sendbox input {
-    flex: 1; background: var(--ink); color: var(--cream);
-    border: 1px solid var(--line); border-radius: 7px; padding: 9px 10px;
-    font: inherit; font-size: 14px;
+  @keyframes pulse { 50% { opacity: .3; } }
+  .name { font-weight: 600; letter-spacing: .02em; }
+  .name .proj { color: var(--cream-dim); font-weight: 400; }
+  .meta { color: var(--cream-dim); font-size: 11px; margin-left: auto; flex: none; }
+  .meta .st-waiting { color: var(--wait); }
+
+  .body { display: none; margin-top: 12px; }
+  .card.open .body { display: block; }
+  .timeline { margin: 0 0 10px; padding: 0; list-style: none; }
+  .timeline li {
+    font-size: 11px; color: var(--cream-dim); padding: 2px 0 2px 14px;
+    position: relative; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
+  .timeline li::before {
+    content: ""; position: absolute; left: 2px; top: 8px;
+    width: 4px; height: 4px; border-radius: 50%; background: var(--bronze); opacity: .6;
+  }
+  .timeline li .t { color: var(--idle); margin-right: 6px; }
+
+  .sendbox { display: flex; gap: 8px; }
+  input, select {
+    background: var(--deep); color: var(--cream);
+    border: 1px solid var(--line); border-radius: 8px; padding: 10px 11px;
+    font: inherit; font-size: 14px; width: 100%;
+  }
+  input:focus, select:focus { outline: none; border-color: var(--bronze); }
   button {
-    background: var(--accent); color: var(--ink); border: 0; border-radius: 7px;
-    padding: 9px 14px; font: inherit; font-size: 14px; font-weight: 600;
+    background: var(--accent); color: var(--espresso); border: 0; border-radius: 8px;
+    padding: 10px 16px; font: inherit; font-size: 14px; font-weight: 600; flex: none;
+    cursor: pointer;
   }
   button:active { opacity: .8; }
-  #gate { max-width: 360px; margin: 18vh auto 0; text-align: center; }
-  #gate p { color: var(--dim); font-size: 13px; margin: 10px 0 16px; }
-  #gate input {
-    width: 100%; background: var(--panel); color: var(--cream);
-    border: 1px solid var(--line); border-radius: 8px; padding: 11px;
-    font: inherit; margin-bottom: 10px; text-align: center;
+  button.ghost {
+    background: transparent; color: var(--bronze);
+    border: 1px solid var(--bronze); font-weight: 400;
   }
-  #gate button { width: 100%; padding: 11px; }
+
+  #newbar { margin-top: 16px; display: flex; justify-content: center; }
+  #sheet {
+    display: none; margin-top: 14px; background: var(--panel);
+    border: 1px solid var(--bronze); border-radius: 12px; padding: 16px;
+  }
+  #sheet.open { display: block; }
+  #sheet h2 { font: 300 15px Georgia, serif; letter-spacing: .05em; color: var(--bronze); margin-bottom: 12px; }
+  .harness-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+  .hchip {
+    border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px;
+    font-size: 13px; color: var(--cream-dim); cursor: pointer; background: none; font-weight: 400;
+  }
+  .hchip.sel { border-color: var(--accent); color: var(--accent); }
+  #sheet input { margin-bottom: 10px; }
+  .sheet-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+  #gate { max-width: 360px; margin: 16vh auto 0; text-align: center; }
+  #gate h1 { font: 300 26px Georgia, serif; letter-spacing: .08em; }
+  #gate h1 em { font-style: italic; color: var(--accent); }
+  #gate p { color: var(--cream-dim); font-size: 13px; margin: 12px 0 18px; }
+  #gate input { text-align: center; margin-bottom: 10px; }
+  #gate button { width: 100%; padding: 12px; }
+
   #err {
-    display: none; background: #3a2330; border: 1px solid #5c3346; color: #e8b4c8;
-    border-radius: 8px; padding: 8px 12px; font-size: 13px; margin-bottom: 12px;
+    display: none; background: #3a2823; border: 1px solid #5c4336; color: #e8c4b4;
+    border-radius: 9px; padding: 9px 13px; font-size: 13px; margin-bottom: 12px;
   }
-  .empty { color: var(--dim); text-align: center; padding: 40px 0; font-size: 13px; }
+  .empty { color: var(--cream-dim); text-align: center; padding: 44px 0; font-size: 13px; grid-column: 1/-1; }
+  .empty .hint { color: var(--idle); font-size: 11px; margin-top: 6px; }
 </style>
 </head>
 <body>
+<div class="wrap">
 
 <div id="gate" hidden>
-  <h1>Kaji</h1>
+  <h1>Ka<em>ji</em></h1>
   <p>fleet access token<br>(KAJI_BRAIN_TOKEN on the Mac)</p>
   <input id="tok" type="password" placeholder="token" autocomplete="off">
   <button onclick="saveToken()">Connect</button>
 </div>
 
 <div id="app" hidden>
-  <header><h1>Kaji fleet</h1><span class="sub" id="ts"></span></header>
+  <header>
+    <h1>Ka<em>ji</em> fleet</h1>
+    <span class="sub" id="ts"></span>
+  </header>
+  <div class="hairline"></div>
   <div id="err"></div>
   <div id="quota"></div>
   <div id="list"></div>
+  <div id="newbar"><button class="ghost" onclick="toggleSheet()">+ new worker</button></div>
+  <div id="sheet">
+    <h2>spawn a worker</h2>
+    <div class="harness-row" id="harnesses"></div>
+    <input id="cwd" placeholder="working directory (e.g. ~/workspace/kaji)" autocapitalize="off" autocomplete="off">
+    <input id="task" placeholder="first instruction (optional)" autocomplete="off">
+    <div class="sheet-actions">
+      <button class="ghost" onclick="toggleSheet()">cancel</button>
+      <button onclick="spawn()">Spawn</button>
+    </div>
+  </div>
 </div>
 
+</div>
 <script>
 const $ = id => document.getElementById(id);
 let token = localStorage.getItem("kaji-token") || "";
 let timer = null;
 const openPanes = new Set();
+const timelines = {};   // pane_id -> [events] cache
+const HARNESSES = ["claude", "kiro", "opencode", "codex"];
+let selHarness = localStorage.getItem("kaji-harness") || "claude";
+
+// Served either at "/" (tailnet / funnel) or under "/c/<rid>/" (relay).
+// Resolve API paths against the page's own directory so both work.
+const API_BASE = location.pathname.replace(/\/(mobile)?$/, "");
 
 function saveToken() {
   token = $("tok").value.trim();
@@ -96,10 +183,6 @@ function logout(msg) {
   $("app").hidden = true; $("gate").hidden = false;
   if (msg) { $("gate").querySelector("p").textContent = msg; }
 }
-
-// Served either at "/" (tailnet / funnel) or under "/c/<rid>/" (relay).
-// Resolve API paths against the page's own directory so both work.
-const API_BASE = location.pathname.replace(/\/(mobile)?$/, "");
 
 async function api(path, opts) {
   const r = await fetch(API_BASE + path, Object.assign({
@@ -121,54 +204,135 @@ function fmtRuntime(s) {
   return h ? h + "h" + String(m).padStart(2, "0") + "m" : m + "m";
 }
 
+function fmtClock(ts) {
+  const d = new Date(ts * 1000);
+  return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+}
+
+function evLine(e) {
+  if (e.ev === "spawn") return "spawn " + (e.harness || "") + " · " + (e.cwd || "");
+  if (e.ev === "dispatch") return "→ " + (e.text || "");
+  if (e.ev === "state") return "state → " + (e.to || "");
+  return e.ev || "?";
+}
+
 function render(state) {
-  $("ts").textContent = new Date(state.ts * 1000).toLocaleTimeString();
+  $("ts").textContent = "updated " + fmtClock(state.ts);
   const q = state.quota || {};
-  $("quota").textContent = "tokens today · " + (Object.entries(q)
-    .filter(([, v]) => v > 0)
-    .map(([k, v]) => k + " " + (v >= 1000 ? Math.round(v / 1000) + "k" : v))
-    .join(" · ") || "none");
+  const chips = Object.entries(q).filter(([, v]) => v > 0)
+    .map(([k, v]) => '<span class="chip">' + esc(k) + ' <b>' +
+      (v >= 1000 ? Math.round(v / 1000) + "k" : v) + '</b></span>').join("");
+  $("quota").innerHTML = chips || '<span class="chip">tokens today · none</span>';
+
   const list = $("list");
   const sessions = state.sessions || [];
   if (!sessions.length) {
-    list.innerHTML = '<div class="empty">no active sessions</div>';
+    list.innerHTML = '<div class="empty">no active sessions' +
+      '<div class="hint">spawn one below, or open Kaji on the Mac</div></div>';
     return;
   }
   list.innerHTML = "";
-  for (const s of sessions) {
-    const card = document.createElement("div");
-    card.className = "card" + (openPanes.has(s.pane_id) ? " open" : "");
-    const st = (s.state || "unknown").toLowerCase();
-    card.innerHTML =
-      '<div class="row">' +
-        '<span class="dot ' + st + '"></span>' +
-        '<span class="name"></span>' +
-        '<span class="meta"></span>' +
-      '</div>' +
-      '<div class="sendbox row">' +
-        '<input placeholder="send to this worker…" enterkeyhint="send">' +
+  for (const s of sessions) list.appendChild(card(s));
+}
+
+function esc(t) {
+  return String(t).replace(/[&<>"']/g, c => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function card(s) {
+  const el = document.createElement("div");
+  const open = openPanes.has(s.pane_id);
+  el.className = "card" + (open ? " open" : "");
+  const st = (s.state || "unknown").toLowerCase();
+  el.innerHTML =
+    '<div class="row">' +
+      '<span class="dot ' + esc(st) + '"></span>' +
+      '<span class="name">' + esc(s.harness) + ' <span class="proj">· ' + esc(s.project || "?") + '</span></span>' +
+      '<span class="meta"><span class="st-' + esc(st) + '">' + esc(st) + '</span> · ' + fmtRuntime(s.runtime_secs || 0) + '</span>' +
+    '</div>' +
+    '<div class="body">' +
+      '<ul class="timeline"></ul>' +
+      '<div class="sendbox">' +
+        '<input placeholder="send to this worker…" enterkeyhint="send" autocomplete="off">' +
         '<button>Send</button>' +
-      '</div>';
-    card.querySelector(".name").textContent = s.harness + " · " + (s.project || "?");
-    card.querySelector(".meta").textContent = st + " · " + fmtRuntime(s.runtime_secs || 0);
-    card.querySelector(".row").onclick = () => {
-      openPanes.has(s.pane_id) ? openPanes.delete(s.pane_id) : openPanes.add(s.pane_id);
-      card.classList.toggle("open");
-    };
-    const input = card.querySelector("input");
-    const send = async () => {
-      const text = input.value.trim();
-      if (!text) return;
-      try {
-        await api("/api/send", { method: "POST", body: JSON.stringify({ pane_id: s.pane_id, text }) });
-        input.value = ""; refresh();
-      } catch (e) { showErr("send failed: " + e.message); }
-    };
-    card.querySelector("button").onclick = send;
-    input.onkeydown = e => { if (e.key === "Enter") send(); };
-    list.appendChild(card);
+      '</div>' +
+    '</div>';
+
+  el.querySelector(".row").onclick = () => {
+    if (openPanes.has(s.pane_id)) { openPanes.delete(s.pane_id); el.classList.remove("open"); }
+    else { openPanes.add(s.pane_id); el.classList.add("open"); loadTimeline(s.pane_id, el); }
+  };
+  if (open) loadTimeline(s.pane_id, el);
+
+  const input = el.querySelector("input");
+  const send = async () => {
+    const text = input.value.trim();
+    if (!text) return;
+    try {
+      await api("/api/send", { method: "POST", body: JSON.stringify({ pane_id: s.pane_id, text }) });
+      input.value = ""; loadTimeline(s.pane_id, el, true); refresh();
+    } catch (e) { showErr("send failed: " + e.message); }
+  };
+  el.querySelector("button").onclick = (e) => { e.stopPropagation(); send(); };
+  input.onclick = e => e.stopPropagation();
+  input.onkeydown = e => { if (e.key === "Enter") send(); };
+  return el;
+}
+
+async function loadTimeline(paneId, el, force) {
+  const ul = el.querySelector(".timeline");
+  const cached = timelines[paneId];
+  if (cached && !force) renderTimeline(ul, cached);
+  try {
+    const evs = await api("/api/timeline?pane=" + paneId);
+    timelines[paneId] = evs;
+    renderTimeline(ul, evs);
+  } catch (e) { /* timeline is decoration; stay quiet */ }
+}
+
+function renderTimeline(ul, evs) {
+  const tail = (evs || []).slice(-5);
+  ul.innerHTML = tail.length
+    ? tail.map(e => '<li><span class="t">' + fmtClock(e.ts) + '</span>' + esc(evLine(e)) + '</li>').join("")
+    : '<li>no history yet</li>';
+}
+
+// ── spawn sheet ─────────────────────────────────────────────────────────────
+
+function toggleSheet() {
+  const sh = $("sheet");
+  sh.classList.toggle("open");
+  if (sh.classList.contains("open")) {
+    renderHarnesses();
+    $("cwd").value = localStorage.getItem("kaji-cwd") || "";
   }
 }
+
+function renderHarnesses() {
+  $("harnesses").innerHTML = HARNESSES.map(h =>
+    '<button class="hchip' + (h === selHarness ? " sel" : "") + '" data-h="' + h + '">' + h + '</button>').join("");
+  for (const b of $("harnesses").querySelectorAll(".hchip")) {
+    b.onclick = () => { selHarness = b.dataset.h; localStorage.setItem("kaji-harness", selHarness); renderHarnesses(); };
+  }
+}
+
+async function spawn() {
+  const cwd = $("cwd").value.trim();
+  if (!cwd) { showErr("working directory required"); return; }
+  localStorage.setItem("kaji-cwd", cwd);
+  const body = { harness: selHarness, cwd: cwd };
+  const task = $("task").value.trim();
+  if (task) body.task = task;
+  try {
+    const r = await api("/api/spawn", { method: "POST", body: JSON.stringify(body) });
+    toggleSheet(); $("task").value = "";
+    openPanes.add(r.pane_id);
+    refresh();
+  } catch (e) { showErr("spawn failed: " + e.message); }
+}
+
+// ── lifecycle ───────────────────────────────────────────────────────────────
 
 function showErr(msg) {
   const el = $("err");
