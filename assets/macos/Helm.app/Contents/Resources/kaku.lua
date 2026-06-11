@@ -851,9 +851,9 @@ function Helm.status.render(window, pane)
   end
 
   local slots = {
-    { idx = 1, name = 'Brain',    live = true },                              -- always
-    { idx = 2, name = 'Work',     live = Helm.status.work_alive() },
-    { idx = 4, name = 'Terminal', live = Helm.workspace.terminal_pane() ~= nil },
+    { idx = 1, name = 'Mission Control', live = true },                      -- always
+    { idx = 2, name = 'Work',            live = Helm.status.work_alive() },
+    { idx = 4, name = 'Terminal',        live = Helm.workspace.terminal_pane() ~= nil },
   }
 
   -- build the compass and measure its display width (in cells)
@@ -891,7 +891,12 @@ function Helm.status.render(window, pane)
   table.insert(elems, 1, { Text = string.rep(' ', pad) })
 
   window:set_left_status(wezterm.format(elems))
-  window:set_right_status('')
+  -- Right edge: the one navigation hint that matters — where ⌘/ takes you.
+  local dest = (view == 1) and 'Work' or 'Mission Control'
+  window:set_right_status(wezterm.format({
+    { Foreground = { Color = P.dim } },
+    { Text = '⌘/ ' .. dest .. '  ' },
+  }))
 end
 
 -- Layer 3 lives in tools/ (cross-harness memory via symlinks) — no Lua needed here
@@ -1091,8 +1096,8 @@ function Helm.workspace.spawn_empty(window)
     'clear; printf "\\n\\n\\n"; ' ..
     'printf "   \\033[38;2;187;154;247m●\\033[0m  No active session\\n\\n"; ' ..
     'printf "   \\033[38;2;120;130;150mNothing is running in your Workspace right now.\\n"; ' ..
-    'printf "   Press \\033[0m\\033[38;2;169;177;214m⌘1\\033[0m\\033[38;2;120;130;150m to open the Brain and start an agent,\\n"; ' ..
-    'printf "   or \\033[0m\\033[38;2;169;177;214m⌘4\\033[0m\\033[38;2;120;130;150m for a free Terminal.\\033[0m\\n"; ' ..
+    'printf "   Press \\033[0m\\033[38;2;169;177;214m⌘/\\033[0m\\033[38;2;120;130;150m for Mission Control to start an agent,\\n"; ' ..
+    'printf "   or \\033[0m\\033[38;2;169;177;214m⌘T\\033[0m\\033[38;2;120;130;150m for a free Terminal.\\033[0m\\n"; ' ..
     'while :; do sleep 86400; done'
   local tab = window:mux_window():spawn_tab { args = { '/bin/bash', '-c', msg } }
   local p = tab:active_pane()
@@ -1196,37 +1201,21 @@ end
 function Helm.keys.bind(config)
   config.keys = config.keys or {}
 
-  -- ── Kaji's three-layer view navigation ──────────────────────
-  --   Cmd+1 Brain (First Mate)  ·  Cmd+2 Workspace (workers)  ·  Cmd+3 Monitor (helm-top)
-  -- Cmd+1: jump to the Brain (spawn it on first use).
+  -- ── Two views only (Kaji Sun decision): Mission Control ⇄ Work ─────────
+  -- Cmd+/ flips between the Mission Control (Brain cockpit) and the worker
+  -- pane you were last on. Cmd+1/2/3/4 are gone — one key, two places.
   table.insert(config.keys, {
-    key = '1',
+    key = '/',
     mods = 'CMD',
     action = wezterm.action_callback(function(window, pane)
-      Helm.workspace.remember(pane)
-      local b = Helm.brain.pane()
-      if b then Helm.brain.focus_pane(b:pane_id()) else Helm.brain.spawn(window) end
+      Helm.brain.toggle(window, pane)
     end),
   })
 
-  -- Cmd+2: back to the Workspace (the worker pane you were last on).
+  -- Cmd+T: the Terminal slot — a single plain login shell (focused if alive,
+  -- spawned on first use). Standard terminal muscle memory; not a "view".
   table.insert(config.keys, {
-    key = '2',
-    mods = 'CMD',
-    action = wezterm.action_callback(function(window, pane)
-      Helm.workspace.focus(window, pane)
-    end),
-  })
-
-  -- Cmd+3 (Monitor) intentionally removed: the Monitor view is cut. High-level
-  -- fleet state will live in the Brain (see docs/BRAIN_DESIGN.md); for now ask
-  -- the Brain. Cmd+2 (Work) tiles all live worker sessions for an eyeball view.
-
-  -- Cmd+4: switch to the Terminal — a single plain login shell. Like the other
-  -- views, this is a SLOT: focus the existing Terminal if it's alive, only
-  -- spawn one on first use (no more new tab on every press).
-  table.insert(config.keys, {
-    key = '4',
+    key = 't',
     mods = 'CMD',
     action = wezterm.action_callback(function(window, pane)
       Helm.workspace.remember(pane)
