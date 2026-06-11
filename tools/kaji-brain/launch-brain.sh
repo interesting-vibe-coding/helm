@@ -100,7 +100,8 @@ fi
 
 case "$BRAIN_HARNESS" in
   cockpit)
-    echo "launch-brain: Kaji Sun cockpit (TUI)" >&2
+    # No banner — the cockpit paints its own frame instantly; any echo here
+    # is a flash of noise before the alt screen takes over.
     exec python3 "$SCRIPT_DIR/../brain-cockpit/cockpit.py"
     ;;
   claude)

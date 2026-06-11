@@ -766,6 +766,8 @@ Helm.status = {}
 -- Calm, low-saturation palette for the view compass — theme-aware so the dots
 -- stay readable on both the cream (Kaku Light) and charcoal (Kaku Dark) bar.
 local _light_status = (config.color_scheme == 'Kaku Light')
+-- Hand the scheme to spawned TUIs (Brain cockpit picks Sun Day/Night by it).
+wezterm.GLOBAL.helm_theme = _light_status and 'light' or 'dark'
 Helm.status.palette = {
   dim    = _light_status and '#9A988F' or '#565f73',  -- inactive dots
   text   = _light_status and '#403E3C' or '#a9b1d6',  -- primary text
@@ -967,8 +969,10 @@ function Helm.brain.spawn_in(mux_window)
   local launcher = Helm.brain.launcher()
   if not launcher or not mux_window then return nil end
   -- exec so the agent takes over the shell (pane won't close when it exits cleanly)
+  local theme = wezterm.GLOBAL.helm_theme or 'dark'
   local tab, pane = mux_window:spawn_tab {
-    args = { '/bin/bash', '-l', '-c', "exec '" .. launcher .. "'" },
+    args = { '/bin/bash', '-l', '-c',
+      "KAJI_THEME=" .. theme .. " exec '" .. launcher .. "'" },
   }
   wezterm.GLOBAL.helm_brain_tab  = tab:tab_id()
   wezterm.GLOBAL.helm_brain_pane = pane:pane_id()
@@ -987,9 +991,22 @@ function Helm.brain.toggle(window, pane)
   local bpane = Helm.brain.pane()
   if bpane then
     if pane:pane_id() == bpane:pane_id() then
-      -- currently on the Brain → flip back to the worker we came from
+      -- currently on the Brain → flip back to the worker we came from;
+      -- if that's gone (or we never came from one), any live worker will do.
       local last = wezterm.GLOBAL.helm_last_worker
-      if last then Helm.brain.focus_pane(last) end
+      if not (last and Helm.brain.focus_pane(last)) then
+        wezterm.GLOBAL.helm_last_worker = nil
+        for _, win in ipairs(wezterm.mux.all_windows()) do
+          for _, tab in ipairs(win:tabs()) do
+            for _, p in ipairs(tab:panes()) do
+              if Helm.workspace.is_worker(p:pane_id()) then
+                Helm.brain.focus_pane(p:pane_id())
+                return
+              end
+            end
+          end
+        end
+      end
     else
       -- currently on a worker → remember it, jump to the Brain
       wezterm.GLOBAL.helm_last_worker = pane:pane_id()
