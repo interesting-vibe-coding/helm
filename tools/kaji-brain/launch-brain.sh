@@ -96,15 +96,18 @@ fi
 
 case "$BRAIN_HARNESS" in
   claude)
-    echo "launch-brain: using claude (--model sonnet, /helm-first-mate skill)" >&2
-    # --strict-mcp-config: ignore ALL other MCP configs (incl. Claude Desktop's
-    # ~/Library/Application Support/Claude/claude_desktop_config.json). Reading
-    # that cross-app file makes macOS pop a TCC "Kaji wants to access data from
-    # other apps" prompt on every Brain launch. The Brain doesn't need desktop
-    # MCP servers (it drives workers via the kaji-brain CLI), so we opt out.
+    echo "launch-brain: using claude (--model sonnet, kaji-brain MCP + /helm-first-mate skill)" >&2
+    # The Brain drives the fleet through the kaji-brain MCP SERVER (typed
+    # tools: list_sessions / fleet_timeline / spawn_worker / send_to_worker /
+    # notify) — the engine-agnostic seam: any MCP-speaking harness can hold
+    # the rudder. The CLI stays on PATH as a fallback.
+    # --strict-mcp-config: load ONLY this config — reading Claude Desktop's
+    # cross-app config file (claude_desktop_config.json) pops a TCC "access
+    # data from other apps" prompt on every Brain launch, so we opt out.
+    MCP_CONFIG=$(printf '{"mcpServers":{"kaji-brain":{"command":"python3","args":["%s/mcp_server.py"]}}}' "$SCRIPT_DIR")
     exec claude --model sonnet --dangerously-skip-permissions \
-      --mcp-config '{"mcpServers":{}}' --strict-mcp-config \
-      "You are the Kaji First Mate. Use the /helm-first-mate skill, then run 'kaji-brain sessions' and 'kaji-brain last-session' (offer a y/n restore if the latter is non-empty), and greet me."
+      --mcp-config "$MCP_CONFIG" --strict-mcp-config \
+      "You are the Kaji First Mate. Use the /helm-first-mate skill. Prefer the kaji-brain MCP tools (list_sessions, fleet_timeline, spawn_worker, send_to_worker, notify) over shelling out. Start: call list_sessions, run 'kaji-brain last-session' (offer a y/n restore if non-empty), and greet me."
     ;;
   kiro)
     echo "launch-brain: using kiro-cli (--model claude-sonnet-4.6, helm-first-mate skill)" >&2
