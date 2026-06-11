@@ -50,6 +50,7 @@ future First Mate reads. All event writes are best-effort and never raise.
 Robustness contract: never crash if Kaji is not running or files are missing.
 `sessions` prints [] and exits 0 in that case.
 """
+import io
 import json
 import os
 import shutil
@@ -714,6 +715,7 @@ usage:
                                       sending an initial task. Prints {"pane_id":N}.
   kaji-brain plan "<order>"           NL → one structured fleet action (JSON;
                                       caller confirms + executes)
+  kaji-brain qr [--rotate] [out.png]  phone pairing QR (relay URL, token in #fragment)
   kaji-brain notify <title> <msg>     pop a macOS notification
   kaji-brain watch                    stream session state changes
   kaji-brain timeline [--json] [--pane N]
@@ -885,9 +887,53 @@ def cmd_plan(args):
     return 0
 
 
+def cmd_qr(args):
+    """Pair a phone: print the relay URL as a QR code (token embedded in the
+    fragment — never sent to the relay server; the page stores it locally).
+    --rotate mints a fresh token first (and restarts kaji-brain serve)."""
+    cfg = os.path.join(os.path.expanduser("~"), ".config", "helm")
+    tok_path = os.path.join(cfg, "brain-token")
+    rid_path = os.path.join(cfg, "relay-id")
+    if "--rotate" in args:
+        import secrets
+        new_tok = secrets.token_hex(24)
+        os.makedirs(cfg, exist_ok=True)
+        with open(tok_path, "w") as f:
+            f.write(new_tok)
+        os.chmod(tok_path, 0o600)
+        subprocess.run(["launchctl", "kickstart", "-k",
+                        "gui/%d/dev.kaji.brain-serve" % os.getuid()],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        sys.stderr.write("token rotated; serve restarted — old phone sessions are logged out\n")
+    try:
+        tok = open(tok_path).read().strip()
+        rid = open(rid_path).read().strip()
+    except OSError as e:
+        sys.stderr.write("missing %s — is the relay set up? (docs/remote.md)\n" % e.filename)
+        return 1
+    url = "https://relay.doabit.dev/c/%s/#tok=%s" % (rid, tok)
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "vendor"))
+    try:
+        import segno
+    except ImportError:
+        sys.stderr.write("segno not vendored; URL:\n%s\n" % url)
+        return 1
+    qr = segno.make(url, error="m")
+    out = io.StringIO()
+    qr.terminal(out=out, compact=True, border=2)
+    sys.stdout.write(out.getvalue())
+    print("scan → fleet in your pocket (token rides the #fragment, local-only)")
+    for a in args:
+        if a.endswith(".png"):
+            qr.save(a, scale=8, border=2)
+            print("saved:", a)
+    return 0
+
+
 COMMANDS = {
     "sessions": cmd_sessions,
     "plan": cmd_plan,
+    "qr": cmd_qr,
     "quota": cmd_quota,
     "send": cmd_send,
     "spawn": cmd_spawn,

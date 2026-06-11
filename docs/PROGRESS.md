@@ -128,4 +128,11 @@ fleet + 共享 memory/skills**.
 **v0.6.0 已发布（2026-06-11 晚）**: Kaji Sun 全家桶 — 日/夜双套色、⌘/ 两视图、Brain=自家 TUI、舵 NL 派活（直接打字+方向键确认+auto 模式）、双窗口权威配额、ctx%、新 logo、relay 修复、codex 检测/发送修复。发版法: 无 Rust 变更 → 基于上版 zip 覆盖 Resources + ad-hoc 重签 + gh release create。
 **Chat 后端现状**: `claude -p --model sonnet` 单发无状态（每次带舰队快照, ~9s）。终态自研常驻引擎。
 
+**过夜冲刺（2026-06-11 深夜, 自治）**:
+- 手机舵线（#157）: POST /api/plan + planbar 卡片（执行/取消/改一改 chips）。
+- planner 9s→~2.5s（#158）: 直连 /v1/messages（CC OAuth token + haiku）, CLI 兜底; prompt 加硬: 闲聊→none, send text 必须祈使句。
+- focus_pane 真聚焦（#159）: tab:activate 不切 pane → compass/键盘留在 Brain 的根因; p:activate() 补上。
+- README v0.6 对齐（#160）: 舵线头条、⌘/ 双视图、Sun 色语、双窗额度; 中英同步。
+- QR 配对: `kaji-brain qr [--rotate] [out.png]` — token 走 URL #fragment（不经 relay 服务器）, 手机端自动收存; --rotate 换 token + 重启 serve。segno 已 vendor。
+
 **Next（当前队列）**: ① cockpit 交互循环 + mobile/desktop UI 设计打磨（主战场: 轻量·交互·可视化, 管多 harness 必须比终端切换方便得多）② 统一额度 scraper ③ relay 加 QR 配对 + E2E 加密（launch 前安全叙事）④ demo（最后录）。
