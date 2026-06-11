@@ -102,7 +102,14 @@ async function api(path, opts) {
     headers: { "Authorization": "Bearer " + token, "Content-Type": "application/json" },
   }, opts));
   if (r.status === 401) { logout("token rejected — enter it again"); throw new Error("401"); }
-  return r.json();
+  let data = null;
+  try { data = await r.json(); } catch (e) { /* non-JSON body */ }
+  if (!r.ok) {
+    // fetch() resolves on 4xx/5xx — without this, a 502 send (Kaji not
+    // running) looked like success on the phone (kaji#125).
+    throw new Error((data && data.error) || ("HTTP " + r.status));
+  }
+  return data;
 }
 
 function fmtRuntime(s) {
