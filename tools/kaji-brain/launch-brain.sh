@@ -60,11 +60,14 @@ if [[ ! -f "$BRAIN_CONF" ]]; then
   LEGACY_BRAIN_CONF="${XDG_CONFIG_HOME:-$HOME/.config}/kaku/brain.conf"
   [[ -f "$LEGACY_BRAIN_CONF" ]] && BRAIN_CONF="$LEGACY_BRAIN_CONF"
 fi
-BRAIN_HARNESS="claude"
+# Default Brain = the Kaji Sun TUI cockpit (our own surface — no harness
+# shell). An LLM harness can still hold the rudder: set BRAIN_HARNESS to
+# claude|kiro|opencode|codex in brain.conf to get the dispatcher-agent Brain.
+BRAIN_HARNESS="cockpit"
 if [[ -f "$BRAIN_CONF" ]]; then
   conf_val="$(sed -nE 's/^[[:space:]]*BRAIN_HARNESS[[:space:]]*=[[:space:]]*([A-Za-z]+).*/\1/p' "$BRAIN_CONF" | head -n1)"
   case "$conf_val" in
-    claude|kiro|opencode|codex) BRAIN_HARNESS="$conf_val" ;;
+    cockpit|claude|kiro|opencode|codex) BRAIN_HARNESS="$conf_val" ;;
   esac
 fi
 
@@ -80,8 +83,9 @@ harness_bin() {
 have() { command -v "$(harness_bin "$1")" >/dev/null 2>&1; }
 
 # If the chosen harness isn't installed, fall back to the first available,
-# preferring claude. Note the substitution on stderr.
-if ! have "$BRAIN_HARNESS"; then
+# preferring claude. Note the substitution on stderr. (cockpit needs no
+# harness — only python3, which macOS always has.)
+if [[ "$BRAIN_HARNESS" != "cockpit" ]] && ! have "$BRAIN_HARNESS"; then
   fallback=""
   for cand in claude kiro opencode codex; do
     if have "$cand"; then fallback="$cand"; break; fi
@@ -95,6 +99,10 @@ if ! have "$BRAIN_HARNESS"; then
 fi
 
 case "$BRAIN_HARNESS" in
+  cockpit)
+    echo "launch-brain: Kaji Sun cockpit (TUI)" >&2
+    exec python3 "$SCRIPT_DIR/../brain-cockpit/cockpit.py"
+    ;;
   claude)
     echo "launch-brain: using claude (--model sonnet, kaji-brain MCP + /helm-first-mate skill)" >&2
     # The Brain drives the fleet through the kaji-brain MCP SERVER (typed
