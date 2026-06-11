@@ -198,23 +198,49 @@ def load_runtime():
         return {}
 
 
+# quota.py scans session files on every run — memoize briefly so the serve
+# poll loop (SSE beat + several clients at 4s) doesn't re-scan constantly.
+_QUOTA_CACHE = {"ts": 0.0, "data": {}}
+QUOTA_TTL_SECS = float(os.environ.get("HELM_QUOTA_TTL", "20"))
+
+
+def load_quota_raw():
+    """Full per-harness dict from quota.py --json (briefly cached). {} on failure."""
+    now = time.time()
+    if now - _QUOTA_CACHE["ts"] < QUOTA_TTL_SECS:
+        return _QUOTA_CACHE["data"]
+    data = {}
+    if QUOTA_PY.exists():
+        rc, out, _ = _run([sys.executable or "python3", str(QUOTA_PY), "--json"])
+        if rc == 0 and out.strip():
+            try:
+                parsed = json.loads(out)
+                if isinstance(parsed, dict):
+                    data = parsed
+            except Exception:
+                pass
+    _QUOTA_CACHE["ts"] = now
+    _QUOTA_CACHE["data"] = data
+    return data
+
+
 def load_quota():
     """Return {harness: tokens_today} (lowercase keys). {} on any failure."""
-    if not QUOTA_PY.exists():
-        return {}
-    rc, out, _ = _run([sys.executable or "python3", str(QUOTA_PY), "--json"])
-    if rc != 0 or not out.strip():
-        return {}
-    try:
-        data = json.loads(out)
-    except Exception:
-        return {}
     tokens = {}
-    if isinstance(data, dict):
-        for name, info in data.items():
-            if isinstance(info, dict):
-                tokens[name.lower()] = info.get("tokens_today", 0) or 0
+    for name, info in load_quota_raw().items():
+        if isinstance(info, dict):
+            tokens[name.lower()] = info.get("tokens_today", 0) or 0
     return tokens
+
+
+def load_limits():
+    """Return {harness: limits-dict} for harnesses exposing real quota
+    (used_percent / resets_at / plan — currently codex only). {} if none."""
+    limits = {}
+    for name, info in load_quota_raw().items():
+        if isinstance(info, dict) and isinstance(info.get("limits"), dict):
+            limits[name.lower()] = info["limits"]
+    return limits
 
 
 # ── event log (append-only history substrate) ────────────────────────────────

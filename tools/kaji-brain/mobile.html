@@ -216,12 +216,26 @@ function evLine(e) {
   return e.ev || "?";
 }
 
+function fmtTokens(v) {
+  if (v >= 1e6) return (v / 1e6).toFixed(1) + "M";
+  if (v >= 1000) return Math.round(v / 1000) + "k";
+  return String(v);
+}
+
 function render(state) {
   $("ts").textContent = "updated " + fmtClock(state.ts);
-  const q = state.quota || {};
-  const chips = Object.entries(q).filter(([, v]) => v > 0)
-    .map(([k, v]) => '<span class="chip">' + esc(k) + ' <b>' +
-      (v >= 1000 ? Math.round(v / 1000) + "k" : v) + '</b></span>').join("");
+  const q = state.quota || {}, lim = state.limits || {};
+  const names = new Set(Object.keys(q).concat(Object.keys(lim)));
+  const chips = [...names].map(k => {
+    const v = q[k] || 0, l = lim[k];
+    const pct = l && (l.secondary_used_percent ?? l.primary_used_percent);
+    if (!v && pct == null) return "";
+    let t = esc(k);
+    if (v) t += ' <b>' + fmtTokens(v) + '</b>';
+    if (pct != null) t += ' · ' + Math.max(0, Math.round(100 - pct)) + '% left';
+    if (l && l.plan) t += ' <span style="opacity:.6">(' + esc(l.plan) + ')</span>';
+    return '<span class="chip">' + t + '</span>';
+  }).filter(Boolean).join("");
   $("quota").innerHTML = chips || '<span class="chip">tokens today · none</span>';
 
   const list = $("list");

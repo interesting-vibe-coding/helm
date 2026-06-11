@@ -26,8 +26,16 @@ Usage sources investigated (2026-06) — what's actually available per harness:
                 contains tokens.{input,output,reasoning,cache} + cost +
                 time.created. We sum those for today => accurate tokens.
 
+  codex       : ~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl carries
+                `token_count` events with BOTH cumulative token usage AND
+                rate_limits.{primary,secondary}.used_percent — the only
+                harness exposing real account quota %% locally. The usage
+                values are session-CUMULATIVE: take the LAST event per file,
+                never sum events. (See SOURCES.md.)
+
 Conclusion: local-file parsing gives the best today-scoped numbers for
-claude-code + opencode; kiro stays session-count only until a CLI/API exists.
+claude-code + opencode + codex; kiro stays session-count only until a
+CLI/API exists.
 ────────────────────────────────────────────────────────────────────────
 """
 import json, os, sys, time
@@ -35,6 +43,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 HOME = Path.home()
+# Overridable for tests.
+CODEX_SESSIONS = Path(os.environ.get("HELM_CODEX_SESSIONS") or HOME / ".codex" / "sessions")
 NOW = time.time()
 TODAY_START = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
 
@@ -149,6 +159,79 @@ def opencode():
     return sessions_today, (tokens_today if tokens_today else None), last
 
 
+def _codex_last_token_count(path):
+    """Last token_count payload in a rollout file: (info, rate_limits)."""
+    info, rl = None, None
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                if '"token_count"' not in line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                except Exception:
+                    continue
+                if not isinstance(rec, dict):
+                    continue
+                payload = rec.get("payload") or {}
+                if not isinstance(payload, dict):
+                    continue
+                if payload.get("type") != "token_count":
+                    continue
+                info = payload.get("info") or info
+                rl = payload.get("rate_limits") or rl
+    except OSError:
+        pass
+    return info, rl
+
+
+def codex():
+    """Returns (sessions_today, tokens_today, last_active_ts, limits|None).
+
+    tokens: token_count events are session-CUMULATIVE — take the LAST event
+    per file and sum across today's files (UTC date dirs).
+    limits: from the freshest session overall (account-level, not today-bound):
+    {primary_used_percent?, secondary_used_percent?, *_resets_at?, plan?}.
+    """
+    base = CODEX_SESSIONS
+    if not base.exists():
+        return 0, None, None, None
+    today = datetime.now(timezone.utc)
+    day_dir = base / f"{today:%Y}" / f"{today:%m}" / f"{today:%d}"
+    files_today = sorted(day_dir.glob("rollout-*.jsonl")) if day_dir.exists() else []
+
+    tokens_today, last = 0, None
+    for p in files_today:
+        info, _ = _codex_last_token_count(p)
+        if info:
+            tokens_today += ((info.get("total_token_usage") or {}).get("total_tokens") or 0)
+        try:
+            last = max(last or 0, p.stat().st_mtime)
+        except OSError:
+            pass
+
+    limits = None
+    try:
+        all_files = sorted(base.glob("*/*/*/rollout-*.jsonl"), key=lambda p: p.stat().st_mtime)
+    except OSError:
+        all_files = []
+    if all_files:
+        _, rl = _codex_last_token_count(all_files[-1])
+        if rl:
+            limits = {}
+            for key in ("primary", "secondary"):
+                window = rl.get(key)
+                if isinstance(window, dict) and window.get("used_percent") is not None:
+                    limits[key + "_used_percent"] = window["used_percent"]
+                    if window.get("resets_at") is not None:
+                        limits[key + "_resets_at"] = window["resets_at"]
+            if rl.get("plan_type"):
+                limits["plan"] = rl["plan_type"]
+            limits = limits or None
+
+    return len(files_today), (tokens_today or None), last, limits
+
+
 def fmt_tokens(n):
     if n is None: return "N/A"
     if n == 0: return "N/A"
@@ -161,22 +244,27 @@ def fmt_last(ts):
 
 
 def collect():
-    """Return the raw per-harness tuples."""
+    """Return per-harness tuples (name, sessions, tokens, last, limits|None)."""
     return [
-        ("claude", *claude_code()),
-        ("kiro",   *kiro()),
-        ("opencode", *opencode()),
+        ("claude", *claude_code(), None),
+        ("kiro",   *kiro(), None),
+        ("opencode", *opencode(), None),
+        ("codex", *codex()),
     ]
 
 
 def emit_json():
     rows = collect()
     out = {}
-    for name, sess, tok, _last in rows:
+    for name, sess, tok, _last, limits in rows:
         out[name] = {
             "tokens_today": tok if tok is not None else 0,
             "sessions_today": sess,
         }
+        if limits:
+            # Additive key — existing consumers (kaku.lua status bar) read
+            # tokens_today/sessions_today only and are unaffected.
+            out[name]["limits"] = limits
     # compact, no spaces — small payload for run_child_process
     sys.stdout.write(json.dumps(out, separators=(",", ":")))
     sys.stdout.write("\n")
@@ -190,11 +278,18 @@ def emit_table():
     print("=================")
     print(f"{'harness':<14} {'sessions_today':<16} {'tokens_today':<13} {'last_active'}")
     print(f"{'-'*14} {'-'*14} {'-'*11} {'-'*12}")
-    for name, sess, tok, last in rows:
-        print(f"{label.get(name, name):<14} {str(sess):<16} {fmt_tokens(tok):<13} {fmt_last(last)}")
+    for name, sess, tok, last, limits in rows:
+        extra = ""
+        if limits:
+            pct = limits.get("secondary_used_percent", limits.get("primary_used_percent"))
+            if pct is not None:
+                extra = f"  quota {pct:.0f}% used ({limits.get('plan', '?')})"
+        print(f"{label.get(name, name):<14} {str(sess):<16} {fmt_tokens(tok):<13} {fmt_last(last)}{extra}")
     print()
     print("Note: claude-code tokens summed from message.usage (today only).")
     print("      opencode tokens summed from storage/message/*.json (today).")
+    print("      codex tokens = last token_count per session (cumulative), today's UTC dir;")
+    print("            quota %% from rate_limits in the freshest session.")
     print("      kiro session files store no token counts (sessions only).")
 
 
