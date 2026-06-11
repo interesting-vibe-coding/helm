@@ -139,17 +139,20 @@ def fmt_quota_line(quota: Optional[Dict]) -> str:
             continue
         tok = int(info.get("tokens_today") or 0)
         lim = info.get("limits") or {}
-        pct = lim.get("secondary_used_percent", lim.get("primary_used_percent"))
-        if not tok and pct is None:
+        fh = lim.get("five_hour_used_percent", lim.get("primary_used_percent"))
+        sd = lim.get("seven_day_used_percent", lim.get("secondary_used_percent"))
+        if not tok and fh is None and sd is None:
             continue
         seg = name
         if tok:
             seg += " %s" % ("%.1fM" % (tok / 1e6) if tok >= 1e6 else
                             "%dk" % (tok // 1000) if tok >= 1000 else str(tok))
-        if pct is not None:
-            seg += " %d%% left" % max(0, round(100 - pct))
+        if fh is not None:
+            seg += " 5h %d%%" % round(fh)
+        if sd is not None:
+            seg += " wk %d%%" % round(sd)
         parts.append(seg)
-    return "  ·  ".join(parts)
+    return "   ".join(parts)
 
 
 def render(sessions: List[Dict], events: List[Dict], selected: int = 0,

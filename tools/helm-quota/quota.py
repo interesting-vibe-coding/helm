@@ -38,7 +38,7 @@ claude-code + opencode + codex; kiro stays session-count only until a
 CLI/API exists.
 ────────────────────────────────────────────────────────────────────────
 """
-import json, os, sys, time
+import json, os, subprocess, sys, time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -55,6 +55,141 @@ def ago(ts: float) -> str:
     if d < 3600: return f"{int(d/60)}m ago"
     if d < 86400: return f"{int(d/3600)}h ago"
     return f"{int(d/86400)}d ago"
+
+
+# ── live account limits (claude oauth endpoint / codex app-server) ──────────
+# Both report SERVER-side window utilization: five_hour + seven_day, 0-100.
+# Cached on disk for LIMITS_TTL secs: the claude endpoint 429s under ~180s
+# polling, and spawning codex app-server per call is not free. Fetch failures
+# serve the stale cache (better an old number than none). Set
+# HELM_QUOTA_OFFLINE=1 to disable live calls entirely (tests, air-gapped).
+CACHE_DIR = HOME / ".helm" / "sessions"
+LIMITS_TTL = 180
+
+
+def _limits_cached(name, fetch):
+    path = CACHE_DIR / name
+    try:
+        if time.time() - path.stat().st_mtime < LIMITS_TTL:
+            return json.loads(path.read_text())
+    except Exception:
+        pass
+    data = None
+    if not os.environ.get("HELM_QUOTA_OFFLINE"):
+        try:
+            data = fetch()
+        except Exception:
+            data = None
+    if data:
+        try:
+            CACHE_DIR.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(data))
+        except Exception:
+            pass
+        return data
+    try:
+        return json.loads(path.read_text())
+    except Exception:
+        return None
+
+
+def _claude_oauth_token():
+    """Access token from ~/.claude/.credentials.json or the macOS keychain."""
+    try:
+        d = json.loads((HOME / ".claude" / ".credentials.json").read_text())
+        return d["claudeAiOauth"]["accessToken"]
+    except Exception:
+        pass
+    try:
+        pr = subprocess.run(
+            ["security", "find-generic-password", "-s", "Claude Code-credentials", "-w"],
+            capture_output=True, text=True, timeout=5)
+        if pr.returncode == 0 and pr.stdout.strip():
+            return json.loads(pr.stdout)["claudeAiOauth"]["accessToken"]
+    except Exception:
+        pass
+    return None
+
+
+def _fetch_claude_limits():
+    token = _claude_oauth_token()
+    if not token:
+        return None
+    import urllib.request
+    req = urllib.request.Request(
+        "https://api.anthropic.com/api/oauth/usage",
+        headers={
+            "Authorization": "Bearer " + token,
+            "anthropic-beta": "oauth-2025-04-20",
+            # Omitting a claude-code UA gets a persistent 429.
+            "User-Agent": "claude-code/2.1.90",
+            "Content-Type": "application/json",
+        })
+    with urllib.request.urlopen(req, timeout=10) as r:
+        d = json.loads(r.read().decode("utf-8"))
+    out = {}
+    for key in ("five_hour", "seven_day"):
+        w = d.get(key) or {}
+        if w.get("utilization") is not None:
+            out[key + "_used_percent"] = w["utilization"]
+            if w.get("resets_at"):
+                out[key + "_resets_at"] = w["resets_at"]
+    return out or None
+
+
+def claude_limits():
+    return _limits_cached("claude-limits-cache.json", _fetch_claude_limits)
+
+
+def _fetch_codex_limits():
+    """codex app-server JSON-RPC account/rateLimits/read (official path)."""
+    import select
+    proc = subprocess.Popen(
+        ["codex", "-s", "read-only", "-a", "untrusted", "app-server"],
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL, text=True)
+    try:
+        def send(o):
+            proc.stdin.write(json.dumps(o) + "\n")
+            proc.stdin.flush()
+        send({"jsonrpc": "2.0", "id": 1, "method": "initialize",
+              "params": {"clientInfo": {"name": "kaji-quota", "version": "1.0"}}})
+        send({"jsonrpc": "2.0", "id": 2,
+              "method": "account/rateLimits/read", "params": {}})
+        deadline = time.time() + 10
+        while time.time() < deadline:
+            r, _, _ = select.select([proc.stdout], [], [], 1.0)
+            if not r:
+                continue
+            line = proc.stdout.readline()
+            if not line:
+                break
+            try:
+                d = json.loads(line)
+            except Exception:
+                continue
+            if d.get("id") == 2:
+                rl = (d.get("result") or {}).get("rateLimits") or {}
+                out = {}
+                for src, key in (("primary", "five_hour"), ("secondary", "seven_day")):
+                    w = rl.get(src) or {}
+                    if w.get("usedPercent") is not None:
+                        out[key + "_used_percent"] = w["usedPercent"]
+                        if w.get("resetsAt") is not None:
+                            out[key + "_resets_at"] = w["resetsAt"]
+                if rl.get("planType"):
+                    out["plan"] = rl["planType"]
+                return out or None
+        return None
+    finally:
+        try:
+            proc.kill()
+        except Exception:
+            pass
+
+
+def codex_limits():
+    return _limits_cached("codex-limits-cache.json", _fetch_codex_limits)
 
 
 def munge_cwd(cwd):
@@ -253,8 +388,8 @@ def codex():
         _, rl, _ = _codex_last_token_count(all_files[-1])
         if rl:
             limits = {}
-            for key in ("primary", "secondary"):
-                window = rl.get(key)
+            for src, key in (("primary", "five_hour"), ("secondary", "seven_day")):
+                window = rl.get(src)
                 if isinstance(window, dict) and window.get("used_percent") is not None:
                     limits[key + "_used_percent"] = window["used_percent"]
                     if window.get("resets_at") is not None:
@@ -278,13 +413,19 @@ def fmt_last(ts):
 
 
 def collect():
-    """Per-harness tuples (name, sessions, tokens, last, limits|None, by_project)."""
+    """Per-harness tuples (name, sessions, tokens, last, limits|None, by_project).
+
+    Limits: live account windows (five_hour/seven_day used_percent) — claude
+    via the oauth usage endpoint, codex via app-server; codex falls back to
+    the freshest session file when the live call fails.
+    """
     c_sess, c_tok, c_last, c_proj = claude_code()
+    x_sess, x_tok, x_last, x_file_limits, x_proj = codex()
     return [
-        ("claude", c_sess, c_tok, c_last, None, c_proj),
+        ("claude", c_sess, c_tok, c_last, claude_limits(), c_proj),
         ("kiro",   *kiro(), None, {}),
         ("opencode", *opencode(), None, {}),
-        ("codex", *codex()),
+        ("codex", x_sess, x_tok, x_last, codex_limits() or x_file_limits, x_proj),
     ]
 
 
@@ -318,9 +459,15 @@ def emit_table():
     for name, sess, tok, last, limits, _bp in rows:
         extra = ""
         if limits:
-            pct = limits.get("secondary_used_percent", limits.get("primary_used_percent"))
-            if pct is not None:
-                extra = f"  quota {pct:.0f}% used ({limits.get('plan', '?')})"
+            fh = limits.get("five_hour_used_percent")
+            sd = limits.get("seven_day_used_percent")
+            bits = []
+            if fh is not None:
+                bits.append(f"5h {fh:.0f}%")
+            if sd is not None:
+                bits.append(f"wk {sd:.0f}%")
+            if bits:
+                extra = "  used " + " · ".join(bits) + (f" ({limits['plan']})" if limits.get("plan") else "")
         print(f"{label.get(name, name):<14} {str(sess):<16} {fmt_tokens(tok):<13} {fmt_last(last)}{extra}")
     print()
     print("Note: claude-code tokens summed from message.usage (today only).")

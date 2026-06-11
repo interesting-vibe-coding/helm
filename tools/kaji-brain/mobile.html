@@ -227,13 +227,14 @@ function render(state) {
   const q = state.quota || {}, lim = state.limits || {};
   const names = new Set(Object.keys(q).concat(Object.keys(lim)));
   const chips = [...names].map(k => {
-    const v = q[k] || 0, l = lim[k];
-    const pct = l && (l.secondary_used_percent ?? l.primary_used_percent);
-    if (!v && pct == null) return "";
+    const v = q[k] || 0, l = lim[k] || {};
+    const fh = l.five_hour_used_percent ?? l.primary_used_percent;
+    const sd = l.seven_day_used_percent ?? l.secondary_used_percent;
+    if (!v && fh == null && sd == null) return "";
     let t = esc(k);
     if (v) t += ' <b>' + fmtTokens(v) + '</b>';
-    if (pct != null) t += ' · ' + Math.max(0, Math.round(100 - pct)) + '% left';
-    if (l && l.plan) t += ' <span style="opacity:.6">(' + esc(l.plan) + ')</span>';
+    if (fh != null) t += ' · 5h ' + Math.round(fh) + '%';
+    if (sd != null) t += ' · wk ' + Math.round(sd) + '%';
     return '<span class="chip">' + t + '</span>';
   }).filter(Boolean).join("");
   $("quota").innerHTML = chips || '<span class="chip">tokens today · none</span>';

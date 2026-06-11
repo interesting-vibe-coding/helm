@@ -31,15 +31,21 @@ def _tc_line(total_tokens, primary_pct=None, secondary_pct=None, plan=None):
 
 class TestCodex(unittest.TestCase):
     def setUp(self):
+        os.environ["HELM_QUOTA_OFFLINE"] = "1"   # never hit live endpoints in tests
         self._tmp = tempfile.TemporaryDirectory()
         self._orig = quota.CODEX_SESSIONS
         quota.CODEX_SESSIONS = Path(self._tmp.name)
+        # isolate the limits disk cache too
+        self._orig_cache = quota.CACHE_DIR
+        quota.CACHE_DIR = Path(self._tmp.name) / "cache"
         today = datetime.now(timezone.utc)
         self.day_dir = Path(self._tmp.name) / f"{today:%Y}" / f"{today:%m}" / f"{today:%d}"
         self.day_dir.mkdir(parents=True)
 
     def tearDown(self):
         quota.CODEX_SESSIONS = self._orig
+        quota.CACHE_DIR = self._orig_cache
+        os.environ.pop("HELM_QUOTA_OFFLINE", None)
         self._tmp.cleanup()
 
     def _write(self, name, lines):
@@ -67,9 +73,9 @@ class TestCodex(unittest.TestCase):
         self._write("rollout-a.jsonl",
                     [_tc_line(50, primary_pct=10.0, secondary_pct=38.5, plan="plus")])
         _, _, _, limits, _bp = quota.codex()
-        self.assertEqual(limits["primary_used_percent"], 10.0)
-        self.assertEqual(limits["secondary_used_percent"], 38.5)
-        self.assertEqual(limits["secondary_resets_at"], 222)
+        self.assertEqual(limits["five_hour_used_percent"], 10.0)
+        self.assertEqual(limits["seven_day_used_percent"], 38.5)
+        self.assertEqual(limits["seven_day_resets_at"], 222)
         self.assertEqual(limits["plan"], "plus")
 
     def test_null_windows_yield_plan_only(self):
