@@ -457,7 +457,7 @@ def parse_key(buf: bytes) -> str:
     return "none"
 
 
-HINTS = "直接打字下指令 · ⏎ 发 · ⇥ confirm/auto · ↑↓ 选 · 空⏎ 回它 · q 退"
+HINTS = "直接打字下指令 · ⏎ 发 · ⇥ confirm/auto · ↑↓ 选 · 空⏎ 回它 · ^C 退"
 
 
 def _prompt(line: str) -> str:
@@ -655,34 +655,10 @@ def interactive(args) -> int:
                         flash = "sent ✓" if ok else ("send failed: " + (err or "?"))
                     kick()
                 continue
-            # single-letter commands only while the buffer is empty
-            if not helm_buf[0]:
-                action = parse_key(buf)
-                if action == "quit":
-                    return 0
-                if action == "up":
-                    selected -= 1
-                    continue
-                if action == "down":
-                    selected += 1
-                    continue
-                if action == "refresh":
-                    kick()
-                    continue
-                if action == "spawn":
-                    termios.tcsetattr(fd, termios.TCSADRAIN, old_attrs)
-                    harness = _prompt("\n harness [claude/kiro/opencode/codex]: ") or "claude"
-                    cwd = _prompt(" cwd: ")
-                    task = _prompt(" first task (optional): ") if cwd else ""
-                    tty.setcbreak(fd)
-                    if cwd:
-                        ok, err = spawn_worker(args.server, args.token or None,
-                                               harness, cwd, task)
-                        flash = "spawned ✓" if ok else ("spawn failed: " + (err or "?"))
-                    kick()
-                    continue
-                if action == "helm":   # legacy i / / — just begins typing
-                    continue
+            # NO single-letter commands: typing is the interface. Letters are
+            # text (an order may start with s/r/q — see the live misfire where
+            # "spawn a claude…" opened the manual spawn form). Quit = Ctrl-C,
+            # select = arrows, refresh = the 2s tick.
             # text: append to the 舵 buffer (UTF-8 safe)
             try:
                 chunk = buf.decode("utf-8")
