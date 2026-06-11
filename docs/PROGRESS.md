@@ -101,4 +101,10 @@ fleet + 共享 memory/skills**.
 
 **✅ launchd 常驻（2026-06-11）**: `dev.kaji.{tailscaled,brain-serve,relay-connector}` 三个 LaunchAgents（`~/Library/LaunchAgents/`）, KeepAlive + RunAtLoad, 挂了自动拉、重启自愈。nohup 时代结束。
 
+**✅ 主战场一轮完成（2026-06-11 下午, PR #130/#131/#132 全合）**:
+- **mobile cockpit v2（#130）**: 深奢视觉(espresso/cream/bronze/terracotta + 衬线 + 铜发丝线)、手机 spawn worker(harness chips + cwd 记忆 + 首任务)、卡片展开显时间线尾 5 条、桌面双列 grid、esc() 防 XSS。
+- **codex 真额度（#131）**: quota.py codex() — 今日 UTC 目录、每文件取 LAST token_count(累积值, 求和会虚高!)、rate_limits used_percent/resets_at/plan 取全局最新 session。brain load_quota_raw() 20s memo; /api/state 加 limits; cockpit chip 显 "codex 1.2M · 62% left (plus)"。kaku.lua 状态栏向后兼容(additive key)。
+- **cockpit 交互循环（#132）**: TUI 全屏循环(termios+select, 2s tick), ↑↓/jk 选, ⏎ 发指令, s spawn, r 刷, q 退; 写操作走 kaji-brain CLI 或 --server POST, cockpit 仍只是 spine 的客户端; parse_key 纯函数有测试。
+- **必须项(用户钉死)**: Claude Code 额度剩余必须可见。路径: ~/.claude OAuth token + Anthropic usage API 探路, 退路网页抓取。排队列。
+
 **Next（当前队列）**: ① cockpit 交互循环 + mobile/desktop UI 设计打磨（主战场: 轻量·交互·可视化, 管多 harness 必须比终端切换方便得多）② 统一额度 scraper ③ relay 加 QR 配对 + E2E 加密（launch 前安全叙事）④ demo（最后录）。
