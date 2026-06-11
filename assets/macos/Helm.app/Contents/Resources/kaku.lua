@@ -967,6 +967,10 @@ function Helm.brain.focus_pane(pane_id)
       for _, p in ipairs(tab:panes()) do
         if p:pane_id() == pane_id then
           tab:activate()
+          -- activate the PANE too: tab:activate() alone leaves focus on the
+          -- tab's previously-active pane — with same-tab splits the compass
+          -- (and keystrokes) stayed on the Brain after a "switch".
+          pcall(function() p:activate() end)
           for _, gw in ipairs(wezterm.gui.gui_windows()) do
             if gw:mux_window():window_id() == win:window_id() then gw:focus(); break end
           end
