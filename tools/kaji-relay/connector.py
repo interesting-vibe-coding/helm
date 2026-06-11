@@ -106,7 +106,16 @@ def main():
             backoff = 1
             if not job:
                 continue
-            _reply(job["req_id"], _execute(job))
+            try:
+                _reply(job["req_id"], _execute(job))
+            except urllib.error.HTTPError as e:
+                # 404 = the phone gave up waiting before we replied (stale job
+                # drained from the relay queue). Not a relay outage — skip it
+                # and poll again immediately, or a backlog turns into a
+                # self-sustaining failure loop (every sleep expires more jobs).
+                if e.code != 404:
+                    raise
+                sys.stderr.write("stale job %s dropped (client gone)\n" % job.get("req_id"))
         except KeyboardInterrupt:
             sys.stderr.write("\nbye.\n")
             return 0

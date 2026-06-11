@@ -116,4 +116,10 @@ fleet + 共享 memory/skills**.
 - 🐛 #139 waiting 误报 → 修(PR #140): BUSY_MARKERS — 尾部画面含 'esc to interrupt' 等忙碌标记时, 指纹再稳也不判 waiting。
 - 坑: `open -a Kaji` 可能被 LaunchServices 解析到 repo 里 dist/Kaji.app(dev build) — 验证装机版要 `open /Applications/Kaji.app` 绝对路径。
 
+**坑（2026-06-11 补）**:
+- relay 自维持故障循环: connector 掉线期间手机每 4s 排 job 进 DO 队列, pending 30s 过期但 job 滞留; connector 回归后逐个回放全 404, 还把 404 当致命错误 backoff → 永动失联。修: connector 跳过 404(stale job), worker 队列 stamp+过滤+cap 20。
+- CI lint 挪 ubuntu 后 `plutil` 步骤永挂(macOS-only) → 换 python plistlib。
+- Claude Code 1M 模型 auto-compact override 失效(官方 bug #53801, 阈值按硬编码 200k 算) → 1M session 只能手动 /compact。
+- wrangler OAuth 过期 → 用 about-me 的 CF API token 走 env(CLOUDFLARE_API_TOKEN+ACCOUNT_ID)。
+
 **Next（当前队列）**: ① cockpit 交互循环 + mobile/desktop UI 设计打磨（主战场: 轻量·交互·可视化, 管多 harness 必须比终端切换方便得多）② 统一额度 scraper ③ relay 加 QR 配对 + E2E 加密（launch 前安全叙事）④ demo（最后录）。
