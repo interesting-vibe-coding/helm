@@ -392,6 +392,17 @@ function boot() {
 }
 
 $("order").onkeydown = e => { if (e.key === "Enter") sendOrder(); };
+
+// QR pairing: `kaji-brain qr` embeds the token in the URL FRAGMENT — the
+// fragment never leaves the browser (not sent to the relay). Store + strip.
+(function () {
+  const m = location.hash.match(/tok=([0-9a-f]+)/);
+  if (m) {
+    token = m[1];
+    localStorage.setItem("kaji-token", token);
+    history.replaceState(null, "", location.pathname + location.search);
+  }
+})();
 token ? boot() : ($("gate").hidden = false);
 </script>
 </body>
