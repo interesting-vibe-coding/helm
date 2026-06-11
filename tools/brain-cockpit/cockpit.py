@@ -128,8 +128,33 @@ def _c(text: str, color: str, color_on: bool) -> str:
     return (color + text + RESET) if color_on else text
 
 
+def fmt_quota_line(quota: Optional[Dict]) -> str:
+    """One plain line: per-harness tokens today + %-left where known."""
+    if not quota:
+        return ""
+    parts = []
+    for name in sorted(quota):
+        info = quota.get(name) or {}
+        if not isinstance(info, dict):
+            continue
+        tok = int(info.get("tokens_today") or 0)
+        lim = info.get("limits") or {}
+        pct = lim.get("secondary_used_percent", lim.get("primary_used_percent"))
+        if not tok and pct is None:
+            continue
+        seg = name
+        if tok:
+            seg += " %s" % ("%.1fM" % (tok / 1e6) if tok >= 1e6 else
+                            "%dk" % (tok // 1000) if tok >= 1000 else str(tok))
+        if pct is not None:
+            seg += " %d%% left" % max(0, round(100 - pct))
+        parts.append(seg)
+    return "  ·  ".join(parts)
+
+
 def render(sessions: List[Dict], events: List[Dict], selected: int = 0,
-           width: int = 80, color: bool = True) -> str:
+           width: int = 80, color: bool = True,
+           quota: Optional[Dict] = None) -> str:
     """Render one cockpit frame as a string. Pure — no I/O, no globals."""
     width = max(40, width)
     ordered = sort_sessions(sessions)
@@ -141,6 +166,9 @@ def render(sessions: List[Dict], events: List[Dict], selected: int = 0,
     out.append(_c("  ᗣ  ", GHOST, color) + _c("KAJI", BOLD, color) +
                _c("  ·  you steer · agents execute", MUTE, color))
     out.append(_c("  the fleet — most-neglected first", DIM, color))
+    qline = fmt_quota_line(quota)
+    if qline:
+        out.append(_c("  " + _clip(qline, width - 4), MUTE, color))
     out.append("")
 
     # Footer compass: one dot per session, in display order, colored by state.
@@ -225,18 +253,20 @@ def _run_json(argv: List[str], default):
         return default
 
 
-def fetch_live() -> Tuple[List[Dict], List[Dict]]:
-    """Pull sessions + events from kaji-brain. Empty lists if unavailable."""
+def fetch_live() -> Tuple[List[Dict], List[Dict], Dict]:
+    """Pull sessions + events + quota from kaji-brain. Empty if unavailable."""
     hb = _helm_brain_argv()
     if not hb:
-        return [], []
+        return [], [], {}
     sessions = _run_json(hb + ["sessions"], [])
     events = _run_json(hb + ["timeline", "--json"], [])
+    quota = _run_json(hb + ["quota"], {})
     return (sessions if isinstance(sessions, list) else [],
-            events if isinstance(events, list) else [])
+            events if isinstance(events, list) else [],
+            quota if isinstance(quota, dict) else {})
 
 
-def fetch_http(base: str, token: Optional[str] = None) -> Tuple[List[Dict], List[Dict]]:
+def fetch_http(base: str, token: Optional[str] = None) -> Tuple[List[Dict], List[Dict], Dict]:
     """Pull sessions + events from a kaji-brain HTTP service (the spine).
 
     This is the same shape the phone app uses: the cockpit is just one client
@@ -256,11 +286,21 @@ def fetch_http(base: str, token: Optional[str] = None) -> Tuple[List[Dict], List
 
     sessions = _get("/api/sessions")
     events = _get("/api/timeline")
+    state = _get("/api/state") or {}
+    quota = {}
+    if isinstance(state, dict):
+        toks = state.get("quota") or {}
+        lims = state.get("limits") or {}
+        for name in set(list(toks) + list(lims)):
+            quota[name] = {"tokens_today": toks.get(name, 0)}
+            if name in lims:
+                quota[name]["limits"] = lims[name]
     return (sessions if isinstance(sessions, list) else [],
-            events if isinstance(events, list) else [])
+            events if isinstance(events, list) else [],
+            quota)
 
 
-def demo_data() -> Tuple[List[Dict], List[Dict]]:
+def demo_data() -> Tuple[List[Dict], List[Dict], Dict]:
     """Built-in fake fleet so the layout can be previewed with no Kaji running."""
     sessions = [
         {"pane_id": 2, "harness": "claude", "project": "kaji", "state": "waiting",
@@ -283,7 +323,10 @@ def demo_data() -> Tuple[List[Dict], List[Dict]]:
         {"ts": 1780990000, "pane": 3, "ev": "spawn", "harness": "claude", "cwd": "wu", "task": "letter view polish"},
         {"ts": 1780995400, "pane": 3, "ev": "state", "to": "done"},
     ]
-    return sessions, events
+    quota = {"claude": {"tokens_today": 73000},
+             "codex": {"tokens_today": 50800,
+                       "limits": {"secondary_used_percent": 38.0, "plan": "plus"}}}
+    return sessions, events, quota
 
 
 # ── actions (writes go through kaji-brain / serve, same as every client) ─────
@@ -404,13 +447,13 @@ def interactive(args) -> int:
     flash = ""
     try:
         tty.setcbreak(fd)
-        sessions, events = fetch()
+        sessions, events, quota = fetch()
         while True:
             ordered = sort_sessions(sessions)
             selected = max(0, min(selected, max(0, len(ordered) - 1)))
             width = args.width or (os.get_terminal_size().columns if sys.stdout.isatty() else 80)
             frame = render(sessions, events, selected=selected, width=width,
-                           color=not args.no_color)
+                           color=not args.no_color, quota=quota)
             footer = (MUTE + (flash or HINTS) + RESET) if not args.no_color else (flash or HINTS)
             sys.stdout.write("\033[2J\033[H" + frame + "\n\n " + footer + "\n")
             sys.stdout.flush()
@@ -418,7 +461,7 @@ def interactive(args) -> int:
 
             r, _, _ = _select.select([sys.stdin], [], [], 2.0)
             if not r:
-                sessions, events = fetch()   # idle tick → refresh data
+                sessions, events, quota = fetch()   # idle tick → refresh data
                 continue
             buf = os.read(fd, 8)
             action = parse_key(buf)
@@ -429,7 +472,7 @@ def interactive(args) -> int:
             elif action == "down":
                 selected += 1
             elif action == "refresh":
-                sessions, events = fetch()
+                sessions, events, quota = fetch()
             elif action == "send" and ordered:
                 target = ordered[selected]
                 termios.tcsetattr(fd, termios.TCSADRAIN, old_attrs)
@@ -440,7 +483,7 @@ def interactive(args) -> int:
                     ok, err = send_text(args.server, args.token or None,
                                         target.get("pane_id"), text)
                     flash = "sent ✓" if ok else ("send failed: " + (err or "?"))
-                sessions, events = fetch()
+                sessions, events, quota = fetch()
             elif action == "spawn":
                 termios.tcsetattr(fd, termios.TCSADRAIN, old_attrs)
                 harness = _prompt("\n harness [claude/kiro/opencode/codex]: ") or "claude"
@@ -451,7 +494,7 @@ def interactive(args) -> int:
                     ok, err = spawn_worker(args.server, args.token or None,
                                            harness, cwd, task)
                     flash = "spawned ✓" if ok else ("spawn failed: " + (err or "?"))
-                sessions, events = fetch()
+                sessions, events, quota = fetch()
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, old_attrs)
         sys.stdout.write("\033[?1049l\033[?25h")
@@ -470,15 +513,16 @@ def main(argv: List[str]) -> int:
     args = ap.parse_args(argv)
 
     if args.demo:
-        sessions, events = demo_data()
+        sessions, events, quota = demo_data()
     elif args.server:
-        sessions, events = fetch_http(args.server, args.token or None)
+        sessions, events, quota = fetch_http(args.server, args.token or None)
     else:
-        sessions, events = fetch_live()
+        sessions, events, quota = fetch_live()
     width = args.width or (os.get_terminal_size().columns if sys.stdout.isatty() else 80)
     color = not args.no_color and (args.demo or sys.stdout.isatty())
 
-    frame = render(sessions, events, selected=args.selected, width=width, color=color)
+    frame = render(sessions, events, selected=args.selected, width=width,
+                   color=color, quota=quota)
     if args.once or not sys.stdout.isatty() or not sys.stdin.isatty():
         print(frame)
         return 0

@@ -64,7 +64,7 @@ class ActivityTests(unittest.TestCase):
 
 class RenderTests(unittest.TestCase):
     def setUp(self):
-        self.sessions, self.events = ck.demo_data()
+        self.sessions, self.events, self.quota = ck.demo_data()
 
     def _plain(self, **kw):
         return ck.render(self.sessions, self.events, color=False, **kw)

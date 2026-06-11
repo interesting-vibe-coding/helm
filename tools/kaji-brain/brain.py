@@ -709,8 +709,15 @@ def cmd_last_session(_args):
     return 0
 
 
+def cmd_quota(_args):
+    """Print the full per-harness quota dict (tokens_today + limits) as JSON."""
+    print(json.dumps(load_quota_raw()))
+    return 0
+
+
 COMMANDS = {
     "sessions": cmd_sessions,
+    "quota": cmd_quota,
     "send": cmd_send,
     "spawn": cmd_spawn,
     "notify": cmd_notify,
