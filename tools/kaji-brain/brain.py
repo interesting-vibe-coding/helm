@@ -716,6 +716,7 @@ usage:
   kaji-brain plan "<order>"           NL → one structured fleet action (JSON;
                                       caller confirms + executes)
   kaji-brain qr [--rotate] [out.png]  phone pairing QR (relay URL, token in #fragment)
+  kaji-brain doctor                   is this boat seaworthy? checks + fixes
   kaji-brain notify <title> <msg>     pop a macOS notification
   kaji-brain watch                    stream session state changes
   kaji-brain timeline [--json] [--pane N]
@@ -930,10 +931,18 @@ def cmd_qr(args):
     return 0
 
 
+def cmd_doctor(_args):
+    """Delegate to the doctor tool (tools/helm-doctor/doctor.py)."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    doc = os.path.join(here, "..", "helm-doctor", "doctor.py")
+    return subprocess.run([sys.executable, doc]).returncode
+
+
 COMMANDS = {
     "sessions": cmd_sessions,
     "plan": cmd_plan,
     "qr": cmd_qr,
+    "doctor": cmd_doctor,
     "quota": cmd_quota,
     "send": cmd_send,
     "spawn": cmd_spawn,
