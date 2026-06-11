@@ -1041,6 +1041,14 @@ function Helm.brain.notify_waiting(worker_id, harness, project)
   local bpane = Helm.brain.pane()
   if not bpane then return end
   if bpane:pane_id() == tonumber(worker_id) then return end
+  -- The cockpit TUI Brain polls fleet state itself — injected text would land
+  -- in its 舵 input buffer as garbage. Only inject into an LLM-harness Brain.
+  do
+    local okp, proc = pcall(function() return bpane:get_foreground_process_name() end)
+    if okp and type(proc) == 'string' and proc:lower():find('python', 1, true) then
+      return
+    end
+  end
   bpane:send_text(string.format(
     '\n[helm-event] session %s (%s · %s) is now WAITING for input.\n',
     tostring(worker_id), harness or '?', project or '?'

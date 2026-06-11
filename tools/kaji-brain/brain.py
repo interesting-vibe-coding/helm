@@ -767,6 +767,21 @@ def cmd_quota(_args):
     return 0
 
 
+def _project_dirs_hint():
+    """One prompt line mapping known project names to spawnable cwds."""
+    ws = os.path.expanduser("~/workspace")
+    try:
+        names = sorted(d for d in os.listdir(ws)
+                       if os.path.isdir(os.path.join(ws, d)) and not d.startswith("."))[:40]
+    except OSError:
+        names = []
+    if not names:
+        return ""
+    return ("Known project dirs under %s: %s — a project name in the order "
+            "MUST map to its dir (e.g. 'helm-terminal' → %s/helm-terminal). "
+            "Use the home dir only when no project is named. " % (ws, ", ".join(names), ws))
+
+
 def cmd_plan(args):
     """NL → fleet plan. `kaji-brain plan "<order>"` asks a small model to turn
     one sentence into a structured action against the live fleet:
@@ -793,9 +808,8 @@ def cmd_plan(args):
         '{"action":"spawn","harness":"claude|codex","cwd":"<abs path>","task":"<first instruction>"}\n'
         '{"action":"none","why":"<short reason>"}\n'
         "Rules: send → pick the session the order refers to (project/harness/state). "
-        "spawn → only when the order asks for NEW work in a project with no fitting session; "
-        "infer cwd from a project name mentioned (default ~ projects live under "
-        + os.path.expanduser("~/workspace") + "/<name>). "
+        "spawn → only when the order asks for NEW work in a project with no fitting session. "
+        + _project_dirs_hint() +
         "Keep text/task in the order's own language. No invented paths."
     )
     argv = _resolve_prog(["claude", "-p", "--model", "sonnet",
