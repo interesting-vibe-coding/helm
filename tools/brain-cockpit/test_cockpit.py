@@ -91,5 +91,60 @@ class RenderTests(unittest.TestCase):
         self.assertNotIn("\033[", ck.render(self.sessions, self.events, color=False, width=80))
 
 
+class KeyTests(unittest.TestCase):
+    def test_quit_keys(self):
+        for b in (b"q", b"Q", b"\x03"):
+            self.assertEqual(ck.parse_key(b), "quit")
+
+    def test_arrows_and_vim(self):
+        self.assertEqual(ck.parse_key(b"\x1b[A"), "up")
+        self.assertEqual(ck.parse_key(b"k"), "up")
+        self.assertEqual(ck.parse_key(b"\x1b[B"), "down")
+        self.assertEqual(ck.parse_key(b"j"), "down")
+
+    def test_actions(self):
+        self.assertEqual(ck.parse_key(b"\r"), "send")
+        self.assertEqual(ck.parse_key(b"s"), "spawn")
+        self.assertEqual(ck.parse_key(b"r"), "refresh")
+        self.assertEqual(ck.parse_key(b""), "none")
+        self.assertEqual(ck.parse_key(b"x"), "none")
+
+
+class ActionTests(unittest.TestCase):
+    """send/spawn shell out to kaji-brain with the right argv (no server)."""
+
+    def setUp(self):
+        self._run = ck.subprocess.run
+        self._argv = ck._helm_brain_argv
+        ck._helm_brain_argv = lambda: ["kaji-brain"]
+        self.calls = []
+
+        class _P:
+            returncode = 0
+            stderr = b""
+        def fake_run(argv, **kw):
+            self.calls.append(argv)
+            return _P()
+        ck.subprocess.run = fake_run
+
+    def tearDown(self):
+        ck.subprocess.run = self._run
+        ck._helm_brain_argv = self._argv
+
+    def test_send_argv(self):
+        ok, err = ck.send_text("", None, 7, "hello")
+        self.assertTrue(ok)
+        self.assertEqual(self.calls[0], ["kaji-brain", "send", "7", "hello"])
+
+    def test_spawn_argv_with_task(self):
+        ok, _ = ck.spawn_worker("", None, "claude", "/tmp", "do x")
+        self.assertTrue(ok)
+        self.assertEqual(self.calls[0], ["kaji-brain", "spawn", "claude", "/tmp", "do x"])
+
+    def test_spawn_argv_no_task(self):
+        ck.spawn_worker("", None, "kiro", "/tmp")
+        self.assertEqual(self.calls[0], ["kaji-brain", "spawn", "kiro", "/tmp"])
+
+
 if __name__ == "__main__":
     unittest.main()
