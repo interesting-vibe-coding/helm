@@ -53,6 +53,7 @@ Robustness contract: never crash if Kaji is not running or files are missing.
 import json
 import os
 import shutil
+import re
 import subprocess
 import sys
 import time
@@ -705,6 +706,8 @@ usage:
                                       open a new worker session (kiro|claude|
                                       opencode|codex) in <cwd>, optionally
                                       sending an initial task. Prints {"pane_id":N}.
+  kaji-brain plan "<order>"           NL → one structured fleet action (JSON;
+                                      caller confirms + executes)
   kaji-brain notify <title> <msg>     pop a macOS notification
   kaji-brain watch                    stream session state changes
   kaji-brain timeline [--json] [--pane N]
@@ -758,8 +761,69 @@ def cmd_quota(_args):
     return 0
 
 
+def cmd_plan(args):
+    """NL → fleet plan. `kaji-brain plan "<order>"` asks a small model to turn
+    one sentence into a structured action against the live fleet:
+      {"action":"send","pane_id":N,"text":"..."}            reply to a worker
+      {"action":"spawn","harness":"claude","cwd":"...","task":"..."}
+      {"action":"none","why":"..."}                          can't map it
+    Prints the JSON plan to stdout. The CALLER confirms + executes — this
+    command never touches a pane (transition surface until the own engine).
+    """
+    if not args:
+        sys.stderr.write("usage: kaji-brain plan \"<order>\"\n")
+        return 2
+    order = " ".join(args)
+    fleet = collect_sessions()
+    brief = [{"pane_id": s.get("pane_id"), "harness": s.get("harness"),
+              "project": s.get("project"), "cwd": s.get("cwd"),
+              "state": s.get("state")} for s in fleet]
+    prompt = (
+        "You translate ONE captain order into ONE fleet action. Fleet sessions:\n"
+        + json.dumps(brief, ensure_ascii=False)
+        + "\nOrder: " + order
+        + "\nReply with ONLY a JSON object, no prose, one of:\n"
+        '{"action":"send","pane_id":<id>,"text":"<message to that worker>"}\n'
+        '{"action":"spawn","harness":"claude|codex","cwd":"<abs path>","task":"<first instruction>"}\n'
+        '{"action":"none","why":"<short reason>"}\n'
+        "Rules: send → pick the session the order refers to (project/harness/state). "
+        "spawn → only when the order asks for NEW work in a project with no fitting session; "
+        "infer cwd from a project name mentioned (default ~ projects live under "
+        + os.path.expanduser("~/workspace") + "/<name>). "
+        "Keep text/task in the order's own language. No invented paths."
+    )
+    argv = _resolve_prog(["claude", "-p", "--model", "sonnet",
+                          "--output-format", "text", prompt])
+    if not os.path.isabs(argv[0]):
+        print(json.dumps({"action": "none", "why": "claude CLI not found"}))
+        return 1
+    try:
+        out = subprocess.run(
+            argv,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60,
+        ).stdout.decode("utf-8", "replace").strip()
+    except Exception as e:
+        print(json.dumps({"action": "none", "why": "planner failed: %s" % e}))
+        return 1
+    # Model may wrap JSON in a fence — dig it out.
+    m = re.search(r"\{.*\}", out, re.S)
+    if not m:
+        print(json.dumps({"action": "none", "why": "no plan in reply"}))
+        return 1
+    try:
+        plan = json.loads(m.group(0))
+    except ValueError:
+        print(json.dumps({"action": "none", "why": "bad plan JSON"}))
+        return 1
+    if plan.get("action") == "spawn" and plan.get("cwd"):
+        plan["cwd"] = os.path.expanduser(plan["cwd"])
+    print(json.dumps(plan, ensure_ascii=False))
+    return 0
+
+
 COMMANDS = {
     "sessions": cmd_sessions,
+    "plan": cmd_plan,
     "quota": cmd_quota,
     "send": cmd_send,
     "spawn": cmd_spawn,
