@@ -421,19 +421,51 @@ live run.**
 
 ---
 
+## Decision (2026-06-10): the engine is a leaf; the trunk is helm-brain as a service
+
+The mobile-remote endgame reframes the whole stack. Because the First Mate is a
+**thin, stateless dispatcher** (NL → spawn/send, confirm-gated, no long
+conversation), the heavy-engine justification (context management /
+auto-compaction) **largely collapses** — so the engine/harness is a **leaf**,
+not the trunk. Which harness runs the dispatcher is a swappable detail; the MCP
+layer (PR #118) keeps that choice reversible.
+
+**Trunk priority — make `kaji-brain` the product's backbone, as a service:**
+
+1. **Network service** — generalize `kaji-brain` from a local stdio CLI / MCP
+   server into a network-reachable service, so the desktop cockpit *and* the
+   phone are both just clients of it (one fleet API: sessions / timeline /
+   spawn / send / notify).
+2. **Relay** — a tunnel + auth (cf. `kaku-relay`) so the phone reaches the local
+   service safely. This is the mobile-remote endgame, now the headline.
+3. **Unified quota** — one cross-harness view of usage/limits, surfaced through
+   the same service (today's `helm-quota`, promoted to a first-class API).
+
+The dispatcher LLM sits **on top of** this trunk as a leaf client, through the
+MCP instrument layer. It is not the headline; the service + relay + quota are.
+
+**`#116` (Goose drivability spike) is archived as research, not merged into the
+product line.** The headless-engine drive it proves is no longer the path
+(engine = leaf, run locally not driven headless). Keep the branch for reference;
+revisit only if a *heavy multi-turn synthesis* First Mate is ever greenlit.
+
+---
+
 ## Open decisions
 
+- [x] **Engine/harness role**: a **leaf**, not the trunk (2026-06-10). Swappable;
+      kept reversible by the MCP layer. Run the dispatcher harness locally.
+- [x] **Trunk priority**: **`helm-brain` as a network service + relay + unified
+      quota** (2026-06-10) — the mobile-remote backbone; cockpit and phone are
+      both clients.
+- [x] **`#116` Goose spike**: **archived as research** (kept for reference, not
+      merged). Revisit only for a heavy multi-turn synthesis First Mate.
 - [x] **LLM layer needed?** **Yes** — as a lightweight **dispatcher** (NL →
       spawn/send fan-out + session creation), not narration, not planning. Kept
       as light as possible (near-stateless on the substrate).
-- [x] **Engine class**: not a heavy headless engine after all. The substrate
-      makes dispatch near-stateless, removing the need for auto-compaction. Ride
-      the **lightest MCP-native harness** as a local dispatcher.
 - [~] **Which harness**: **leaning Crush** (Go single binary, MCP-native, free
-      models via OpenRouter). Goose second; opencode (node) heaviest. The Goose
-      drivability spike (PR #116) is code-ready but the headless-drive concern
-      it tests is **moot** if we run the harness locally rather than driving it.
-      Confirm Crush with a live run.
+      models via OpenRouter), run locally. A leaf choice — confirm with a live
+      run; reversible via MCP.
 - [x] **Instrument layer**: expose `kaji-brain` as an **MCP server** — the
       constraint framework the dispatcher acts through. Harness-agnostic; the
       next no-regret, cloud-buildable piece.
@@ -445,9 +477,9 @@ live run.**
       a cockpit-drives-headless shape proves clearly better.
 - [ ] **Token cost**: measure the dispatcher on a cheap model (DeepSeek / Flash)
       in real use; keep per-dispatch context to the fleet snapshot + instruction.
-- [ ] **Mobile relay**: render-only mobile needs a `runtime.json` +
-      `events.jsonl` + `kaji-brain send` relay (cf. `kaku-relay`) + auth —
-      independent of the engine choice.
+- [x] **Mobile relay**: **promoted to trunk** (2026-06-10) and since SHIPPED —
+      CF Worker relay (`tools/kaji-relay/`, relay.doabit.dev) + serve token
+      auth + unified quota, all live (2026-06-11).
 - [ ] **Lineage depth**: (a) per-session lifecycle timeline + global feed —
       do this for V1; (b) cross-session dependency DAG (task A done → triggers
       task B) — deferred, it requires the user to declare deps and adds
