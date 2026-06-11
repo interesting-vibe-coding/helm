@@ -47,26 +47,26 @@ class TestCodex(unittest.TestCase):
 
     def test_missing_dir(self):
         quota.CODEX_SESSIONS = Path(self._tmp.name) / "nope"
-        self.assertEqual(quota.codex(), (0, None, None, None))
+        self.assertEqual(quota.codex(), (0, None, None, None, {}))
 
     def test_cumulative_takes_last_not_sum(self):
         # 3 events in one session: cumulative 100 -> 250 -> 400. Today = 400.
         self._write("rollout-a.jsonl",
                     [_tc_line(100), _tc_line(250), _tc_line(400)])
-        sess, tok, _last, _ = quota.codex()
+        sess, tok, _last, _, _bp = quota.codex()
         self.assertEqual(sess, 1)
         self.assertEqual(tok, 400)
 
     def test_sums_across_sessions(self):
         self._write("rollout-a.jsonl", [_tc_line(400)])
         self._write("rollout-b.jsonl", [_tc_line(100), _tc_line(600)])
-        _, tok, _, _ = quota.codex()
+        _, tok, _, _, _bp = quota.codex()
         self.assertEqual(tok, 1000)
 
     def test_limits_from_freshest(self):
         self._write("rollout-a.jsonl",
                     [_tc_line(50, primary_pct=10.0, secondary_pct=38.5, plan="plus")])
-        _, _, _, limits = quota.codex()
+        _, _, _, limits, _bp = quota.codex()
         self.assertEqual(limits["primary_used_percent"], 10.0)
         self.assertEqual(limits["secondary_used_percent"], 38.5)
         self.assertEqual(limits["secondary_resets_at"], 222)
@@ -74,18 +74,18 @@ class TestCodex(unittest.TestCase):
 
     def test_null_windows_yield_plan_only(self):
         self._write("rollout-a.jsonl", [_tc_line(50, plan="plus")])
-        _, _, _, limits = quota.codex()
+        _, _, _, limits, _bp = quota.codex()
         self.assertEqual(limits, {"plan": "plus"})
 
     def test_corrupt_lines_skipped(self):
         self._write("rollout-a.jsonl", ["{not json", _tc_line(70), '"token_count"'])
-        _, tok, _, _ = quota.codex()
+        _, tok, _, _, _bp = quota.codex()
         self.assertEqual(tok, 70)
 
     def test_emit_json_has_limits_key(self):
         self._write("rollout-a.jsonl", [_tc_line(70, secondary_pct=20.0, plan="plus")])
         rows = dict((r[0], r) for r in quota.collect())
-        name, sess, tok, last, limits = rows["codex"]
+        name, sess, tok, last, limits, _bp = rows["codex"]
         self.assertEqual(tok, 70)
         self.assertEqual(limits["plan"], "plus")
 
