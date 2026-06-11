@@ -59,6 +59,48 @@ Security model: Tailscale provides the encrypted private network (nothing is
 exposed to the public internet); the bearer token guards against other devices
 on the same tailnet. Both layers are required.
 
+## Path 1.5: Tailscale Funnel (no app on the phone, no VPN slot)
+
+If the phone can't (or shouldn't) run the Tailscale app — e.g. iOS has a single
+VPN slot and it's taken by a proxy — expose the cockpit over Funnel instead:
+
+```sh
+tailscale funnel --bg 8787       # one-time: approve the printed admin URL
+```
+
+This publishes `https://<host>.<tailnet>.ts.net/` on the public internet via
+Tailscale's ingress (TLS terminated with an auto-provisioned cert; traffic
+proxied to 127.0.0.1:8787). The phone needs nothing installed and keeps its
+own VPN/proxy on.
+
+Security model shifts: the tailnet no longer gates access — **the bearer token
+is the only gate**. Use a long random token (`openssl rand -hex 24`), treat the
+URL as semi-secret, and turn Funnel off (`tailscale funnel off`) when unused.
+`/healthz` and the static cockpit page are open by design; everything under
+`/api/*` 401s without the token.
+
+Verified (2026-06-11): public `https://kaji-mac.taild66623.ts.net/` — healthz
+ok, /api/* 401 without token, 200 with token, reachable from China mobile
+networks without touching the phone's VPN slot.
+
+## Prior art — how the others connect a phone (researched 2026-06-11)
+
+All shipped competitors use the same shape: **no inbound ports, the dev
+machine dials OUT to a relay; the phone talks to the relay**. Nobody uses a
+VPN/tailnet.
+
+| Product | Transport | Notes |
+|---------|-----------|-------|
+| Anthropic Remote Control (`claude rc`) | local proc polls Anthropic API over outbound HTTPS; QR pairing | E2E encrypted; Claude Code only |
+| Omnara (YC) | encrypted relay (their cloud), Agent-SDK based | closed SaaS; web/mobile/watch clients |
+| Happy (slopus/happy, OSS) | CLI wrapper → relay (~1.3k LOC TS, self-hostable) → app; AES-256-GCM, QR key exchange | best open reference implementation |
+| happier (fork) | same, multi-harness (Codex/OpenCode/…) | closest competitor to Kaji's harness-agnostic wedge |
+
+Implication for Kaji: the end-state is a thin self-hosted relay (Mac dials out
+over WebSocket, phone connects over HTTPS, QR pairing + E2E crypto), which
+also solves China reachability. Tailscale/Funnel are stepping stones that cost
+zero code while the cockpit feature set is iterated.
+
 ## Path 2: self-hosted relay (later)
 
 For users without Tailscale: a small public relay (cf. `kaku-relay`) that the
