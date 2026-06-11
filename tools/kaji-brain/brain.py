@@ -78,6 +78,11 @@ QUOTA_PY = REPO_ROOT / "tools" / "helm-quota" / "quota.py"
 # via $HELM_CLI, and fall back to `wezterm`/`kaku` on PATH.
 HELM_CLI = os.environ.get("HELM_CLI") or "/Applications/Kaji.app/Contents/MacOS/helm"
 
+# Where the Kaji GUI drops its mux sockets (gui-sock-<pid>). Overridable for
+# tests. A socket file lingering here after a crash/quit is exactly the
+# kaji#125 trap: the cli's own discovery may resolve a dead socket.
+SOCK_DIR = Path(os.environ.get("HELM_SOCK_DIR") or HOME / ".local" / "share" / "helm")
+
 # harness name -> argv to run in the spawned pane. Mirrors Kaji.harnesses.list
 # in kaku.lua so a Brain-spawned session behaves exactly like one started from
 # the Kaji launcher (same auto-approve / trust flags). The harness IS the pane
@@ -102,7 +107,50 @@ def _helm_cli():
     return None
 
 
-def _run(argv, timeout=10):
+def _live_gui_sock():
+    """Path of a live Kaji gui socket, or None if the mux is down.
+
+    Liveness = an actual unix-socket connect, not a PID check: a recycled PID
+    or a socket file left behind by a crashed GUI must not count (kaji#125).
+    Newest socket wins when several are live (a fresh launch supersedes).
+    """
+    import socket as _socket
+    try:
+        candidates = sorted(
+            SOCK_DIR.glob("gui-sock-*"),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )
+    except OSError:
+        return None
+    for p in candidates:
+        s = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
+        s.settimeout(0.5)
+        try:
+            s.connect(str(p))
+            return str(p)
+        except OSError:
+            continue
+        finally:
+            s.close()
+    return None
+
+
+def _cli_run(cli, args, timeout=10):
+    """Run a mux cli command pinned to a LIVE gui socket. (rc, stdout, stderr).
+
+    Refuses with a clear error when no live socket exists instead of letting
+    the cli's own discovery resolve a stale one (kaji#125 dead-socket send).
+    """
+    sock = _live_gui_sock()
+    if not sock:
+        return 1, "", "Kaji mux not running (no live gui socket in %s)" % SOCK_DIR
+    env = dict(os.environ)
+    env["WEZTERM_UNIX_SOCKET"] = sock
+    return _run(cli + args, timeout=timeout, env=env)
+
+
+def _run(argv, timeout=10, env=None):
     """Run a command, returning (rc, stdout, stderr). Never raises."""
     try:
         p = subprocess.run(
@@ -110,6 +158,7 @@ def _run(argv, timeout=10):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             timeout=timeout,
+            env=env,
         )
         return p.returncode, p.stdout.decode("utf-8", "replace"), p.stderr.decode("utf-8", "replace")
     except Exception as e:  # noqa: BLE001 - robustness: never crash
@@ -119,18 +168,22 @@ def _run(argv, timeout=10):
 # ── sessions ────────────────────────────────────────────────────────────────
 
 def list_panes():
-    """Return the list of pane dicts from the Kaji cli, or [] if unavailable."""
+    """Pane dicts from the Kaji cli. [] = mux up but no panes; None = mux
+    down/unreachable. Callers MUST treat None as "no live fleet", never fall
+    back to cached state (kaji#125 phantom sessions)."""
     cli = _helm_cli()
     if not cli:
-        return []
-    rc, out, _ = _run(cli + ["list", "--format", "json"])
-    if rc != 0 or not out.strip():
+        return None
+    rc, out, _ = _cli_run(cli, ["list", "--format", "json"])
+    if rc != 0:
+        return None
+    if not out.strip():
         return []
     try:
         data = json.loads(out)
     except Exception:
-        return []
-    return data if isinstance(data, list) else []
+        return None
+    return data if isinstance(data, list) else None
 
 
 def load_runtime():
@@ -224,18 +277,20 @@ def collect_sessions():
     if not runtime:
         return []
 
-    quota = load_quota()
     panes = list_panes()
-    # Pane ids known to Kaji right now (so we only report live panes when the
-    # pane list is available). If Kaji isn't running we fall back to runtime.
-    live_ids = {str(p.get("pane_id")) for p in panes} if panes else None
+    if panes is None:
+        # Mux down/unreachable: runtime.json is then a stale snapshot, never
+        # report it as a live fleet (kaji#125 phantom sessions).
+        return []
+    quota = load_quota()
+    live_ids = {str(p.get("pane_id")) for p in panes}
 
     now = int(time.time())
     sessions = []
     for pane_id, s in runtime.items():
         if not isinstance(s, dict):
             continue
-        if live_ids is not None and str(pane_id) not in live_ids:
+        if str(pane_id) not in live_ids:
             # Tracked in runtime but no longer a live pane -> skip.
             continue
         harness_raw = (s.get("harness") or "").strip()
@@ -276,11 +331,11 @@ def _send_text(cli, pane_id, text):
     # Inject the text without the auto trailing newline paste behaviour, then
     # send a carriage return so the agent actually submits the line. Using argv
     # (not string interpolation) keeps arbitrary text safe.
-    rc, _, err = _run(cli + ["send-text", "--pane-id", str(pane_id), "--no-paste", "--", text])
+    rc, _, err = _cli_run(cli, ["send-text", "--pane-id", str(pane_id), "--no-paste", "--", text])
     if rc != 0:
         return rc, (err.strip() or "send-text failed")
     # Second call: the carriage return to submit.
-    rc2, _, err2 = _run(cli + ["send-text", "--pane-id", str(pane_id), "--no-paste", "--", "\r"])
+    rc2, _, err2 = _cli_run(cli, ["send-text", "--pane-id", str(pane_id), "--no-paste", "--", "\r"])
     if rc2 != 0:
         return rc2, (err2.strip() or "send-text (CR) failed")
     return 0, ""
@@ -340,6 +395,10 @@ def cmd_spawn(args):
     # split its largest still-live pane. `--` separates cli options from the
     # program; split-pane/spawn both print the new pane id on stdout.
     panes = list_panes()
+    if panes is None:
+        print(json.dumps({"error": "Kaji mux not running (no live gui socket)"}),
+              file=sys.stderr)
+        return 1
     by_id = {}
     for p in panes:
         pid = p.get("pane_id")
@@ -371,10 +430,10 @@ def cmd_spawn(args):
         anchor = max(cand, key=_area)
         s = by_id[anchor].get("size") or {}
         direction = "--right" if (s.get("pixel_width") or 0) >= (s.get("pixel_height") or 0) else "--bottom"
-        rc, out, err = _run(cli + ["split-pane", "--pane-id", str(anchor),
-                                   "--cwd", cwd_abs, direction, "--"] + prog)
+        rc, out, err = _cli_run(cli, ["split-pane", "--pane-id", str(anchor),
+                                      "--cwd", cwd_abs, direction, "--"] + prog)
     else:
-        rc, out, err = _run(cli + ["spawn", "--cwd", cwd_abs, "--"] + prog)
+        rc, out, err = _cli_run(cli, ["spawn", "--cwd", cwd_abs, "--"] + prog)
     if rc != 0:
         print(json.dumps({"error": err.strip() or "spawn failed (is Kaji running?)"}),
               file=sys.stderr)
@@ -399,7 +458,7 @@ def cmd_spawn(args):
     # send below targets the worker by pane id, so it doesn't need focus.
     origin = os.environ.get("WEZTERM_PANE")
     if origin:
-        _run(cli + ["activate-pane", "--pane-id", str(origin)])
+        _cli_run(cli, ["activate-pane", "--pane-id", str(origin)])
 
     if task:
         # Give the harness a moment to boot its prompt before sending the task.
