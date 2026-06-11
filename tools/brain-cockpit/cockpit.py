@@ -38,12 +38,25 @@ def _fg(r: int, g: int, b: int) -> str:
     return "\033[38;2;%d;%d;%dm" % (r, g, b)
 
 
-# Kaji Sun (docs/design/KAJI_EMBER.md + kaji-sun-v3): paper terminal bg,
-# warm ink text, ONE hero — persimmon orange, rationed to "needs you".
+# Kaji Sun (docs/design/KAJI_EMBER.md + kaji-sun-v3): two faces, one hero.
+#   day   — paper terminal bg, warm ink text
+#   night — warm charcoal bg, candle-lit cream text (own palette, NOT Kaku's)
+# Persimmon is constant across both: orange means "needs you", nothing else.
+# Theme comes from KAJI_THEME (set by kaku.lua to match the window scheme)
+# or --theme; default night — safe on the dark terminals most people run.
+_DARK = os.environ.get("KAJI_THEME", "dark").lower() != "light"
+
 SUN = _fg(0xF2, 0x5C, 0x05)     # persimmon — brand + waiting + selection
-INK = _fg(0x21, 0x1C, 0x15)     # warm ink (on the cream Kaku Light bg)
-MUTE = _fg(0x8A, 0x81, 0x74)    # secondary
-ASH = _fg(0xC0, 0xB8, 0xA8)     # quiet
+if _DARK:                        # Sun Night
+    INK = _fg(0xEC, 0xE4, 0xD6)  # warm cream (paper, inverted)
+    MUTE = _fg(0x9C, 0x92, 0x83) # secondary
+    ASH = _fg(0x66, 0x5E, 0x53)  # quiet
+    _ERR = _fg(0xE0, 0x5A, 0x48)
+else:                            # Sun Day
+    INK = _fg(0x21, 0x1C, 0x15)  # warm ink on cream
+    MUTE = _fg(0x8A, 0x81, 0x74)
+    ASH = _fg(0xC0, 0xB8, 0xA8)
+    _ERR = _fg(0xC0, 0x3A, 0x2B)
 GHOST = SUN                      # back-compat alias
 SEL = SUN
 
@@ -52,7 +65,7 @@ SEL = SUN
 _STATE_STYLE = {
     "waiting":    ("●", SUN, "waiting"),
     "working":    ("●", INK, "working"),
-    "error":      ("●", _fg(0xC0, 0x3A, 0x2B), "error"),
+    "error":      ("●", _ERR, "error"),
     "background": ("●", MUTE, "background"),
     "idle":       ("○", ASH, "idle"),
     "done":       ("○", ASH, "done"),
@@ -165,7 +178,7 @@ def fmt_quota_line(quota: Optional[Dict]) -> str:
 
 def render(sessions: List[Dict], events: List[Dict], selected: int = 0,
            width: int = 80, color: bool = True,
-           quota: Optional[Dict] = None) -> str:
+           quota: Optional[Dict] = None, loading: bool = False) -> str:
     """Render one cockpit frame as a string. Pure — no I/O, no globals."""
     width = max(40, width)
     ordered = sort_sessions(sessions)
@@ -193,6 +206,11 @@ def render(sessions: List[Dict], events: List[Dict], selected: int = 0,
             d = _c(glyph, SEL if i == sel else col, color)
             dots.append(d)
         return "  " + " ".join(dots)
+
+    if loading and not ordered:
+        out.append(_c("  …", ASH, color))
+        out.append("")
+        return "\n".join(out)
 
     if not ordered:
         out.append(_c("  No active sessions.", MUTE, color))
@@ -453,28 +471,53 @@ def interactive(args) -> int:
             return fetch_http(args.server, args.token or None)
         return fetch_live()
 
+    import threading
+
     fd = sys.stdin.fileno()
     old_attrs = termios.tcgetattr(fd)
     sys.stdout.write("\033[?1049h\033[?25l")  # alt screen, hide cursor
     selected = 0
     flash = ""
+
+    # Data arrives in the background so the frame paints INSTANTLY and the UI
+    # never freezes on a slow fetch (first quota collect can take a second+).
+    box = {"data": None, "busy": False}
+
+    def _bg():
+        try:
+            box["data"] = fetch()
+        except Exception:
+            pass
+        box["busy"] = False
+
+    def kick():
+        if not box["busy"]:
+            box["busy"] = True
+            threading.Thread(target=_bg, daemon=True).start()
+
+    kick()
+    sessions, events, quota = [], [], {}
+    loaded = False
     try:
         tty.setcbreak(fd)
-        sessions, events, quota = fetch()
         while True:
+            if box["data"] is not None:
+                sessions, events, quota = box["data"]
+                box["data"] = None
+                loaded = True
             ordered = sort_sessions(sessions)
             selected = max(0, min(selected, max(0, len(ordered) - 1)))
             width = args.width or (os.get_terminal_size().columns if sys.stdout.isatty() else 80)
             frame = render(sessions, events, selected=selected, width=width,
-                           color=not args.no_color, quota=quota)
+                           color=not args.no_color, quota=quota, loading=not loaded)
             footer = (MUTE + (flash or HINTS) + RESET) if not args.no_color else (flash or HINTS)
             sys.stdout.write("\033[2J\033[H" + frame + "\n\n " + footer + "\n")
             sys.stdout.flush()
             flash = ""
 
-            r, _, _ = _select.select([sys.stdin], [], [], 2.0)
+            r, _, _ = _select.select([sys.stdin], [], [], 0.25 if not loaded else 2.0)
             if not r:
-                sessions, events, quota = fetch()   # idle tick → refresh data
+                kick()              # idle tick → refresh in the background
                 continue
             buf = os.read(fd, 8)
             action = parse_key(buf)
@@ -485,7 +528,7 @@ def interactive(args) -> int:
             elif action == "down":
                 selected += 1
             elif action == "refresh":
-                sessions, events, quota = fetch()
+                kick()
             elif action == "send" and ordered:
                 target = ordered[selected]
                 termios.tcsetattr(fd, termios.TCSADRAIN, old_attrs)
@@ -496,7 +539,7 @@ def interactive(args) -> int:
                     ok, err = send_text(args.server, args.token or None,
                                         target.get("pane_id"), text)
                     flash = "sent ✓" if ok else ("send failed: " + (err or "?"))
-                sessions, events, quota = fetch()
+                kick()
             elif action == "spawn":
                 termios.tcsetattr(fd, termios.TCSADRAIN, old_attrs)
                 harness = _prompt("\n harness [claude/kiro/opencode/codex]: ") or "claude"
@@ -507,7 +550,7 @@ def interactive(args) -> int:
                     ok, err = spawn_worker(args.server, args.token or None,
                                            harness, cwd, task)
                     flash = "spawned ✓" if ok else ("spawn failed: " + (err or "?"))
-                sessions, events, quota = fetch()
+                kick()
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, old_attrs)
         sys.stdout.write("\033[?1049l\033[?25h")
