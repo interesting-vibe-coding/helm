@@ -1,44 +1,18 @@
 <div align="center">
-  <img src="assets/kaji-logo.png" width="120" alt="Kaji" />
+  <img src="assets/kaji-logo.png" width="110" alt="Kaji" />
   <h1>Kaji</h1>
-  <p><em>The agent-native terminal. You steer — agents execute.</em></p>
-  <p>
-    <a href="LICENSE.md"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License"></a>
-    <img src="https://img.shields.io/badge/macOS-Apple%20Silicon%20%2B%20Intel-lightgrey?style=flat-square" alt="macOS">
-    <img src="https://img.shields.io/badge/built%20on-WezTerm-5c4ee5?style=flat-square" alt="WezTerm">
-    <a href="https://github.com/interesting-vibe-coding/kaji/actions"><img src="https://img.shields.io/github/actions/workflow/status/interesting-vibe-coding/kaji/ci.yml?branch=main&style=flat-square&label=CI" alt="CI"></a>
-  </p>
+  <p><em>Mission control for your AI coding agents — in the terminal, and in your pocket.</em></p>
+  <p><a href="README.zh.md">中文</a></p>
 </div>
 
 ---
 
-> Your prefrontal cortex is finite.  
-> Stop spending it on switching context between agents. `(ᴗ‿ᴗ)`
->
-> Kaji solves this by giving every agent its own pane, a First Mate to watch them all, and a single conversation to steer the crew.
+Kaji runs a crew of coding agents — Claude Code, Kiro, opencode, Codex — side by side, and gives you one calm surface to steer them all: every worker visible at once, quota at a glance, and a phone page that works from anywhere. You hold the rudder (舵, *kaji*); the agents row.
 
----
+> Your prefrontal cortex is finite.
+> Stop spending it switching context between agents. `(ᴗ‿ᴗ)`
 
-<!-- screenshot -->
-<!-- ![Kaji](assets/screenshot.png) -->
-
----
-
-## Why Kaji?
-
-**舵** (kaji) — Japanese for *rudder*.
-
-Most terminals are built for one human, one session. Kaji is built for the moment after that — when you have a crew of agents running in parallel and the real work is *directing* them, not *doing* their work yourself.
-
-The name says it all: you hold the rudder. Kaji keeps the friction between you and your agents as close to zero as possible, so your focus stays on decisions — not on tabs. ⛵
-
-## Features
-
-- **Brain** — a Sonnet First Mate that watches every worker session. Reports only when something needs you; relays your orders to the right agent.
-- **Work view** — all worker panes tiled automatically in one place (`Cmd+2`). No hunting.
-- **Multi-harness** — Claude Code, Kiro, opencode, Codex. One terminal, any agent.
-- **Session restore** — on restart, Brain offers to bring back your last crew with a single `y`.
-- **Shared memory** — every harness boots with your skills and context already loaded.
+<!-- ![Kaji fleet — phone cockpit and Work view](assets/screenshot.png) -->
 
 ## Install
 
@@ -48,17 +22,43 @@ curl -fsSL https://raw.githubusercontent.com/interesting-vibe-coding/kaji/main/i
 
 Open Kaji. The Brain greets you. Tell it what to build.
 
+## What you get
+
+**One terminal, every agent.** Workers tile automatically in a single Work view
+(`Cmd+2`) — claude next to codex next to kiro, no tab hunting. Each harness
+boots with your shared memory and skills already loaded.
+
+**A fleet you can read at a glance.** The cockpit (`Cmd+1`) orders sessions
+most-neglected first: amber means a worker is waiting on you, teal means it's
+working. Select a worker, press ⏎, type — your instruction lands in its pane.
+
+**Quota where you can see it.** Tokens spent today per harness, and real
+remaining-quota percentages where the harness exposes them — before you burn
+an evening's budget on the wrong model.
+
+**Your fleet, from your phone.** `kaji-brain serve` + the built-in relay put
+the same cockpit in your phone's browser — state, quota, send, spawn — over
+plain HTTPS. No inbound ports on your Mac, no VPN slot on your phone, works
+behind any proxy. See [docs/remote.md](docs/remote.md).
+
+**Engine-agnostic by design.** The Brain is a thin service (CLI + HTTP + MCP)
+over an append-only event substrate — not a model. Any harness can be a
+worker; any client (terminal cockpit, phone, a script, an LLM if you want one)
+can hold the rudder.
+
+## Why this shape
+
+Remote-control-your-agent is a crowded space — but every player locks you to
+one vendor's agent. Kaji's bet is the opposite: the hard part isn't talking to
+one agent, it's *running a fleet of different ones* without shredding your
+attention. So the trunk is harness-agnostic fleet control with shared
+memory — and the terminal it lives in is built for exactly that.
+
 ---
 
-## Thanks
-
-Built on the shoulders of:
-
-- [Kaku](https://github.com/tw93/Kaku) — the beautiful macOS terminal this is forked from
-- [WezTerm](https://wezfurlong.org/wezterm/) — the GPU-accelerated terminal engine underneath
-- [Ghostty](https://ghostty.org) — for pushing the terminal space forward
-
----
+Built on the shoulders of [Kaku](https://github.com/tw93/Kaku),
+[WezTerm](https://wezfurlong.org/wezterm/), and the push from
+[Ghostty](https://ghostty.org). MIT — see [LICENSE.md](LICENSE.md).
 
 <div align="center">
   <sub>Part of <a href="https://github.com/interesting-vibe-coding">interesting-vibe-coding</a> · MIT</sub>
