@@ -767,6 +767,55 @@ def cmd_quota(_args):
     return 0
 
 
+def _planner_llm(prompt):
+    """One planning completion, fastest path first.
+
+    1. Direct /v1/messages with the Claude Code OAuth token + haiku (~1.5s).
+    2. Fallback: `claude -p --model haiku` (~7s — CLI boot dominates).
+    Returns the raw text reply, or None if both paths fail.
+    """
+    tok = None
+    try:
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                        "..", "helm-quota"))
+        import quota as _quota
+        tok = _quota._claude_oauth_token()
+    except Exception:
+        tok = None
+    if tok:
+        try:
+            import urllib.request
+            req = urllib.request.Request(
+                "https://api.anthropic.com/v1/messages",
+                data=json.dumps({
+                    "model": "claude-haiku-4-5-20251001",
+                    "max_tokens": 400,
+                    "messages": [{"role": "user", "content": prompt}],
+                }).encode(),
+                headers={"Authorization": "Bearer %s" % tok,
+                         "anthropic-beta": "oauth-2025-04-20",
+                         "anthropic-version": "2023-06-01",
+                         "Content-Type": "application/json",
+                         "User-Agent": "claude-code/2.1.90"})
+            r = urllib.request.urlopen(req, timeout=30)
+            d = json.loads(r.read())
+            parts = d.get("content") or []
+            txt = "".join(c.get("text", "") for c in parts if c.get("type") == "text")
+            if txt.strip():
+                return txt.strip()
+        except Exception:
+            pass
+    argv = _resolve_prog(["claude", "-p", "--model", "haiku",
+                          "--output-format", "text", prompt])
+    if not os.path.isabs(argv[0]):
+        return None
+    try:
+        return subprocess.run(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                              timeout=60).stdout.decode("utf-8", "replace").strip() or None
+    except Exception:
+        return None
+
+
 def _project_dirs_hint():
     """One prompt line mapping known project names to spawnable cwds."""
     ws = os.path.expanduser("~/workspace")
@@ -807,23 +856,18 @@ def cmd_plan(args):
         '{"action":"send","pane_id":<id>,"text":"<message to that worker>"}\n'
         '{"action":"spawn","harness":"claude|codex","cwd":"<abs path>","task":"<first instruction>"}\n'
         '{"action":"none","why":"<short reason>"}\n'
-        "Rules: send → pick the session the order refers to (project/harness/state). "
+        "Rules: send → pick the session the order refers to (project/harness/state); "
+        "text MUST be the instruction addressed TO the worker (imperative), not an echo. "
         "spawn → only when the order asks for NEW work in a project with no fitting session. "
+        "none → anything that is not a concrete engineering task for the fleet "
+        "(greetings, small talk, weather, questions about the fleet itself). "
+        'Example: order "今天天气怎么样" → {"action":"none","why":"不是工程任务"}. '
         + _project_dirs_hint() +
         "Keep text/task in the order's own language. No invented paths."
     )
-    argv = _resolve_prog(["claude", "-p", "--model", "sonnet",
-                          "--output-format", "text", prompt])
-    if not os.path.isabs(argv[0]):
-        print(json.dumps({"action": "none", "why": "claude CLI not found"}))
-        return 1
-    try:
-        out = subprocess.run(
-            argv,
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60,
-        ).stdout.decode("utf-8", "replace").strip()
-    except Exception as e:
-        print(json.dumps({"action": "none", "why": "planner failed: %s" % e}))
+    out = _planner_llm(prompt)
+    if out is None:
+        print(json.dumps({"action": "none", "why": "planner unreachable"}))
         return 1
     # Model may wrap JSON in a fence — dig it out.
     m = re.search(r"\{.*\}", out, re.S)
