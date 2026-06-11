@@ -72,7 +72,7 @@ class RenderTests(unittest.TestCase):
     def test_brand_and_sessions_present(self):
         out = self._plain(width=80)
         self.assertIn("KAJI", out)
-        self.assertIn("you steer", out)
+        self.assertIn("KAJI", out)
         # the waiting session (kaji) should appear before a done one (wu)
         self.assertLess(out.index("kaji"), out.index("wu"))
 

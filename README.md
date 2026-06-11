@@ -12,7 +12,7 @@ Kaji runs a crew of coding agents — Claude Code, Kiro, opencode, Codex — sid
 > Your prefrontal cortex is finite.
 > Stop spending it switching context between agents. `(ᴗ‿ᴗ)`
 
-<!-- ![Kaji fleet — phone cockpit and Work view](assets/screenshot.png) -->
+![Kaji mission control](assets/screenshot.png)
 
 ## Install
 

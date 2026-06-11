@@ -107,4 +107,6 @@ fleet + 共享 memory/skills**.
 - **cockpit 交互循环（#132）**: TUI 全屏循环(termios+select, 2s tick), ↑↓/jk 选, ⏎ 发指令, s spawn, r 刷, q 退; 写操作走 kaji-brain CLI 或 --server POST, cockpit 仍只是 spine 的客户端; parse_key 纯函数有测试。
 - **必须项(用户钉死)**: Claude Code 额度剩余必须可见。路径: ~/.claude OAuth token + Anthropic usage API 探路, 退路网页抓取。排队列。
 
+**远期已定（2026-06-11）**: 自有手机 App — 扫码即连（QR 配对换密钥, Happy 模式）, 界面 = Kaji Sun 设计语言。先 web cockpit 养形状, App 收割。
+
 **Next（当前队列）**: ① cockpit 交互循环 + mobile/desktop UI 设计打磨（主战场: 轻量·交互·可视化, 管多 harness 必须比终端切换方便得多）② 统一额度 scraper ③ relay 加 QR 配对 + E2E 加密（launch 前安全叙事）④ demo（最后录）。

@@ -38,20 +38,24 @@ def _fg(r: int, g: int, b: int) -> str:
     return "\033[38;2;%d;%d;%dm" % (r, g, b)
 
 
-GHOST = _fg(0xD9, 0x77, 0x57)   # Anthropic-ish warm orange — brand
-INK = _fg(0xE8, 0xE0, 0xD4)     # warm paper-white text
-MUTE = _fg(0x9A, 0x8F, 0x80)    # muted label
-SEL = _fg(0xC8, 0xA8, 0xFF)     # Kaji purple — selection accent
+# Kaji Sun (docs/design/KAJI_EMBER.md + kaji-sun-v3): paper terminal bg,
+# warm ink text, ONE hero — persimmon orange, rationed to "needs you".
+SUN = _fg(0xF2, 0x5C, 0x05)     # persimmon — brand + waiting + selection
+INK = _fg(0x21, 0x1C, 0x15)     # warm ink (on the cream Kaku Light bg)
+MUTE = _fg(0x8A, 0x81, 0x74)    # secondary
+ASH = _fg(0xC0, 0xB8, 0xA8)     # quiet
+GHOST = SUN                      # back-compat alias
+SEL = SUN
 
-# state -> (glyph, color, label). Order in this dict is the display priority
-# (most-neglected first): waiting on top, done/idle at the bottom.
+# state -> (glyph, color, label). Orange has ONE meaning: needs you.
+# Working = ink (visible, calm); done/idle = ash (silence is data).
 _STATE_STYLE = {
-    "waiting":    ("●", _fg(0xE8, 0xB3, 0x39), "waiting"),   # amber: needs you
-    "working":    ("●", _fg(0x4F, 0xC8, 0xA8), "working"),   # teal
-    "error":      ("●", _fg(0xE0, 0x6C, 0x6C), "error"),     # red
-    "background": ("●", _fg(0x6C, 0x9C, 0xE0), "background"), # blue
-    "idle":       ("○", MUTE, "idle"),
-    "done":       ("○", DIM,  "done"),
+    "waiting":    ("●", SUN, "waiting"),
+    "working":    ("●", INK, "working"),
+    "error":      ("●", _fg(0xC0, 0x3A, 0x2B), "error"),
+    "background": ("●", MUTE, "background"),
+    "idle":       ("○", ASH, "idle"),
+    "done":       ("○", ASH, "done"),
 }
 _UNKNOWN_STYLE = ("●", MUTE, "?")
 
@@ -117,6 +121,10 @@ def _hms(ts) -> str:
         return "--:--"
 
 
+def _visible_len(s: str) -> int:
+    return len(s)
+
+
 def _clip(s: str, n: int) -> str:
     """Clip a plain (un-colored) string to n columns with an ellipsis."""
     return s if len(s) <= n else (s[: max(0, n - 1)] + "…")
@@ -139,17 +147,20 @@ def fmt_quota_line(quota: Optional[Dict]) -> str:
             continue
         tok = int(info.get("tokens_today") or 0)
         lim = info.get("limits") or {}
-        pct = lim.get("secondary_used_percent", lim.get("primary_used_percent"))
-        if not tok and pct is None:
+        fh = lim.get("five_hour_used_percent", lim.get("primary_used_percent"))
+        sd = lim.get("seven_day_used_percent", lim.get("secondary_used_percent"))
+        if not tok and fh is None and sd is None:
             continue
         seg = name
         if tok:
             seg += " %s" % ("%.1fM" % (tok / 1e6) if tok >= 1e6 else
                             "%dk" % (tok // 1000) if tok >= 1000 else str(tok))
-        if pct is not None:
-            seg += " %d%% left" % max(0, round(100 - pct))
+        if fh is not None:
+            seg += " 5h %d%%" % round(fh)
+        if sd is not None:
+            seg += " wk %d%%" % round(sd)
         parts.append(seg)
-    return "  ·  ".join(parts)
+    return "   ".join(parts)
 
 
 def render(sessions: List[Dict], events: List[Dict], selected: int = 0,
@@ -162,13 +173,14 @@ def render(sessions: List[Dict], events: List[Dict], selected: int = 0,
     sel = min(max(0, selected), n - 1) if n else 0
     out: List[str] = []
 
-    # Header — brand.
-    out.append(_c("  ᗣ  ", GHOST, color) + _c("KAJI", BOLD, color) +
-               _c("  ·  you steer · agents execute", MUTE, color))
-    out.append(_c("  the fleet — most-neglected first", DIM, color))
+    # Header — one line: mark + brand + quota numbers (v3: no taglines).
     qline = fmt_quota_line(quota)
+    head = _c("  ◉ ", SUN, color) + _c("KA", BOLD, color) + _c("JI", SUN, color)
     if qline:
-        out.append(_c("  " + _clip(qline, width - 4), MUTE, color))
+        pad = max(2, width - 8 - _visible_len(qline))
+        head += " " * 2 + _c(_clip(qline, width - 10), MUTE, color)
+    out.append(head)
+    out.append(_c("  " + "─" * (width - 4), ASH, color))
     out.append("")
 
     # Footer compass: one dot per session, in display order, colored by state.
@@ -189,22 +201,23 @@ def render(sessions: List[Dict], events: List[Dict], selected: int = 0,
         out.append(compass())
         return "\n".join(out)
 
-    # Session list.
+    # Session list — one line per worker (v3: no event sub-lines).
     for i, s in enumerate(ordered):
         glyph, col, label = status_style(s.get("state"))
-        marker = _c("▸", SEL, color) if i == sel else " "
+        state = (s.get("state") or "").lower()
+        marker = _c("▌", SUN, color) if i == sel else " "
         dot = _c(glyph, col, color)
-        proj = "%s/%s" % (s.get("harness", "?"), s.get("project", "?"))
+        proj = "%s · %s" % (s.get("harness", "?"), s.get("project", "?"))
         rt = fmt_runtime(s.get("runtime_secs"))
-        head = "%s %s %s" % (marker, dot, _clip(proj, 26).ljust(26))
-        meta = _c("%-10s %5s" % (label, rt), col if i == sel else MUTE, color)
-        line = "  %s  %s" % (head, meta)
+        ctx = int(s.get("context_pct") or 0)
+        meta_txt = "%s %s%s" % (label, rt, (" · ctx %d%%" % ctx) if ctx else "")
+        meta_col = SUN if state == "waiting" else (ASH if state in ("idle", "done") else MUTE)
+        body_col = ASH if state in ("idle", "done") else INK
+        head = "%s %s %s" % (marker, dot, _c(_clip(proj, 30).ljust(30), body_col, color))
+        line = "  %s  %s" % (head, _c(meta_txt, meta_col, color))
         if i == sel:
             line = _c(line, BOLD, color)
         out.append(line)
-        act = last_activity(events, s.get("pane_id"))
-        if act:
-            out.append(_c("        %s" % _clip(act, width - 10), DIM, color))
     out.append("")
 
     # Selected session detail — its recent history (newest first).
@@ -304,11 +317,11 @@ def demo_data() -> Tuple[List[Dict], List[Dict], Dict]:
     """Built-in fake fleet so the layout can be previewed with no Kaji running."""
     sessions = [
         {"pane_id": 2, "harness": "claude", "project": "kaji", "state": "waiting",
-         "runtime_secs": 1840, "tokens_today": 21000},
+         "runtime_secs": 1840, "tokens_today": 21000, "context_pct": 21},
         {"pane_id": 4, "harness": "kiro", "project": "mira", "state": "working",
-         "runtime_secs": 320, "tokens_today": 8000},
+         "runtime_secs": 320, "tokens_today": 8000, "context_pct": 8},
         {"pane_id": 5, "harness": "opencode", "project": "doabit", "state": "working",
-         "runtime_secs": 95, "tokens_today": 0},
+         "runtime_secs": 95, "tokens_today": 0, "context_pct": 3},
         {"pane_id": 3, "harness": "claude", "project": "wu", "state": "done",
          "runtime_secs": 5400, "tokens_today": 44000},
     ]

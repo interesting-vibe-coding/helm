@@ -31,15 +31,21 @@ def _tc_line(total_tokens, primary_pct=None, secondary_pct=None, plan=None):
 
 class TestCodex(unittest.TestCase):
     def setUp(self):
+        os.environ["HELM_QUOTA_OFFLINE"] = "1"   # never hit live endpoints in tests
         self._tmp = tempfile.TemporaryDirectory()
         self._orig = quota.CODEX_SESSIONS
         quota.CODEX_SESSIONS = Path(self._tmp.name)
+        # isolate the limits disk cache too
+        self._orig_cache = quota.CACHE_DIR
+        quota.CACHE_DIR = Path(self._tmp.name) / "cache"
         today = datetime.now(timezone.utc)
         self.day_dir = Path(self._tmp.name) / f"{today:%Y}" / f"{today:%m}" / f"{today:%d}"
         self.day_dir.mkdir(parents=True)
 
     def tearDown(self):
         quota.CODEX_SESSIONS = self._orig
+        quota.CACHE_DIR = self._orig_cache
+        os.environ.pop("HELM_QUOTA_OFFLINE", None)
         self._tmp.cleanup()
 
     def _write(self, name, lines):
@@ -47,45 +53,45 @@ class TestCodex(unittest.TestCase):
 
     def test_missing_dir(self):
         quota.CODEX_SESSIONS = Path(self._tmp.name) / "nope"
-        self.assertEqual(quota.codex(), (0, None, None, None, {}))
+        self.assertEqual(quota.codex(), (0, None, None, None, {}, {}))
 
     def test_cumulative_takes_last_not_sum(self):
         # 3 events in one session: cumulative 100 -> 250 -> 400. Today = 400.
         self._write("rollout-a.jsonl",
                     [_tc_line(100), _tc_line(250), _tc_line(400)])
-        sess, tok, _last, _, _bp = quota.codex()
+        sess, tok, _last, _, _bp, _cx = quota.codex()
         self.assertEqual(sess, 1)
         self.assertEqual(tok, 400)
 
     def test_sums_across_sessions(self):
         self._write("rollout-a.jsonl", [_tc_line(400)])
         self._write("rollout-b.jsonl", [_tc_line(100), _tc_line(600)])
-        _, tok, _, _, _bp = quota.codex()
+        _, tok, _, _, _bp, _cx = quota.codex()
         self.assertEqual(tok, 1000)
 
     def test_limits_from_freshest(self):
         self._write("rollout-a.jsonl",
                     [_tc_line(50, primary_pct=10.0, secondary_pct=38.5, plan="plus")])
-        _, _, _, limits, _bp = quota.codex()
-        self.assertEqual(limits["primary_used_percent"], 10.0)
-        self.assertEqual(limits["secondary_used_percent"], 38.5)
-        self.assertEqual(limits["secondary_resets_at"], 222)
+        _, _, _, limits, _bp, _cx = quota.codex()
+        self.assertEqual(limits["five_hour_used_percent"], 10.0)
+        self.assertEqual(limits["seven_day_used_percent"], 38.5)
+        self.assertEqual(limits["seven_day_resets_at"], 222)
         self.assertEqual(limits["plan"], "plus")
 
     def test_null_windows_yield_plan_only(self):
         self._write("rollout-a.jsonl", [_tc_line(50, plan="plus")])
-        _, _, _, limits, _bp = quota.codex()
+        _, _, _, limits, _bp, _cx = quota.codex()
         self.assertEqual(limits, {"plan": "plus"})
 
     def test_corrupt_lines_skipped(self):
         self._write("rollout-a.jsonl", ["{not json", _tc_line(70), '"token_count"'])
-        _, tok, _, _, _bp = quota.codex()
+        _, tok, _, _, _bp, _cx = quota.codex()
         self.assertEqual(tok, 70)
 
     def test_emit_json_has_limits_key(self):
         self._write("rollout-a.jsonl", [_tc_line(70, secondary_pct=20.0, plan="plus")])
         rows = dict((r[0], r) for r in quota.collect())
-        name, sess, tok, last, limits, _bp = rows["codex"]
+        name, sess, tok, last, limits, _bp, _cx = rows["codex"]
         self.assertEqual(tok, 70)
         self.assertEqual(limits["plan"], "plus")
 
