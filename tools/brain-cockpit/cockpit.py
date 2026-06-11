@@ -457,7 +457,7 @@ def parse_key(buf: bytes) -> str:
     return "none"
 
 
-HINTS = "舵 i 说一句 · ↑↓ select · ⏎ send · s spawn · r refresh · q quit"
+HINTS = "直接打字下指令 · ⏎ 发 · ⇥ confirm/auto · ↑↓ 选 · 空⏎ 回它 · q 退"
 
 
 def _prompt(line: str) -> str:
@@ -471,6 +471,77 @@ def _prompt(line: str) -> str:
     finally:
         sys.stdout.write("\033[?25l")
         sys.stdout.flush()
+
+
+def _choose(fd, options, default=0):
+    """Inline arrow selector: ←→/↑↓ move, ⏎ pick, ESC cancel → None.
+    Renders on one line (caller is on a fresh line, cbreak mode active)."""
+    import select as _select
+    sel = default
+    while True:
+        line = "   "
+        for i, o in enumerate(options):
+            line += ("\033[7m %s \033[0m" % o) if i == sel else ("  %s  " % o)
+        sys.stdout.write("\r\033[K" + line)
+        sys.stdout.flush()
+        r, _, _ = _select.select([sys.stdin], [], [], 30.0)
+        if not r:
+            continue
+        buf = os.read(fd, 8)
+        if buf in (b"\x1b[C", b"\x1b[B", b"\t", b"l"):
+            sel = (sel + 1) % len(options)
+        elif buf in (b"\x1b[D", b"\x1b[A", b"h"):
+            sel = (sel - 1) % len(options)
+        elif buf in (b"\r", b"\n"):
+            sys.stdout.write("\n")
+            return sel
+        elif buf in (b"\x1b", b"\x03", b"q", b"n", b"N"):
+            sys.stdout.write("\n")
+            return None
+
+
+def _dispatch(order, ordered, selected, mode, args, fd, old_attrs):
+    """舵 order → plan → (confirm via arrows | auto) → execute. Returns flash."""
+    import termios
+    import tty
+    sys.stdout.write("\n   …\n")
+    sys.stdout.flush()
+    plan = nl_plan(order)
+    act = plan.get("action")
+    if act == "send":
+        line = "→ 回 pane %s: %s" % (plan.get("pane_id"), plan.get("text", ""))
+    elif act == "spawn":
+        line = "→ spawn %s · %s: %s" % (
+            plan.get("harness"), plan.get("cwd"), plan.get("task", ""))
+    else:
+        return "× " + (plan.get("why") or "no plan")
+    sys.stdout.write(" %s\n" % line)
+    sys.stdout.flush()
+
+    if mode == "confirm":
+        pick = _choose(fd, ["执行", "取消", "改一改"])
+        if pick is None or pick == 1:
+            return "cancelled"
+        if pick == 2:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_attrs)
+            edited = _prompt("   改: ")
+            tty.setcbreak(fd)
+            if not edited:
+                return "cancelled"
+            if act == "send":
+                plan["text"] = edited
+            else:
+                plan["task"] = edited
+
+    if act == "send":
+        ok, err = send_text(args.server, args.token or None,
+                            plan.get("pane_id"), plan.get("text", ""))
+    else:
+        ok, err = spawn_worker(args.server, args.token or None,
+                               plan.get("harness") or "claude",
+                               plan.get("cwd") or "",
+                               plan.get("task") or "")
+    return "done ✓" if ok else ("failed: " + (err or "?"))
 
 
 def interactive(args) -> int:
@@ -513,6 +584,8 @@ def interactive(args) -> int:
     kick()
     sessions, events, quota = [], [], {}
     loaded = False
+    helm_buf = [""]                  # the 舵 line, typed directly
+    mode = ["confirm"]               # confirm ⇄ auto (Tab / Cmd+Shift+A)
     try:
         tty.setcbreak(fd)
         while True:
@@ -525,7 +598,14 @@ def interactive(args) -> int:
             width = args.width or (os.get_terminal_size().columns if sys.stdout.isatty() else 80)
             frame = render(sessions, events, selected=selected, width=width,
                            color=not args.no_color, quota=quota, loading=not loaded)
-            footer = (MUTE + (flash or HINTS) + RESET) if not args.no_color else (flash or HINTS)
+            tag = ("auto" if mode[0] == "auto" else "confirm")
+            if not args.no_color:
+                tag = (SUN if mode[0] == "auto" else MUTE) + tag + RESET
+            hint = (MUTE + (flash or HINTS) + RESET) if not args.no_color else (flash or HINTS)
+            rud = (SUN + "舵" + RESET) if not args.no_color else "舵"
+            cur = (INK + helm_buf[0] + RESET + (SUN + "▌" + RESET)) if not args.no_color \
+                  else (helm_buf[0] + "▌")
+            footer = "%s\n\n %s > %s   ·%s" % (hint, rud, cur, tag)
             sys.stdout.write("\033[2J\033[H" + frame + "\n\n " + footer + "\n")
             sys.stdout.flush()
             flash = ""
@@ -535,71 +615,80 @@ def interactive(args) -> int:
                 kick()              # idle tick → refresh in the background
                 continue
             buf = os.read(fd, 8)
-            action = parse_key(buf)
-            if action == "quit":
-                return 0
-            if action == "up":
+
+            # ── typing-first: anything printable goes into the 舵 buffer ──
+            if buf == b"\x1b[A":
                 selected -= 1
-            elif action == "down":
+                continue
+            if buf == b"\x1b[B":
                 selected += 1
-            elif action == "refresh":
-                kick()
-            elif action == "send" and ordered:
-                target = ordered[selected]
-                termios.tcsetattr(fd, termios.TCSADRAIN, old_attrs)
-                text = _prompt("\n → %s·%s (pane %s): " % (
-                    target.get("harness"), target.get("project"), target.get("pane_id")))
-                tty.setcbreak(fd)
-                if text:
-                    ok, err = send_text(args.server, args.token or None,
-                                        target.get("pane_id"), text)
-                    flash = "sent ✓" if ok else ("send failed: " + (err or "?"))
-                kick()
-            elif action == "spawn":
-                termios.tcsetattr(fd, termios.TCSADRAIN, old_attrs)
-                harness = _prompt("\n harness [claude/kiro/opencode/codex]: ") or "claude"
-                cwd = _prompt(" cwd: ")
-                task = _prompt(" first task (optional): ") if cwd else ""
-                tty.setcbreak(fd)
-                if cwd:
-                    ok, err = spawn_worker(args.server, args.token or None,
-                                           harness, cwd, task)
-                    flash = "spawned ✓" if ok else ("spawn failed: " + (err or "?"))
-                kick()
-            elif action == "helm":
-                # 舵 line: one sentence → plan (small model) → y/n → execute.
-                termios.tcsetattr(fd, termios.TCSADRAIN, old_attrs)
-                order = _prompt("\n 舵 > ")
+                continue
+            if buf == b"\t":          # mode toggle (also Cmd+Shift+A via kaku)
+                mode[0] = "auto" if mode[0] == "confirm" else "confirm"
+                flash = "mode: " + mode[0]
+                continue
+            if buf == b"\x1b":        # bare ESC clears the buffer
+                helm_buf[0] = ""
+                continue
+            if buf in (b"\x7f", b"\x08"):
+                helm_buf[0] = helm_buf[0][:-1]
+                continue
+            if buf == b"\x03":        # Ctrl-C always quits
+                return 0
+            if buf in (b"\r", b"\n"):
+                order = helm_buf[0].strip()
+                helm_buf[0] = ""
                 if order:
-                    sys.stdout.write("   …\n")
-                    sys.stdout.flush()
-                    plan = nl_plan(order)
-                    act = plan.get("action")
-                    if act == "send":
-                        line = "→ send to pane %s: %s" % (plan.get("pane_id"), plan.get("text", ""))
-                    elif act == "spawn":
-                        line = "→ spawn %s in %s: %s" % (
-                            plan.get("harness"), plan.get("cwd"), plan.get("task", ""))
-                    else:
-                        line = "× " + (plan.get("why") or "no plan")
-                    if act in ("send", "spawn"):
-                        yn = _prompt(" %s\n   execute? [y/N] " % line)
-                        if yn.strip().lower() == "y":
-                            if act == "send":
-                                ok, err = send_text(args.server, args.token or None,
-                                                    plan.get("pane_id"), plan.get("text", ""))
-                            else:
-                                ok, err = spawn_worker(args.server, args.token or None,
-                                                       plan.get("harness") or "claude",
-                                                       plan.get("cwd") or "",
-                                                       plan.get("task") or "")
-                            flash = "done ✓" if ok else ("failed: " + (err or "?"))
-                        else:
-                            flash = "cancelled"
-                    else:
-                        flash = line
-                tty.setcbreak(fd)
-                kick()
+                    flash = _dispatch(order, ordered, selected, mode[0], args,
+                                      fd, old_attrs)
+                    kick()
+                elif ordered:
+                    # empty ⏎ → classic reply-to-selected
+                    target = ordered[selected]
+                    termios.tcsetattr(fd, termios.TCSADRAIN, old_attrs)
+                    text = _prompt("\n → %s·%s (pane %s): " % (
+                        target.get("harness"), target.get("project"), target.get("pane_id")))
+                    tty.setcbreak(fd)
+                    if text:
+                        ok, err = send_text(args.server, args.token or None,
+                                            target.get("pane_id"), text)
+                        flash = "sent ✓" if ok else ("send failed: " + (err or "?"))
+                    kick()
+                continue
+            # single-letter commands only while the buffer is empty
+            if not helm_buf[0]:
+                action = parse_key(buf)
+                if action == "quit":
+                    return 0
+                if action == "up":
+                    selected -= 1
+                    continue
+                if action == "down":
+                    selected += 1
+                    continue
+                if action == "refresh":
+                    kick()
+                    continue
+                if action == "spawn":
+                    termios.tcsetattr(fd, termios.TCSADRAIN, old_attrs)
+                    harness = _prompt("\n harness [claude/kiro/opencode/codex]: ") or "claude"
+                    cwd = _prompt(" cwd: ")
+                    task = _prompt(" first task (optional): ") if cwd else ""
+                    tty.setcbreak(fd)
+                    if cwd:
+                        ok, err = spawn_worker(args.server, args.token or None,
+                                               harness, cwd, task)
+                        flash = "spawned ✓" if ok else ("spawn failed: " + (err or "?"))
+                    kick()
+                    continue
+                if action == "helm":   # legacy i / / — just begins typing
+                    continue
+            # text: append to the 舵 buffer (UTF-8 safe)
+            try:
+                chunk = buf.decode("utf-8")
+            except UnicodeDecodeError:
+                chunk = buf.decode("utf-8", "ignore")
+            helm_buf[0] += "".join(c for c in chunk if c.isprintable())
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, old_attrs)
         sys.stdout.write("\033[?1049l\033[?25h")

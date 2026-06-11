@@ -561,11 +561,17 @@ def cmd_spawn(args):
 
     if task:
         # Give the harness a moment to boot its prompt before sending the task.
-        time.sleep(2.0)
+        # codex boots through trust/onboarding prompts that EAT the first CR —
+        # wait longer, and follow up with a bare CR to submit the composer.
+        time.sleep(4.0 if harness == "codex" else 2.0)
         srt, serr = _send_text(cli, pane_id, task)
         result["task_sent"] = (srt == 0)
         if srt != 0:
             result["task_error"] = serr
+        elif harness == "codex":
+            time.sleep(1.5)
+            _cli_run(cli, ["send-text", "--pane-id", str(pane_id),
+                           "--no-paste", "--", "\r"])
     print(json.dumps(result))
     return 0
 
