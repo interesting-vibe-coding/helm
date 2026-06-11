@@ -14,6 +14,10 @@ Kaji runs a crew of coding agents — Claude Code, Kiro, opencode, Codex — sid
 
 ![Kaji mission control](assets/screenshot.png)
 
+![Kaji cockpit demo](assets/demo.gif)
+
+*The cockpit, live: type one sentence at the helm — confirm — it rows.*
+
 ## Install
 
 ```bash
