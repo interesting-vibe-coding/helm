@@ -20,26 +20,34 @@ Kaji runs a crew of coding agents — Claude Code, Kiro, opencode, Codex — sid
 curl -fsSL https://raw.githubusercontent.com/interesting-vibe-coding/kaji/main/install.sh | bash
 ```
 
-Open Kaji. The Brain greets you. Tell it what to build.
+Open Kaji. Mission Control greets you. Say what to build.
 
 ## What you get
 
-**One terminal, every agent.** Workers tile automatically in a single Work view
-(`Cmd+2`) — claude next to codex next to kiro, no tab hunting. Each harness
-boots with your shared memory and skills already loaded.
+**Say it, don't manage it.** Mission Control opens on the helm line — type one
+sentence (*"spin up codex in wu and fix the newsletter route"*), a small model
+turns it into a plan, you confirm with arrow keys (or flip to auto mode with
+`Tab`), and the worker is rowing. No forms, no flags.
 
-**A fleet you can read at a glance.** The cockpit (`Cmd+1`) orders sessions
-most-neglected first: amber means a worker is waiting on you, teal means it's
-working. Select a worker, press ⏎, type — your instruction lands in its pane.
+**Two views, one key.** `Cmd+/` flips between **Mission Control** (the fleet,
+the quota, the helm line) and **Work** (the worker you were just steering).
+That's the whole navigation model. `Cmd+Shift+K` launches any harness;
+workers tile side by side — claude next to codex next to kiro.
 
-**Quota where you can see it.** Tokens spent today per harness, and real
-remaining-quota percentages where the harness exposes them — before you burn
-an evening's budget on the wrong model.
+**A fleet you can read in one glance.** Kaji Sun, day and night: one persimmon
+accent that means exactly one thing — *a worker needs you*. Working is ink,
+done fades to ash. Every session shows how full its context window is
+(`ctx 18%`) before it forgets your morning.
+
+**Quota you can trust.** Real five-hour and weekly usage straight from the
+providers' own endpoints (Claude OAuth usage API, Codex app-server) — on the
+cockpit, the status bar, and your phone. Know before you burn the evening's
+budget.
 
 **Your fleet, from your phone.** `kaji-brain serve` + the built-in relay put
-the same cockpit in your phone's browser — state, quota, send, spawn — over
-plain HTTPS. No inbound ports on your Mac, no VPN slot on your phone, works
-behind any proxy. See [docs/remote.md](docs/remote.md).
+the same cockpit — helm line included — in your phone's browser over plain
+HTTPS. No inbound ports on your Mac, no VPN slot on your phone, works behind
+any proxy. See [docs/remote.md](docs/remote.md).
 
 **Engine-agnostic by design.** The Brain is a thin service (CLI + HTTP + MCP)
 over an append-only event substrate — not a model. Any harness can be a
