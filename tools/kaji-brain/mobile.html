@@ -4,156 +4,146 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>Kaji — fleet</title>
 <style>
-  /* Deep-luxury: warm espresso base, cream ink, bronze hairlines,
-     terracotta as the single accent. Never pure black, never #fff. */
+  /* Kaji Sun (docs/design/kaji-sun-v3.html): paper, warm ink, ONE persimmon.
+     Orange has one meaning — needs you / your action. */
   :root {
-    --espresso: #211a15; --panel: #2a211a; --deep: #1d1712;
-    --line: #3a2f25; --cream: #ece3d4; --cream-dim: #a89a86;
-    --bronze: #b08d57; --accent: #d97757;
-    --busy: #7fb78f; --wait: #e0a458; --idle: #6b5f50;
+    --paper: #fbf8f2; --card: #ffffff; --ink: #211c15; --dim: #8a8174;
+    --ash: #b5ab9c; --faint: #e8e2d6; --track: #f0ebe1; --sun: #f25c05;
+    --sun-soft: #fde8da;
   }
   * { box-sizing: border-box; margin: 0; }
   html { -webkit-text-size-adjust: 100%; }
   body {
-    background: linear-gradient(180deg, var(--espresso) 0%, var(--deep) 100%);
-    color: var(--cream); min-height: 100vh;
-    font: 15px/1.5 ui-monospace, "SF Mono", Menlo, monospace;
-    padding: max(16px, env(safe-area-inset-top)) 16px
-             max(28px, env(safe-area-inset-bottom));
+    background: var(--paper); color: var(--ink); min-height: 100vh;
+    font: 14px/1.6 ui-monospace, "SF Mono", Menlo, monospace;
+    padding: max(14px, env(safe-area-inset-top)) 18px
+             max(14px, env(safe-area-inset-bottom));
+    display: flex; flex-direction: column;
   }
-  .wrap { max-width: 920px; margin: 0 auto; }
+  .wrap { max-width: 860px; margin: 0 auto; width: 100%;
+          display: flex; flex-direction: column; flex: 1; }
 
-  header { display: flex; align-items: baseline; gap: 10px; margin: 4px 0 4px; }
-  header h1 {
-    font: 300 22px/1.2 Georgia, "Times New Roman", serif;
-    letter-spacing: .06em;
-  }
-  header h1 em { font-style: italic; color: var(--accent); }
-  header .sub { color: var(--cream-dim); font-size: 11px; margin-left: auto; }
-  .hairline { height: 1px; background: linear-gradient(90deg, var(--bronze), transparent 70%); opacity: .5; margin: 10px 0 14px; }
-
-  #quota { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
-  .chip {
-    border: 1px solid var(--line); border-radius: 999px;
-    padding: 3px 11px; font-size: 11px; color: var(--cream-dim);
-  }
-  .chip b { color: var(--bronze); font-weight: 600; }
-
-  #list { display: grid; grid-template-columns: 1fr; gap: 10px; }
-  @media (min-width: 760px) { #list { grid-template-columns: 1fr 1fr; } }
-
-  .card {
-    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
-    padding: 13px 15px; cursor: pointer;
-    transition: border-color .15s ease;
-  }
-  .card.open { border-color: var(--bronze); cursor: default; }
-  .row { display: flex; align-items: center; gap: 9px; }
-  .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
-  .dot.waiting { background: var(--wait); animation: pulse 1.4s ease-in-out infinite; }
-  .dot.busy, .dot.running, .dot.working { background: var(--busy); }
-  .dot.idle, .dot.unknown { background: var(--idle); }
-  @keyframes pulse { 50% { opacity: .3; } }
-  .name { font-weight: 600; letter-spacing: .02em; }
-  .name .proj { color: var(--cream-dim); font-weight: 400; }
-  .meta { color: var(--cream-dim); font-size: 11px; margin-left: auto; flex: none; }
-  .meta .st-waiting { color: var(--wait); }
-
-  .body { display: none; margin-top: 12px; }
-  .card.open .body { display: block; }
-  .timeline { margin: 0 0 10px; padding: 0; list-style: none; }
-  .timeline li {
-    font-size: 11px; color: var(--cream-dim); padding: 2px 0 2px 14px;
-    position: relative; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  }
-  .timeline li::before {
-    content: ""; position: absolute; left: 2px; top: 8px;
-    width: 4px; height: 4px; border-radius: 50%; background: var(--bronze); opacity: .6;
-  }
-  .timeline li .t { color: var(--idle); margin-right: 6px; }
-
-  .sendbox { display: flex; gap: 8px; }
-  input, select {
-    background: var(--deep); color: var(--cream);
-    border: 1px solid var(--line); border-radius: 8px; padding: 10px 11px;
-    font: inherit; font-size: 14px; width: 100%;
-  }
-  input:focus, select:focus { outline: none; border-color: var(--bronze); }
-  button {
-    background: var(--accent); color: var(--espresso); border: 0; border-radius: 8px;
-    padding: 10px 16px; font: inherit; font-size: 14px; font-weight: 600; flex: none;
-    cursor: pointer;
-  }
-  button:active { opacity: .8; }
-  button.ghost {
-    background: transparent; color: var(--bronze);
-    border: 1px solid var(--bronze); font-weight: 400;
-  }
-
-  #newbar { margin-top: 16px; display: flex; justify-content: center; }
-  #sheet {
-    display: none; margin-top: 14px; background: var(--panel);
-    border: 1px solid var(--bronze); border-radius: 12px; padding: 16px;
-  }
-  #sheet.open { display: block; }
-  #sheet h2 { font: 300 15px Georgia, serif; letter-spacing: .05em; color: var(--bronze); margin-bottom: 12px; }
-  .harness-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
-  .hchip {
-    border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px;
-    font-size: 13px; color: var(--cream-dim); cursor: pointer; background: none; font-weight: 400;
-  }
-  .hchip.sel { border-color: var(--accent); color: var(--accent); }
-  #sheet input { margin-bottom: 10px; }
-  .sheet-actions { display: flex; gap: 8px; justify-content: flex-end; }
-
-  #gate { max-width: 360px; margin: 16vh auto 0; text-align: center; }
-  #gate h1 { font: 300 26px Georgia, serif; letter-spacing: .08em; }
-  #gate h1 em { font-style: italic; color: var(--accent); }
-  #gate p { color: var(--cream-dim); font-size: 13px; margin: 12px 0 18px; }
-  #gate input { text-align: center; margin-bottom: 10px; }
-  #gate button { width: 100%; padding: 12px; }
+  header { display: flex; align-items: baseline; gap: 9px; padding-top: 8px; }
+  header svg { transform: translateY(2px); flex: none; }
+  .brand { font: 700 17px/1 Georgia, serif; letter-spacing: .16em; }
+  .brand i { font-style: normal; color: var(--sun); }
+  #quota { margin-left: auto; color: var(--dim); font-size: 11px; text-align: right; }
+  #quota b { color: var(--ink); font-weight: 600; }
+  .hr { border: 0; border-top: 1px solid var(--faint); margin: 14px 0 4px; }
 
   #err {
-    display: none; background: #3a2823; border: 1px solid #5c4336; color: #e8c4b4;
-    border-radius: 9px; padding: 9px 13px; font-size: 13px; margin-bottom: 12px;
+    display: none; border: 1px solid var(--sun); color: var(--sun);
+    border-radius: 9px; padding: 8px 12px; font-size: 12px; margin: 10px 0 0;
+    background: var(--sun-soft);
   }
-  .empty { color: var(--cream-dim); text-align: center; padding: 44px 0; font-size: 13px; grid-column: 1/-1; }
-  .empty .hint { color: var(--idle); font-size: 11px; margin-top: 6px; }
+
+  .sess { display: flex; align-items: center; gap: 10px; min-height: 46px;
+          border-bottom: 1px solid var(--track); position: relative; padding: 0 2px; }
+  .sess:last-child { border-bottom: 0; }
+  .sess.sel::before { content: ""; position: absolute; left: -10px; top: 9px; bottom: 9px;
+                      width: 3px; border-radius: 3px; background: var(--sun); }
+  .d { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+  .d.you { background: var(--sun); animation: pulse 1.8s ease-in-out infinite; }
+  .d.run { background: var(--ink); }
+  .d.off { background: var(--ash); }
+  @keyframes pulse { 50% { opacity: .25; } }
+  .who b { font-weight: 600; }
+  .who span { color: var(--dim); }
+  .sess .st { margin-left: auto; font-size: 11.5px; color: var(--dim); text-align: right; flex: none; }
+  .sess .st.you { color: var(--sun); font-weight: 600; }
+  .sess.dimmed .who b { font-weight: 400; color: var(--dim); }
+  .sess.dimmed .st { color: var(--ash); }
+
+  .empty { color: var(--ash); text-align: center; padding: 40px 0 28px; font-size: 13px; }
+
+  #newbar { display: flex; justify-content: center; padding: 14px 0 0; }
+  .ghost { background: none; border: 1px solid var(--faint); color: var(--dim);
+           border-radius: 999px; padding: 7px 16px; font: inherit; font-size: 12px; }
+  .ghost:active { border-color: var(--sun); color: var(--sun); }
+
+  #sheet { display: none; margin-top: 14px; border: 1px solid var(--faint);
+           border-radius: 14px; padding: 16px; background: var(--card); }
+  #sheet.open { display: block; }
+  .hrow { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+  .hchip { background: none; border: 1px solid var(--faint); border-radius: 999px;
+           padding: 6px 14px; font: inherit; font-size: 13px; color: var(--dim); }
+  .hchip.sel { border-color: var(--sun); color: var(--sun); }
+  #sheet input { margin-bottom: 10px; }
+  .acts { display: flex; gap: 8px; justify-content: flex-end; }
+
+  input {
+    background: var(--card); color: var(--ink); width: 100%;
+    border: 1px solid var(--faint); border-radius: 10px; padding: 11px 13px;
+    font: inherit; font-size: 14px;
+  }
+  input:focus { outline: none; border-color: var(--sun); }
+  button.solid {
+    background: var(--ink); color: var(--paper); border: 0; border-radius: 10px;
+    padding: 11px 18px; font: inherit; font-size: 14px; font-weight: 600;
+  }
+  button.solid:active { opacity: .8; }
+
+  .spacer { flex: 1; min-height: 18px; }
+
+  #helm { display: flex; align-items: center; gap: 10px;
+          border: 1.5px solid var(--ink); border-radius: 13px;
+          background: var(--card); padding: 4px 6px 4px 15px; margin-top: 14px; }
+  #helm .rudder { color: var(--sun); font: 700 15px/1 Georgia, serif; flex: none; }
+  #helm input { border: 0; padding: 9px 4px; background: none; }
+  #helm input:focus { outline: none; }
+  #helm button { flex: none; }
+  #target { color: var(--ash); font-size: 10.5px; margin: 6px 4px 0; text-align: center; }
+  #target b { color: var(--dim); font-weight: 500; }
+
+  #gate { max-width: 340px; margin: 18vh auto 0; text-align: center; }
+  #gate .brand { font-size: 30px; }
+  #gate p { color: var(--dim); font-size: 12.5px; margin: 12px 0 18px; }
+  #gate input { text-align: center; margin-bottom: 10px; }
+  #gate button { width: 100%; }
 </style>
 </head>
 <body>
 <div class="wrap">
 
 <div id="gate" hidden>
-  <h1>Ka<em>ji</em></h1>
+  <div class="brand">KA<i>JI</i></div>
   <p>fleet access token<br>(KAJI_BRAIN_TOKEN on the Mac)</p>
   <input id="tok" type="password" placeholder="token" autocomplete="off">
-  <button onclick="saveToken()">Connect</button>
+  <button class="solid" onclick="saveToken()">Connect</button>
 </div>
 
-<div id="app" hidden>
+<div id="app" hidden style="display:flex; flex-direction:column; flex:1">
   <header>
-    <h1>Ka<em>ji</em> fleet</h1>
-    <span class="sub" id="ts"></span>
+    <svg width="17" height="17" viewBox="0 0 64 64">
+      <circle cx="32" cy="32" r="19" fill="none" stroke="#211c15" stroke-width="6"/>
+      <line x1="32" y1="32" x2="52" y2="12" stroke="#f25c05" stroke-width="6" stroke-linecap="round"/>
+    </svg>
+    <span class="brand">KA<i>JI</i></span>
+    <span id="quota"></span>
   </header>
-  <div class="hairline"></div>
+  <hr class="hr">
   <div id="err"></div>
-  <div id="quota"></div>
   <div id="list"></div>
   <div id="newbar"><button class="ghost" onclick="toggleSheet()">+ new worker</button></div>
   <div id="sheet">
-    <h2>spawn a worker</h2>
-    <div class="harness-row" id="harnesses"></div>
-    <input id="cwd" placeholder="working directory (e.g. ~/workspace/kaji)" autocapitalize="off" autocomplete="off">
+    <div class="hrow" id="harnesses"></div>
+    <input id="cwd" placeholder="working directory" autocapitalize="off" autocomplete="off">
     <input id="task" placeholder="first instruction (optional)" autocomplete="off">
-    <div class="sheet-actions">
+    <div class="acts">
       <button class="ghost" onclick="toggleSheet()">cancel</button>
-      <button onclick="spawn()">Spawn</button>
+      <button class="solid" onclick="spawn()">Spawn</button>
     </div>
   </div>
+  <div class="spacer"></div>
+  <div id="helm">
+    <span class="rudder">舵</span>
+    <input id="order" placeholder="说一句…" enterkeyhint="send" autocomplete="off">
+    <button class="solid" onclick="sendOrder()">Send</button>
+  </div>
+  <div id="target"></div>
 </div>
 
 </div>
@@ -161,13 +151,11 @@
 const $ = id => document.getElementById(id);
 let token = localStorage.getItem("kaji-token") || "";
 let timer = null;
-const openPanes = new Set();
-const timelines = {};   // pane_id -> [events] cache
-const HARNESSES = ["claude", "kiro", "opencode", "codex"];
+let selected = null;          // selected pane_id (helm input target)
+const HARNESSES = ["claude", "codex"];
 let selHarness = localStorage.getItem("kaji-harness") || "claude";
 
-// Served either at "/" (tailnet / funnel) or under "/c/<rid>/" (relay).
-// Resolve API paths against the page's own directory so both work.
+// Served at "/" (tailnet/funnel) or under "/c/<rid>/" (relay).
 const API_BASE = location.pathname.replace(/\/(mobile)?$/, "");
 
 function saveToken() {
@@ -190,30 +178,14 @@ async function api(path, opts) {
   }, opts));
   if (r.status === 401) { logout("token rejected — enter it again"); throw new Error("401"); }
   let data = null;
-  try { data = await r.json(); } catch (e) { /* non-JSON body */ }
-  if (!r.ok) {
-    // fetch() resolves on 4xx/5xx — without this, a 502 send (Kaji not
-    // running) looked like success on the phone (kaji#125).
-    throw new Error((data && data.error) || ("HTTP " + r.status));
-  }
+  try { data = await r.json(); } catch (e) { /* non-JSON */ }
+  if (!r.ok) throw new Error((data && data.error) || ("HTTP " + r.status));
   return data;
 }
 
-function fmtRuntime(s) {
-  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
-  return h ? h + "h" + String(m).padStart(2, "0") + "m" : m + "m";
-}
-
-function fmtClock(ts) {
-  const d = new Date(ts * 1000);
-  return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
-}
-
-function evLine(e) {
-  if (e.ev === "spawn") return "spawn " + (e.harness || "") + " · " + (e.cwd || "");
-  if (e.ev === "dispatch") return "→ " + (e.text || "");
-  if (e.ev === "state") return "state → " + (e.to || "");
-  return e.ev || "?";
+function esc(t) {
+  return String(t).replace(/[&<>"']/g, c => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
 function fmtTokens(v) {
@@ -222,98 +194,73 @@ function fmtTokens(v) {
   return String(v);
 }
 
+function fmtRuntime(s) {
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+  return h ? h + "h" + String(m).padStart(2, "0") + "m" : m + "m";
+}
+
+function dotClass(st) {
+  if (st === "waiting") return "you";
+  if (st === "working" || st === "running" || st === "busy") return "run";
+  return "off";
+}
+
 function render(state) {
-  $("ts").textContent = "updated " + fmtClock(state.ts);
   const q = state.quota || {}, lim = state.limits || {};
-  const names = new Set(Object.keys(q).concat(Object.keys(lim)));
-  const chips = [...names].map(k => {
-    const v = q[k] || 0, l = lim[k] || {};
-    const fh = l.five_hour_used_percent ?? l.primary_used_percent;
-    const sd = l.seven_day_used_percent ?? l.secondary_used_percent;
-    if (!v && fh == null && sd == null) return "";
+  const segs = [];
+  for (const k of ["claude", "codex"]) {
+    const l = lim[k] || {};
+    const fh = l.five_hour_used_percent, sd = l.seven_day_used_percent;
+    if (fh == null && sd == null && !q[k]) continue;
     let t = esc(k);
-    if (v) t += ' <b>' + fmtTokens(v) + '</b>';
-    if (fh != null) t += ' · 5h ' + Math.round(fh) + '%';
-    if (sd != null) t += ' · wk ' + Math.round(sd) + '%';
-    return '<span class="chip">' + t + '</span>';
-  }).filter(Boolean).join("");
-  $("quota").innerHTML = chips || '<span class="chip">tokens today · none</span>';
+    if (fh != null) t += " 5h <b>" + Math.round(fh) + "%</b>";
+    if (sd != null) t += " wk <b>" + Math.round(sd) + "%</b>";
+    if (fh == null && sd == null && q[k]) t += " <b>" + fmtTokens(q[k]) + "</b>";
+    segs.push(t);
+  }
+  $("quota").innerHTML = segs.join(" · ");
+
+  const sessions = state.sessions || [];
+  if (selected != null && !sessions.some(s => s.pane_id === selected)) selected = null;
+  if (selected == null && sessions.length) selected = sessions[0].pane_id;
 
   const list = $("list");
-  const sessions = state.sessions || [];
   if (!sessions.length) {
-    list.innerHTML = '<div class="empty">no active sessions' +
-      '<div class="hint">spawn one below, or open Kaji on the Mac</div></div>';
+    list.innerHTML = '<div class="empty">no active sessions</div>';
+    $("target").textContent = "";
     return;
   }
   list.innerHTML = "";
-  for (const s of sessions) list.appendChild(card(s));
+  for (const s of sessions) {
+    const st = (s.state || "").toLowerCase();
+    const row = document.createElement("div");
+    const dim = (st === "done" || st === "idle");
+    row.className = "sess" + (s.pane_id === selected ? " sel" : "") + (dim ? " dimmed" : "");
+    const ctx = s.context_pct ? " · ctx " + s.context_pct + "%" : "";
+    row.innerHTML =
+      '<span class="d ' + dotClass(st) + '"></span>' +
+      '<span class="who"><b>' + esc(s.harness) + '</b> <span>· ' + esc(s.project || "?") + '</span></span>' +
+      '<span class="st' + (st === "waiting" ? " you" : "") + '">' +
+        esc(st) + ' ' + fmtRuntime(s.runtime_secs || 0) + esc(ctx) + '</span>';
+    row.onclick = () => { selected = s.pane_id; render(state); };
+    list.appendChild(row);
+  }
+  const sel = sessions.find(s => s.pane_id === selected);
+  $("target").innerHTML = sel
+    ? "→ <b>" + esc(sel.harness) + " · " + esc(sel.project || "?") + "</b>"
+    : "";
 }
 
-function esc(t) {
-  return String(t).replace(/[&<>"']/g, c => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-}
-
-function card(s) {
-  const el = document.createElement("div");
-  const open = openPanes.has(s.pane_id);
-  el.className = "card" + (open ? " open" : "");
-  const st = (s.state || "unknown").toLowerCase();
-  el.innerHTML =
-    '<div class="row">' +
-      '<span class="dot ' + esc(st) + '"></span>' +
-      '<span class="name">' + esc(s.harness) + ' <span class="proj">· ' + esc(s.project || "?") + '</span></span>' +
-      '<span class="meta"><span class="st-' + esc(st) + '">' + esc(st) + '</span> · ' + fmtRuntime(s.runtime_secs || 0) + (s.context_pct ? ' · ctx ' + s.context_pct + '%' : '') + '</span>' +
-    '</div>' +
-    '<div class="body">' +
-      '<ul class="timeline"></ul>' +
-      '<div class="sendbox">' +
-        '<input placeholder="send to this worker…" enterkeyhint="send" autocomplete="off">' +
-        '<button>Send</button>' +
-      '</div>' +
-    '</div>';
-
-  el.querySelector(".row").onclick = () => {
-    if (openPanes.has(s.pane_id)) { openPanes.delete(s.pane_id); el.classList.remove("open"); }
-    else { openPanes.add(s.pane_id); el.classList.add("open"); loadTimeline(s.pane_id, el); }
-  };
-  if (open) loadTimeline(s.pane_id, el);
-
-  const input = el.querySelector("input");
-  const send = async () => {
-    const text = input.value.trim();
-    if (!text) return;
-    try {
-      await api("/api/send", { method: "POST", body: JSON.stringify({ pane_id: s.pane_id, text }) });
-      input.value = ""; loadTimeline(s.pane_id, el, true); refresh();
-    } catch (e) { showErr("send failed: " + e.message); }
-  };
-  el.querySelector("button").onclick = (e) => { e.stopPropagation(); send(); };
-  input.onclick = e => e.stopPropagation();
-  input.onkeydown = e => { if (e.key === "Enter") send(); };
-  return el;
-}
-
-async function loadTimeline(paneId, el, force) {
-  const ul = el.querySelector(".timeline");
-  const cached = timelines[paneId];
-  if (cached && !force) renderTimeline(ul, cached);
+async function sendOrder() {
+  const text = $("order").value.trim();
+  if (!text || selected == null) return;
   try {
-    const evs = await api("/api/timeline?pane=" + paneId);
-    timelines[paneId] = evs;
-    renderTimeline(ul, evs);
-  } catch (e) { /* timeline is decoration; stay quiet */ }
+    await api("/api/send", { method: "POST",
+      body: JSON.stringify({ pane_id: selected, text }) });
+    $("order").value = "";
+    refresh();
+  } catch (e) { showErr("send failed: " + e.message); }
 }
-
-function renderTimeline(ul, evs) {
-  const tail = (evs || []).slice(-5);
-  ul.innerHTML = tail.length
-    ? tail.map(e => '<li><span class="t">' + fmtClock(e.ts) + '</span>' + esc(evLine(e)) + '</li>').join("")
-    : '<li>no history yet</li>';
-}
-
-// ── spawn sheet ─────────────────────────────────────────────────────────────
 
 function toggleSheet() {
   const sh = $("sheet");
@@ -336,18 +283,16 @@ async function spawn() {
   const cwd = $("cwd").value.trim();
   if (!cwd) { showErr("working directory required"); return; }
   localStorage.setItem("kaji-cwd", cwd);
-  const body = { harness: selHarness, cwd: cwd };
+  const body = { harness: selHarness, cwd };
   const task = $("task").value.trim();
   if (task) body.task = task;
   try {
     const r = await api("/api/spawn", { method: "POST", body: JSON.stringify(body) });
     toggleSheet(); $("task").value = "";
-    openPanes.add(r.pane_id);
+    selected = r.pane_id;
     refresh();
   } catch (e) { showErr("spawn failed: " + e.message); }
 }
-
-// ── lifecycle ───────────────────────────────────────────────────────────────
 
 function showErr(msg) {
   const el = $("err");
@@ -373,6 +318,7 @@ function boot() {
   });
 }
 
+$("order").onkeydown = e => { if (e.key === "Enter") sendOrder(); };
 token ? boot() : ($("gate").hidden = false);
 </script>
 </body>
