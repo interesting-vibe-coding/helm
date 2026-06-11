@@ -198,17 +198,18 @@ def munge_cwd(cwd):
 
 
 def claude_code():
-    """Returns (sessions_today, tokens_today, last_active_ts, by_project).
+    """Returns (sessions_today, tokens_today, last_active_ts, by_project, context).
 
     by_project: {munged project dir name: tokens_today} — keys match
     munge_cwd(session cwd), so a fleet session maps to its own burn.
     """
     base = HOME / ".claude" / "projects"
     if not base.exists():
-        return 0, 0, None, {}
+        return 0, 0, None, {}, {}
     tokens_today, last = 0, None
     session_ids_today = set()
     by_project = {}
+    context = {}        # proj -> {"used": n, "window": w, "ts": newest-seen}
     for jsonl in base.rglob("*.jsonl"):
         if "subagents" in str(jsonl):
             continue
@@ -246,9 +247,25 @@ def claude_code():
                             n = usage.get("input_tokens", 0) + usage.get("output_tokens", 0)
                             tokens_today += n
                             by_project[proj] = by_project.get(proj, 0) + n
+                            # Live context size = the newest prompt's full input
+                            # (incl. cache reads/creations). Window by model:
+                            # "[1m]" models 1M, else 200k.
+                            cur = context.get(proj)
+                            if cur is None or ts > cur["ts"]:
+                                used = (usage.get("input_tokens", 0)
+                                        + usage.get("cache_read_input_tokens", 0)
+                                        + usage.get("cache_creation_input_tokens", 0))
+                                model = (d.get("message") or {}).get("model") or ""
+                                window = 1_000_000 if ("[1m]" in model or "fable" in model) else 200_000
+                                if used > window:
+                                    window = 1_000_000
+                                if used:
+                                    context[proj] = {"used": used, "window": window, "ts": ts}
         except Exception:
             pass
-    return len(session_ids_today), tokens_today, last, by_project
+    for v in context.values():
+        v.pop("ts", None)
+    return len(session_ids_today), tokens_today, last, by_project, context
 
 
 def kiro():
@@ -351,7 +368,7 @@ def _codex_last_token_count(path):
 
 
 def codex():
-    """Returns (sessions_today, tokens_today, last_active_ts, limits|None, by_project).
+    """Returns (sessions_today, tokens_today, last_active_ts, limits|None, by_project, context).
 
     tokens: token_count events are session-CUMULATIVE — take the LAST event
     per file and sum across today's files (UTC date dirs).
@@ -360,24 +377,33 @@ def codex():
     """
     base = CODEX_SESSIONS
     if not base.exists():
-        return 0, None, None, None, {}
+        return 0, None, None, None, {}, {}
     today = datetime.now(timezone.utc)
     day_dir = base / f"{today:%Y}" / f"{today:%m}" / f"{today:%d}"
     files_today = sorted(day_dir.glob("rollout-*.jsonl")) if day_dir.exists() else []
 
     tokens_today, last = 0, None
     by_project = {}
+    context = {}        # cwd -> {"used", "window"} from the freshest session
+    ctx_mtime = {}
     for p in files_today:
         info, _, cwd = _codex_last_token_count(p)
+        try:
+            m = p.stat().st_mtime
+        except OSError:
+            m = 0
         if info:
             n = ((info.get("total_token_usage") or {}).get("total_tokens") or 0)
             tokens_today += n
             if cwd:
                 by_project[cwd] = by_project.get(cwd, 0) + n
-        try:
-            last = max(last or 0, p.stat().st_mtime)
-        except OSError:
-            pass
+                lt = info.get("last_token_usage") or {}
+                used = (lt.get("input_tokens") or 0) + (lt.get("cached_input_tokens") or 0)
+                window = info.get("model_context_window") or 0
+                if used and window and m >= ctx_mtime.get(cwd, 0):
+                    context[cwd] = {"used": used, "window": window}
+                    ctx_mtime[cwd] = m
+        last = max(last or 0, m) if m else last
 
     limits = None
     try:
@@ -398,7 +424,7 @@ def codex():
                 limits["plan"] = rl["plan_type"]
             limits = limits or None
 
-    return len(files_today), (tokens_today or None), last, limits, by_project
+    return len(files_today), (tokens_today or None), last, limits, by_project, context
 
 
 def fmt_tokens(n):
@@ -419,20 +445,20 @@ def collect():
     via the oauth usage endpoint, codex via app-server; codex falls back to
     the freshest session file when the live call fails.
     """
-    c_sess, c_tok, c_last, c_proj = claude_code()
-    x_sess, x_tok, x_last, x_file_limits, x_proj = codex()
+    c_sess, c_tok, c_last, c_proj, c_ctx = claude_code()
+    x_sess, x_tok, x_last, x_file_limits, x_proj, x_ctx = codex()
     return [
-        ("claude", c_sess, c_tok, c_last, claude_limits(), c_proj),
-        ("kiro",   *kiro(), None, {}),
-        ("opencode", *opencode(), None, {}),
-        ("codex", x_sess, x_tok, x_last, codex_limits() or x_file_limits, x_proj),
+        ("claude", c_sess, c_tok, c_last, claude_limits(), c_proj, c_ctx),
+        ("kiro",   *kiro(), None, {}, {}),
+        ("opencode", *opencode(), None, {}, {}),
+        ("codex", x_sess, x_tok, x_last, codex_limits() or x_file_limits, x_proj, x_ctx),
     ]
 
 
 def emit_json():
     rows = collect()
     out = {}
-    for name, sess, tok, _last, limits, by_project in rows:
+    for name, sess, tok, _last, limits, by_project, context in rows:
         out[name] = {
             "tokens_today": tok if tok is not None else 0,
             "sessions_today": sess,
@@ -443,6 +469,8 @@ def emit_json():
             out[name]["limits"] = limits
         if by_project:
             out[name]["by_project"] = by_project
+        if context:
+            out[name]["context"] = context
     # compact, no spaces — small payload for run_child_process
     sys.stdout.write(json.dumps(out, separators=(",", ":")))
     sys.stdout.write("\n")
@@ -456,7 +484,7 @@ def emit_table():
     print("=================")
     print(f"{'harness':<14} {'sessions_today':<16} {'tokens_today':<13} {'last_active'}")
     print(f"{'-'*14} {'-'*14} {'-'*11} {'-'*12}")
-    for name, sess, tok, last, limits, _bp in rows:
+    for name, sess, tok, last, limits, _bp, _ctx in rows:
         extra = ""
         if limits:
             fh = limits.get("five_hour_used_percent")

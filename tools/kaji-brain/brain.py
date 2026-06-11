@@ -265,6 +265,15 @@ def _munge_cwd(cwd):
     return str(cwd or "").replace("/", "-").replace(".", "-").replace("_", "-")
 
 
+def load_context():
+    """{harness: {project-key: {"used","window"}}} from quota.py (cached)."""
+    out = {}
+    for name, info in load_quota_raw().items():
+        if isinstance(info, dict) and isinstance(info.get("context"), dict):
+            out[name.lower()] = info["context"]
+    return out
+
+
 def load_by_project():
     """{harness: {project-key: tokens_today}} from quota.py (cached)."""
     out = {}
@@ -351,6 +360,7 @@ def collect_sessions():
         return []
     quota = load_quota()
     by_project = load_by_project()
+    context = load_context()
     live_ids = {str(p.get("pane_id")) for p in panes}
 
     now = int(time.time())
@@ -390,10 +400,19 @@ def collect_sessions():
             "tokens_today": total,
             "tokens_session": own,
             "tokens_share": (round(100.0 * own / total) if total and own else 0),
+            # Live context-window utilization for THIS session (used/window).
+            "context_pct": _ctx_pct(context.get(harness, {}), cwd_full),
         })
 
     sessions.sort(key=lambda x: str(x["pane_id"]))
     return sessions
+
+
+def _ctx_pct(ctx_map, cwd_full):
+    """Round % of context window used for a session cwd, or 0 if unknown."""
+    c = ctx_map.get(_munge_cwd(cwd_full)) or ctx_map.get(cwd_full) or {}
+    used, window = c.get("used") or 0, c.get("window") or 0
+    return round(100.0 * used / window) if used and window else 0
 
 
 def cmd_sessions(_args):

@@ -264,7 +264,7 @@ function card(s) {
     '<div class="row">' +
       '<span class="dot ' + esc(st) + '"></span>' +
       '<span class="name">' + esc(s.harness) + ' <span class="proj">· ' + esc(s.project || "?") + '</span></span>' +
-      '<span class="meta"><span class="st-' + esc(st) + '">' + esc(st) + '</span> · ' + fmtRuntime(s.runtime_secs || 0) + '</span>' +
+      '<span class="meta"><span class="st-' + esc(st) + '">' + esc(st) + '</span> · ' + fmtRuntime(s.runtime_secs || 0) + (s.context_pct ? ' · ctx ' + s.context_pct + '%' : '') + '</span>' +
     '</div>' +
     '<div class="body">' +
       '<ul class="timeline"></ul>' +

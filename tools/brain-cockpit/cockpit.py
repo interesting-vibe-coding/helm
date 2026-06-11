@@ -209,15 +209,8 @@ def render(sessions: List[Dict], events: List[Dict], selected: int = 0,
         dot = _c(glyph, col, color)
         proj = "%s · %s" % (s.get("harness", "?"), s.get("project", "?"))
         rt = fmt_runtime(s.get("runtime_secs"))
-        own = int(s.get("tokens_session") or 0)
-        share = int(s.get("tokens_share") or 0)
-        burn = ""
-        if own:
-            burn = " · %s" % ("%.1fM" % (own / 1e6) if own >= 1e6 else
-                              "%dk" % (own // 1000) if own >= 1000 else str(own))
-            if share:
-                burn += " (%d%%)" % share
-        meta_txt = "%s %s%s" % (label, rt, burn)
+        ctx = int(s.get("context_pct") or 0)
+        meta_txt = "%s %s%s" % (label, rt, (" · ctx %d%%" % ctx) if ctx else "")
         meta_col = SUN if state == "waiting" else (ASH if state in ("idle", "done") else MUTE)
         body_col = ASH if state in ("idle", "done") else INK
         head = "%s %s %s" % (marker, dot, _c(_clip(proj, 30).ljust(30), body_col, color))
@@ -324,11 +317,11 @@ def demo_data() -> Tuple[List[Dict], List[Dict], Dict]:
     """Built-in fake fleet so the layout can be previewed with no Kaji running."""
     sessions = [
         {"pane_id": 2, "harness": "claude", "project": "kaji", "state": "waiting",
-         "runtime_secs": 1840, "tokens_today": 21000},
+         "runtime_secs": 1840, "tokens_today": 21000, "context_pct": 21},
         {"pane_id": 4, "harness": "kiro", "project": "mira", "state": "working",
-         "runtime_secs": 320, "tokens_today": 8000},
+         "runtime_secs": 320, "tokens_today": 8000, "context_pct": 8},
         {"pane_id": 5, "harness": "opencode", "project": "doabit", "state": "working",
-         "runtime_secs": 95, "tokens_today": 0},
+         "runtime_secs": 95, "tokens_today": 0, "context_pct": 3},
         {"pane_id": 3, "harness": "claude", "project": "wu", "state": "done",
          "runtime_secs": 5400, "tokens_today": 44000},
     ]
