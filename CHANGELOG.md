@@ -3,6 +3,43 @@
 All notable changes to Kaji are documented here.
 Format: [version] - date - description
 
+## [0.5.0] - 2026-06-11
+
+### Remote — steer the fleet from anywhere
+- **Self-hosted thin relay** (#128) — CF Worker + Durable Object long-poll;
+  Mac dials out (no inbound ports), phone talks plain HTTPS at
+  `relay.doabit.dev/c/<id>/`. Reachable from China direct AND behind proxies
+  (workers.dev is SNI-blocked direct → custom domain on the same edge).
+- **Mobile cockpit v2** (#124, #130) — deep-luxury restyle, spawn-a-worker
+  sheet, per-worker timeline, desktop two-column grid; served at `/` by
+  `kaji-brain serve`, same page over tailnet/Funnel/relay.
+- **Tailscale + Funnel paths documented** (#122, #127) with prior-art research
+  (Anthropic RC / Omnara / Happy).
+
+### Fleet correctness & quota
+- **Stale-fleet fix** (#126, fixes #125) — live-socket resolution for every
+  mux call; mux down now means an empty fleet (no phantom sessions); failed
+  sends surface as errors on the phone.
+- **Codex real quota** (#131) — tokens today + `rate_limits.used_percent`
+  + plan from local session files; `/api/state` carries `limits`; cockpit
+  chips show "% left".
+- **Spawn PATH fix** (#135) — harness binaries resolved to absolute paths
+  (GUI PATH lacks /opt/homebrew/bin → "No viable candidates" from the phone).
+
+### Brain & cockpit
+- **First Mate wired to the kaji-brain MCP server** (#136) — typed tools
+  (list_sessions / spawn_worker / send_to_worker / …), engine-agnostic;
+  CLI stays as fallback. Verified live with a headless client.
+- **Interactive TUI cockpit** (#132) — ↑↓ select, ⏎ send, s spawn, q quit;
+  writes go through the same CLI/HTTP spine as every client.
+- **`helm-brain` → `kaji-brain` rename** (#121).
+
+### Infra
+- **CI lightened** (#135) — real path filter for the 5-min Cargo Check
+  (docs/python PRs now merge in ~1 min); lint on ubuntu.
+- README rework, bilingual (#134); project progress now lives in
+  `docs/PROGRESS.md` (#129, #133).
+
 ## [0.4.0] - 2026-06-09
 
 ### Brand
