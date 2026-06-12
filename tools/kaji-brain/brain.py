@@ -549,6 +549,30 @@ def cmd_spawn(args):
 
     result = {"pane_id": pane_id, "harness": harness, "cwd": cwd_abs}
 
+    # Register the session at spawn time — the spawner KNOWS harness/cwd/pane,
+    # so tracking never depends on process-name guessing (codex runs as a node
+    # shim whose foreground process defeats detection).
+    try:
+        try:
+            with open(RUNTIME_JSON) as rf:
+                runtime = json.load(rf)
+        except Exception:
+            runtime = {}
+        now_ts = int(time.time())
+        runtime[str(pane_id)] = {
+            "harness": harness.capitalize() if harness != "opencode" else "opencode",
+            "cwd": os.path.basename(cwd_abs.rstrip("/")) or cwd_abs,
+            "cwd_full": cwd_abs,
+            "start_time": now_ts,
+            "last_accessed": now_ts,
+            "state": "working",
+        }
+        os.makedirs(os.path.dirname(RUNTIME_JSON), exist_ok=True)
+        with open(RUNTIME_JSON, "w") as wf:
+            json.dump(runtime, wf)
+    except Exception:
+        pass
+
     # History: record the spawn (with the initial task) on the event log.
     append_event("spawn", pane=pane_id, harness=harness,
                  cwd=os.path.basename(cwd_abs.rstrip("/")) or cwd_abs, task=task)
