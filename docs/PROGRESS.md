@@ -175,3 +175,10 @@ fleet + 共享 memory/skills**.
 - 论文线(项目第二): VINCI 7/15 主投 + HAI 大阪 poster 8/7 已定; v1 重写完成已推 Overleaf。
 
 **Next（当前队列）**: ① 用户真机验收(英文舱/舵线/手机 peek) ② VINCI 模板换装 + poster 2 页稿 ③ mobile/desktop 持续精简 ④ v0.6.4 发版(攒批)。
+
+**2026-06-12 深夜批 II（#187 顶栏修复）**:
+- 走查抓到 "Mission Controlworksp" 粘连 + title 紫色残留。根因: handler 注册 guard 的 flag 存 `wezterm.GLOBAL`(跨 reload 持久), 但 config reload 重建 Lua VM 清空 handler 表 → 任意一次 reload 后全部 handler 静默失联, tab 回落 cwd 标题("worksp"=workspace 截 6), compass 冻结。注释里 "wezterm.on 会累积" 是误诊(reload=全新 Lua context)。修: guard 改挂 per-eval 的 `Helm` 表。
+- 顺手清 Kaku 紫残留: cursor/cursor_border → 柿橙 #f25c05, selection → 暖橙淡, compass accent 双主题统一柿橙(原 dark 用 #bb9af7 紫)。ANSI 色板里的语义紫不动。
+- 实机验证: 改 ~/.config/helm/kaku.lua 触发 reload → 顶栏即愈("· ● Work" 柿橙 + 右侧水位), 二次 reload 不退化。
+- 教训: 热补运行时配置本身就是触发本 bug 的动作——之前每次 rsync kaku.lua 都在悄悄打断顶栏, 一直误以为是别的问题。
+- 遗留(设计专轮): Kaku Dark 背景仍是冷黑 #15141b, 换 ember 暖黑 #16100b 待整体配色轮; CLI 进程加载 GUI 配置报 C stack overflow(cli spawn 时), 不影响 GUI, 待查。
