@@ -239,7 +239,7 @@ function dotClass(st) {
 function render(state) {
   const q = state.quota || {}, lim = state.limits || {};
   const segs = [];
-  for (const k of ["claude", "codex"]) {
+  for (const k of [...new Set([...Object.keys(q), ...Object.keys(lim)])].sort()) {
     const l = lim[k] || {};
     const fh = l.five_hour_used_percent, sd = l.seven_day_used_percent;
     if (fh == null && sd == null && !q[k]) continue;

@@ -83,7 +83,11 @@ def _limits_cached(name, fetch):
     if data:
         try:
             CACHE_DIR.mkdir(parents=True, exist_ok=True)
-            path.write_text(json.dumps(data))
+            # Atomic write (tmp + rename): brain restarts quota.py every poll,
+            # so a torn write would poison every reader for a TTL.
+            tmp = path.with_name(path.name + ".%d.tmp" % os.getpid())
+            tmp.write_text(json.dumps(data))
+            tmp.replace(path)
         except Exception:
             pass
         return data

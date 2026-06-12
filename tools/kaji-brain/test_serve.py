@@ -51,7 +51,7 @@ def _post(base, path, obj, token=None):
 class TestServeReads(unittest.TestCase):
     def setUp(self):
         self._orig = (brain.collect_sessions, brain.load_quota,
-                      brain.load_limits, brain.read_events)
+                      brain.load_limits, brain.load_context, brain.read_events)
         brain.collect_sessions = lambda: [
             {"pane_id": 2, "harness": "claude", "project": "kaji",
              "state": "waiting", "runtime_secs": 30, "tokens_today": 1234},
@@ -59,6 +59,8 @@ class TestServeReads(unittest.TestCase):
         brain.load_quota = lambda: {"claude": 1234}
         brain.load_limits = lambda: {
             "codex": {"secondary_used_percent": 38.0, "plan": "plus"}}
+        brain.load_context = lambda: {
+            "claude": {"-Users-x-kaji": {"used": 50000, "window": 200000}}}
         brain.read_events = lambda: [
             {"ts": 1, "ev": "spawn", "pane": 2, "harness": "claude"},
             {"ts": 2, "ev": "state", "pane": 2, "to": "waiting"},
@@ -69,7 +71,7 @@ class TestServeReads(unittest.TestCase):
     def tearDown(self):
         self.httpd.shutdown(); self.httpd.server_close()
         (brain.collect_sessions, brain.load_quota,
-         brain.load_limits, brain.read_events) = self._orig
+         brain.load_limits, brain.load_context, brain.read_events) = self._orig
 
     def test_healthz_no_auth(self):
         code, body = _get(self.base, "/healthz")
@@ -91,6 +93,7 @@ class TestServeReads(unittest.TestCase):
         self.assertIn("ts", d)
         self.assertEqual(d["quota"]["claude"], 1234)
         self.assertEqual(d["limits"]["codex"]["secondary_used_percent"], 38.0)
+        self.assertEqual(d["context"]["claude"]["-Users-x-kaji"]["used"], 50000)
 
     def test_quota(self):
         _, body = _get(self.base, "/api/quota")
@@ -229,6 +232,7 @@ class TestSSE(unittest.TestCase):
         brain.collect_sessions = lambda: []
         brain.load_quota = lambda: {}
         brain.load_limits = lambda: {}
+        brain.load_context = lambda: {}
         brain.read_events = lambda: []
         os.environ["KAJI_BRAIN_SSE_POLL"] = "0.1"
         serve.POLL_SECS = 0.1
