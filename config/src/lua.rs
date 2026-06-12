@@ -442,15 +442,23 @@ end
                 lua.create_function({
                     let deferred = deferred.clone();
                     move |lua, (table, key): (mlua::Table, mlua::String)| {
+                        // Remove the __index metamethod BEFORE running the
+                        // deferred funcs: each register fn goes through
+                        // get_or_create_sub_module, whose non-raw get on the
+                        // wezterm module would re-enter this handler and
+                        // recurse until the C stack overflows. Any process
+                        // whose config touches an unregistered key (e.g.
+                        // `wezterm.gui` from the CLI) hit that overflow on
+                        // every run; the funcs themselves are the setup, so
+                        // they never need the lazy hook once we are here.
+                        if let Some(mt) = table.get_metatable() {
+                            let _: mlua::Result<()> = mt.raw_set("__index", mlua::Value::Nil);
+                        }
                         // Run all deferred setup functions once
                         for func in &deferred {
                             if let Err(err) = func(lua) {
                                 log::error!("deferred setup func error: {:#}", err);
                             }
-                        }
-                        // Remove the __index metamethod so we don't re-trigger
-                        if let Some(mt) = table.get_metatable() {
-                            let _: mlua::Result<()> = mt.raw_set("__index", mlua::Value::Nil);
                         }
                         // Now look up the key again
                         let val: mlua::Value = table.raw_get(key)?;
