@@ -41,33 +41,35 @@ OR_MODEL = os.environ.get("KAJI_ENGINE_OR_MODEL",
 MODEL = os.environ.get("KAJI_ENGINE_MODEL", "claude-haiku-4-5-20251001")
 MAX_STEPS = 8           # tool round-trips per captain turn — dispatcher, not a coder
 
-SYSTEM = """你是 Kaji 的大副（First Mate）——舰队调度员，不是码农。
-船长用一句话下令；你观察舰队（工具）、拆解成最小动作、派发给 worker。
-规则:
-- 回复极简中文（终端环境）。纯文本，禁 markdown/表格/emoji。无废话，不复述命令。
-- 先看舰队再动手: 不确定时 list_sessions。
-- send_to_worker 的 text 必须是对那个 worker 的祈使句指令。
-- spawn 只在没有合适 session 时; 项目名 → ~/workspace/<名> 路径。
-- 闲聊/天气/与舰队无关 → 一句话拒绝。
-- 一次回合最多派 2 个动作; 派完用一行总结收尾。"""
+SYSTEM = """You are the Kaji First Mate — the fleet dispatcher, not a coder.
+The captain gives one-line orders; you observe the fleet (tools), break the
+order into minimal actions, and dispatch them to workers.
+Rules:
+- Reply in terse English, plain text only — no markdown, tables, or emoji.
+  The captain may write in any language; you still answer in English.
+- Look before you act: list_sessions when unsure.
+- send_to_worker text must be an imperative instruction to that worker.
+- spawn only when no suitable session exists; project name → ~/workspace/<name>.
+- Small talk / anything off-fleet → decline in one line.
+- At most 2 actions per turn; close with a one-line summary."""
 
 TOOLS = [
     {"name": "list_sessions",
-     "description": "当前所有 worker session（pane_id/harness/project/state/ctx）。",
+     "description": "All live worker sessions (pane_id/harness/project/state/ctx).",
      "input_schema": {"type": "object", "properties": {}}},
     {"name": "fleet_timeline",
-     "description": "舰队事件史（spawn/dispatch/state）。可选 pane 过滤。",
+     "description": "Fleet event history (spawn/dispatch/state). Optional pane filter.",
      "input_schema": {"type": "object",
                       "properties": {"pane": {"type": "integer"}}}},
     {"name": "spawn_worker",
-     "description": "开新 worker。harness ∈ claude|codex。cwd 必须是绝对路径。",
+     "description": "Open a new worker. harness ∈ claude|codex. cwd must be absolute.",
      "input_schema": {"type": "object",
                       "properties": {"harness": {"type": "string"},
                                      "cwd": {"type": "string"},
                                      "task": {"type": "string"}},
                       "required": ["harness", "cwd"]}},
     {"name": "send_to_worker",
-     "description": "向已有 worker 注入一条指令（text + 回车）。",
+     "description": "Inject one instruction (text + Enter) into an existing worker.",
      "input_schema": {"type": "object",
                       "properties": {"pane_id": {"type": "integer"},
                                      "text": {"type": "string"}},
@@ -225,14 +227,14 @@ def _post(url, payload, headers, attempts=4, max_429_wait=60.0):
                              max_429_wait))
             elif e.code == 400 or e.code >= 500:
                 # Clash sometimes hands back junk 400/5xx — same-path retry
-                _t.sleep(2.0 * (attempt + 1))
+                _t.sleep(3.0 * (attempt + 1))
             else:
                 raise
         except (urllib.error.URLError, ConnectionError, OSError):
             # proxy hiccup (SSL EOF / RemoteDisconnected) — brief backoff, retry
             if attempt == attempts - 1:
                 raise
-            _t.sleep(1.5 * (attempt + 1))
+            _t.sleep(2.5 * (attempt + 1))
     raise RuntimeError("unreachable")
 
 
@@ -270,7 +272,7 @@ class Engine:
              "Content-Type": "application/json",
              "HTTP-Referer": "https://kaji.doabit.dev",
              "X-Title": "kaji"},
-            attempts=2, max_429_wait=8.0)   # free pool 429s → fail fast, fall back
+            attempts=4, max_429_wait=8.0)   # proxy junk windows outlast 1 retry
         if resp.get("error"):               # OpenRouter tucks errors in 200s too
             raise RuntimeError(resp["error"].get("message", "openrouter error"))
         return _oa_to_blocks(resp)
@@ -324,8 +326,8 @@ class Engine:
             if not results:
                 return                      # end_turn — nothing left to do
             self.messages.append({"role": "user", "content": results})
-        self.transcript.append(("舵", "(回合步数到顶，先到这。)"))
-        yield ("say", "(回合步数到顶，先到这。)")
+        self.transcript.append(("舵", "(step limit reached — stopping here.)"))
+        yield ("say", "(step limit reached — stopping here.)")
 
 
 def _tool_result(tool_id, content, is_error=False):

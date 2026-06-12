@@ -12,25 +12,23 @@ Set Height 560
 Set Padding 16
 Set Theme { "background": "#1a1612", "foreground": "#ece4d6", "cursor": "#f25c05" }
 
-Type@15ms "python3 tools/brain-cockpit/cockpit.py"
+Type@15ms "KAJI_ENGINE_BACKEND=oauth python3 tools/brain-cockpit/cockpit.py"
 Sleep 300ms
 Enter
 Sleep 4s
 
-Sleep 1.5s
-Type@110ms "codex 现在在干嘛？"
+# let the first quota collection finish — it shares the proxy with the engine
+Sleep 8s
+Type@70ms "what is codex working on right now?"
 Sleep 800ms
 Enter
-Sleep 14s
+Sleep 12s
 
-Type@110ms "让 kaji-demo 那条船列一下自己目录里有什么"
+Type@70ms "tell the kaji-demo ship to list what's in its directory"
 Sleep 800ms
 Enter
-Sleep 16s
-# the mate proposes send_to_worker → the arrow selector appears → 执行
+Sleep 18s
+# the mate proposes send_to_worker → the arrow selector appears → run
 Enter
-Sleep 6s
-
-Sleep 3s
-Ctrl+C
-Sleep 500ms
+Sleep 12s
+# end on the cockpit, conversation resolved — no quit in frame

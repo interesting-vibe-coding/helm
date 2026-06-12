@@ -246,13 +246,14 @@ def render(sessions: List[Dict], events: List[Dict], selected: int = 0,
 
 
 def _wrap(text: str, width: int) -> List[str]:
+    import textwrap
     width = max(20, width)
     lines = []
     for raw in str(text).splitlines() or [""]:
-        while len(raw) > width:
-            lines.append(raw[:width])
-            raw = raw[width:]
-        lines.append(raw)
+        # word-aware for prose with spaces; still hard-cuts long unspaced
+        # runs (CJK, paths) so nothing ever overflows.
+        lines.extend(textwrap.wrap(raw, width, break_long_words=True,
+                                   break_on_hyphens=False) or [""])
     return lines[:6]
 
 
@@ -449,7 +450,7 @@ def parse_key(buf: bytes) -> str:
     return "none"
 
 
-HINTS = "打字下令 ⏎ · 空⏎ 回选中 · ⇥ 模式 · ^C 退"
+HINTS = "type an order ⏎ · empty ⏎ replies to selected · ⇥ mode · ^C quit"
 
 
 def _prompt(line: str) -> str:
@@ -524,13 +525,13 @@ def _engine_turn(em, eng, order, mode, fd, old_attrs):
         sys.stdout.write(" → %s %s\n" % (name, em._brief(name, act)))
         sys.stdout.flush()
         if mode == "confirm":
-            pick = _choose(fd, ["执行", "取消", "改一改"])
+            pick = _choose(fd, ["run", "cancel", "edit"])
             if pick is None or pick == 1:
                 eng.feed(False, "captain cancelled")
                 continue
             if pick == 2:
                 termios.tcsetattr(fd, termios.TCSADRAIN, old_attrs)
-                edited = _prompt("   改: ")
+                edited = _prompt("   edit: ")
                 tty.setcbreak(fd)
                 if not edited:
                     eng.feed(False, "captain cancelled")
@@ -539,7 +540,7 @@ def _engine_turn(em, eng, order, mode, fd, old_attrs):
         ok, res = em.execute_action(name, act)
         eng.feed(ok, res)
         done += 1
-    return ("✓ %d 个动作" % done) if done else ""
+    return ("✓ %d action(s)" % done) if done else ""
 
 
 def _dispatch(order, ordered, selected, mode, args, fd, old_attrs):
@@ -551,7 +552,7 @@ def _dispatch(order, ordered, selected, mode, args, fd, old_attrs):
     plan = nl_plan(order)
     act = plan.get("action")
     if act == "send":
-        line = "→ 回 pane %s: %s" % (plan.get("pane_id"), plan.get("text", ""))
+        line = "→ reply pane %s: %s" % (plan.get("pane_id"), plan.get("text", ""))
     elif act == "spawn":
         line = "→ spawn %s · %s: %s" % (
             plan.get("harness"), plan.get("cwd"), plan.get("task", ""))
@@ -561,12 +562,12 @@ def _dispatch(order, ordered, selected, mode, args, fd, old_attrs):
     sys.stdout.flush()
 
     if mode == "confirm":
-        pick = _choose(fd, ["执行", "取消", "改一改"])
+        pick = _choose(fd, ["run", "cancel", "edit"])
         if pick is None or pick == 1:
             return "cancelled"
         if pick == 2:
             termios.tcsetattr(fd, termios.TCSADRAIN, old_attrs)
-            edited = _prompt("   改: ")
+            edited = _prompt("   edit: ")
             tty.setcbreak(fd)
             if not edited:
                 return "cancelled"
@@ -751,7 +752,12 @@ def main(argv: List[str]) -> int:
     if args.once or not sys.stdout.isatty() or not sys.stdin.isatty():
         print(frame)
         return 0
-    return interactive(args)
+    try:
+        return interactive(args)
+    except KeyboardInterrupt:
+        # cbreak keeps ISIG on, so ^C lands as SIGINT wherever we are
+        # (helm line, selector, mid-turn). It means quit — quietly.
+        return 0
 
 
 if __name__ == "__main__":

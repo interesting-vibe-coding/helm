@@ -931,7 +931,7 @@ def cmd_plan(args):
         "spawn → only when the order asks for NEW work in a project with no fitting session. "
         "none → anything that is not a concrete engineering task for the fleet "
         "(greetings, small talk, weather, questions about the fleet itself). "
-        'Example: order "今天天气怎么样" → {"action":"none","why":"不是工程任务"}. '
+        'Example: order "how is the weather" → {"action":"none","why":"not an engineering task"}. '
         + _project_dirs_hint() +
         "Keep text/task in the order's own language. No invented paths."
     )

@@ -163,14 +163,14 @@
   <div id="planbar">
     <div class="pline" id="ptext"></div>
     <div class="chips">
-      <button class="chip go" onclick="execPlan()">执行</button>
-      <button class="chip" onclick="closePlan()">取消</button>
-      <button class="chip" onclick="editPlan()">改一改</button>
+      <button class="chip go" onclick="execPlan()">run</button>
+      <button class="chip" onclick="closePlan()">cancel</button>
+      <button class="chip" onclick="editPlan()">edit</button>
     </div>
   </div>
   <div id="helm">
     <span class="rudder">舵</span>
-    <input id="order" placeholder="说一句，比如：开个 codex 去 wu 修路由…" enterkeyhint="send" autocomplete="off">
+    <input id="order" placeholder="say it — e.g. spin up codex in wu to fix the route…" enterkeyhint="send" autocomplete="off">
     <button class="solid" onclick="sendOrder()">Send</button>
   </div>
   <div id="target"></div>
@@ -379,14 +379,14 @@ async function sendOrder() {
       body: JSON.stringify({ order: text }) });
     if (plan.action === "send") {
       pendingPlan = plan;
-      $("ptext").innerHTML = "→ 回 <b>pane " + esc(plan.pane_id) + "</b>：" + esc(plan.text || "");
+      $("ptext").innerHTML = "→ reply <b>pane " + esc(plan.pane_id) + "</b>: " + esc(plan.text || "");
     } else if (plan.action === "spawn") {
       pendingPlan = plan;
       $("ptext").innerHTML = "→ <b>spawn " + esc(plan.harness) + "</b> · " +
         esc(plan.cwd || "") + "：" + esc(plan.task || "");
     } else {
       pendingPlan = null;
-      $("ptext").innerHTML = "× " + esc(plan.why || "没看懂");
+      $("ptext").innerHTML = "× " + esc(plan.why || "no plan");
       setTimeout(closePlan, 3500);
     }
   } catch (e) {
