@@ -5,14 +5,24 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#fbf8f2" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#16100b" media="(prefers-color-scheme: dark)">
 <title>Kaji — fleet</title>
 <style>
   /* Kaji Sun (docs/design/kaji-sun-v3.html): paper, warm ink, ONE persimmon.
-     Orange has one meaning — needs you / your action. */
+     Orange has one meaning — needs you / your action.
+     Dark = Kaji Ember (docs/design/KAJI_EMBER.md): warm black, never pure. */
   :root {
     --paper: #fbf8f2; --card: #ffffff; --ink: #211c15; --dim: #8a8174;
     --ash: #b5ab9c; --faint: #e8e2d6; --track: #f0ebe1; --sun: #f25c05;
-    --sun-soft: #fde8da;
+    --sun-soft: #fde8da; --peek-bg: #211c15; --peek-fg: #e8e2d6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #16100b; --card: #211810; --ink: #ece4d6; --dim: #9c9283;
+      --ash: #665e53; --faint: #322a21; --track: #261e15;
+      --sun-soft: #3a2113; --peek-bg: #0f0b07; --peek-fg: #9c9283;
+    }
   }
   * { box-sizing: border-box; margin: 0; }
   html { -webkit-text-size-adjust: 100%; }
@@ -65,8 +75,8 @@
   .hist .ev .t { color: var(--ash); margin-right: 8px; }
   .hist .ev b { color: var(--ink); font-weight: 500; }
 
-  .peek { margin: 8px 2px 6px 0; padding: 10px 12px; background: var(--ink);
-          color: var(--faint); border-radius: 10px;
+  .peek { margin: 8px 2px 6px 0; padding: 10px 12px; background: var(--peek-bg);
+          color: var(--peek-fg); border-radius: 10px;
           font: 11px/1.55 ui-monospace, "SF Mono", Menlo, monospace;
           max-height: 40vh; overflow: auto; white-space: pre;
           -webkit-overflow-scrolling: touch; }
@@ -139,8 +149,8 @@
 
 <div id="app" style="display:none; flex-direction:column; flex:1">
   <header>
-    <svg width="17" height="17" viewBox="0 0 64 64">
-      <circle cx="32" cy="32" r="19" fill="none" stroke="#211c15" stroke-width="6"/>
+    <svg width="17" height="17" viewBox="0 0 64 64" style="color: var(--ink)">
+      <circle cx="32" cy="32" r="19" fill="none" stroke="currentColor" stroke-width="6"/>
       <line x1="32" y1="32" x2="52" y2="12" stroke="#f25c05" stroke-width="6" stroke-linecap="round"/>
     </svg>
     <span class="brand">KA<i>JI</i></span>
@@ -170,7 +180,7 @@
   </div>
   <div id="helm">
     <span class="rudder">舵</span>
-    <input id="order" placeholder="say it — e.g. spin up codex in wu to fix the route…" enterkeyhint="send" autocomplete="off">
+    <input id="order" placeholder="give an order…" enterkeyhint="send" autocomplete="off">
     <button class="solid" onclick="sendOrder()">Send</button>
   </div>
   <div id="target"></div>
@@ -182,6 +192,7 @@ const $ = id => document.getElementById(id);
 let token = localStorage.getItem("kaji-token") || "";
 let timer = null;
 let selected = null;          // selected pane_id (helm input target)
+let lastSessions = [];        // latest /api/state sessions, for pane labels
 const HARNESSES = ["claude", "codex"];
 let selHarness = localStorage.getItem("kaji-harness") || "claude";
 
@@ -252,6 +263,7 @@ function render(state) {
   $("quota").innerHTML = segs.join(" · ");
 
   const sessions = state.sessions || [];
+  lastSessions = sessions;
   if (selected != null && !sessions.some(s => s.pane_id === selected)) selected = null;
   if (selected == null && sessions.length) selected = sessions[0].pane_id;
 
@@ -379,11 +391,11 @@ async function sendOrder() {
       body: JSON.stringify({ order: text }) });
     if (plan.action === "send") {
       pendingPlan = plan;
-      $("ptext").innerHTML = "→ reply <b>pane " + esc(plan.pane_id) + "</b>: " + esc(plan.text || "");
+      $("ptext").innerHTML = "→ reply <b>" + esc(paneLabel(plan.pane_id)) + "</b>: " + esc(plan.text || "");
     } else if (plan.action === "spawn") {
       pendingPlan = plan;
       $("ptext").innerHTML = "→ <b>spawn " + esc(plan.harness) + "</b> · " +
-        esc(plan.cwd || "") + "：" + esc(plan.task || "");
+        esc(plan.cwd || "") + ": " + esc(plan.task || "");
     } else {
       pendingPlan = null;
       $("ptext").innerHTML = "× " + esc(plan.why || "no plan");
@@ -393,6 +405,11 @@ async function sendOrder() {
     closePlan();
     showErr("plan failed: " + e.message);
   }
+}
+
+function paneLabel(pid) {
+  const s = lastSessions.find(x => x.pane_id === pid);
+  return s ? s.harness + " · " + (s.project || "?") : "pane " + pid;
 }
 
 function closePlan() { pendingPlan = null; $("planbar").classList.remove("open"); }

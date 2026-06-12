@@ -183,8 +183,10 @@ def render(sessions: List[Dict], events: List[Dict], selected: int = 0,
     qline = fmt_quota_line(quota)
     head = _c("  ◉ ", SUN, color) + _c("KA", BOLD, color) + _c("JI", SUN, color)
     if qline:
-        pad = max(2, width - 8 - _visible_len(qline))
-        head += " " * 2 + _c(_clip(qline, width - 10), MUTE, color)
+        # Right-aligned, mirroring the phone header: brand left, numbers right.
+        qtxt = _clip(qline, width - 12)
+        pad = max(2, width - 10 - _visible_len(qtxt))
+        head += " " * pad + _c(qtxt, MUTE, color)
     out.append(head)
     out.append(_c("  " + "─" * (width - 4), ASH, color))
     out.append("")
@@ -230,8 +232,11 @@ def render(sessions: List[Dict], events: List[Dict], selected: int = 0,
         meta_txt = "%s %s%s" % (label, rt, (" · ctx %d%%" % ctx) if ctx else "")
         meta_col = SUN if state == "waiting" else (ASH if state in ("idle", "done") else MUTE)
         body_col = ASH if state in ("idle", "done") else INK
-        head = "%s %s %s" % (marker, dot, _c(_clip(proj, 30).ljust(30), body_col, color))
-        line = "  %s  %s" % (head, _c(meta_txt, meta_col, color))
+        # Name left, meta pinned right — same column rhythm as the phone list.
+        ptxt = _clip(proj, max(16, width - 6 - len(meta_txt) - 4))
+        gap = max(2, width - 6 - len(ptxt) - len(meta_txt) - 2)
+        line = "  %s %s %s%s%s" % (marker, dot, _c(ptxt, body_col, color),
+                                   " " * gap, _c(meta_txt, meta_col, color))
         if i == sel:
             line = _c(line, BOLD, color)
         out.append(line)
@@ -242,17 +247,7 @@ def render(sessions: List[Dict], events: List[Dict], selected: int = 0,
     # footer are gone (the fleet list above already carries one dot per ship,
     # and history is something you ASK the mate for, not ambient noise).
     if transcript:
-        for who, text in transcript[-12:]:
-            for j, line in enumerate(_wrap(text, width - 8)):
-                if who == "you":
-                    pre = _c("you ", MUTE, color) if j == 0 else "    "
-                    out.append("  " + pre + _c(line, MUTE, color))
-                elif who == "act":
-                    out.append("  " + _c("    " + line, SUN, color))
-                else:
-                    pre = _c("舵  ", SUN, color) if j == 0 else "    "
-                    out.append("  " + pre + _c(line, INK, color))
-        out.append("")
+        emit_transcript()
     else:
         cur = ordered[sel]
         spawn = next((e.get("task") for e in reversed(pane_events(events, cur.get("pane_id")))
@@ -468,7 +463,7 @@ def parse_key(buf: bytes) -> str:
     return "none"
 
 
-HINTS = "type an order ⏎ · empty ⏎ replies to selected · ⇥ mode · ^C quit"
+HINTS = "⏎ order · empty ⏎ reply selected · ⇥ mode · ^C quit"
 
 
 def _prompt(line: str) -> str:
@@ -670,12 +665,15 @@ def interactive(args) -> int:
             tag = ("auto" if mode[0] == "auto" else "confirm")
             if not args.no_color:
                 tag = (SUN if mode[0] == "auto" else MUTE) + tag + RESET
-            hint = (MUTE + (flash or HINTS) + RESET) if not args.no_color else (flash or HINTS)
+            hint = (ASH + (flash or HINTS) + RESET) if not args.no_color else (flash or HINTS)
             rud = (SUN + "舵" + RESET) if not args.no_color else "舵"
             cur = (INK + helm_buf[0] + RESET + (SUN + "▌" + RESET)) if not args.no_color \
                   else (helm_buf[0] + "▌")
-            footer = "%s\n\n %s > %s   ·%s" % (hint, rud, cur, tag)
-            sys.stdout.write("\033[2J\033[H" + frame + "\n\n " + footer + "\n")
+            rule = "  " + "─" * (width - 4)
+            if not args.no_color:
+                rule = ASH + rule + RESET
+            footer = "%s\n  %s  %s   ·%s\n  %s" % (rule, rud, cur, tag, hint)
+            sys.stdout.write("\033[2J\033[H" + frame + "\n" + footer + "\n")
             sys.stdout.flush()
             flash = ""
 
