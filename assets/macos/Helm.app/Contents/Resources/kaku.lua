@@ -944,12 +944,38 @@ function Helm.status.render(window, pane)
   table.insert(elems, 1, { Text = string.rep(' ', pad) })
 
   window:set_left_status(wezterm.format(elems))
-  -- Right edge: the one navigation hint that matters — where ⌘/ takes you.
+  -- Right edge: quota water level + the one navigation hint that matters.
   local dest = (view == 1) and 'Work' or 'Mission Control'
-  window:set_right_status(wezterm.format({
-    { Foreground = { Color = P.dim } },
-    { Text = '⌘/ ' .. dest .. '  ' },
-  }))
+  local right = {}
+  local pct = Helm.status.quota_pct()
+  if pct then
+    -- persimmon means "needs you" everywhere in Kaji; ≥80% the budget does.
+    table.insert(right, { Foreground = { Color = (pct >= 80) and P.accent or P.dim } })
+    table.insert(right, { Text = '5h ' .. pct .. '%   ' })
+  end
+  table.insert(right, { Foreground = { Color = P.dim } })
+  table.insert(right, { Text = '⌘/ ' .. dest .. '  ' })
+  window:set_right_status(wezterm.format(right))
+end
+
+-- Claude 5h-window usage percent, read from helm-quota's 180s disk cache.
+-- File read throttled to one per 10s; zero API calls from the Lua side.
+function Helm.status.quota_pct()
+  local now = os.time()
+  local g = wezterm.GLOBAL
+  if not g.helm_quota_ts or (now - g.helm_quota_ts) > 10 then
+    g.helm_quota_ts = now
+    local f = io.open(wezterm.home_dir .. '/.helm/sessions/claude-limits-cache.json', 'r')
+    if f then
+      local raw = f:read('*a')
+      f:close()
+      local ok, data = pcall(wezterm.json_parse, raw)
+      if ok and type(data) == 'table' and tonumber(data.five_hour_used_percent) then
+        g.helm_quota_pct = math.floor(tonumber(data.five_hour_used_percent) + 0.5)
+      end
+    end
+  end
+  return g.helm_quota_pct
 end
 
 -- Layer 3 lives in tools/ (cross-harness memory via symlinks) — no Lua needed here
