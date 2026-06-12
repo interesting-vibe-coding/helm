@@ -189,98 +189,114 @@ config.initial_cols = 110
 config.initial_rows = 22
 
 -- ════════════════════════════════════════════════════════════
--- Color scheme — 'Kaku Dark' palette ported from Kaku so the background and
--- ANSI colors match exactly (soft charcoal #15141b, not pure black). Kaji's
--- rewritten config had dropped this, leaving a flat pure-black fallback.
+-- Color scheme — Kaji's own faces (docs/design/KAJI_EMBER.md):
+--   Kaji Ember (night) — ember black, candle-lit cream, warm-shifted ANSI
+--   Kaji Sun   (day)   — paper and warm ink, same family as the phone page
+-- Persimmon has ONE meaning across both: needs you / where you act.
+-- The schemes stay REGISTERED under the names 'Kaku Dark' / 'Kaku Light':
+-- kaku_theme.rs and the settings TUI parse those literals out of this file
+-- (see parse_color_scheme_selection_line), so renaming the registry keys
+-- needs a Rust round. 'Kaji Ember' / 'Kaji Sun' are forward-named aliases.
 -- ════════════════════════════════════════════════════════════
-local KAKU = {
-  BLACK = '#15141b',
-  ANSI_BLACK = '#110f18',
-  WHITE = '#d5d4d6',
-  GRAY = '#6d6d6d',
-  PURPLE = '#8e6ad9',
-  PURPLE_FADING = 'rgba(61,55,94,0.5)',
-  SURFACE = '#1f1d28',
-  SURFACE_ACTIVE = '#29263c',
-  GREEN = '#58d8ad',
-  ORANGE = '#daae76',
-  PINK = '#d383da',
-  BLUE = '#68afda',
-  BRIGHT_BLUE = '#90c9e6',
-  RED = '#d85d5d',
+local KAJI = {
+  -- night — Kaji Ember
+  EMBER       = '#16100b',  -- bg: warm black, never pure, never cool
+  EMBER_EDGE  = '#241b12',  -- ANSI black: one step off the bg
+  EMBER_RAISE = '#211810',  -- surface / cards
+  EMBER_HIGH  = '#2a2016',  -- active surface / splits
+  CREAM       = '#ece4d6',  -- primary text
+  MUTE        = '#9c9283',  -- secondary text
+  ASH         = '#665e53',  -- quiet / inactive
+  -- day — Kaji Sun
+  PAPER       = '#fbf8f2',
+  PAPER_HIGH  = '#e8e2d6',  -- raised / hover surfaces
+  INK         = '#211c15',
+  DAY_MUTE    = '#8a8174',
+  DAY_ASH     = '#b5ab9c',
+  SUN         = '#f25c05',  -- persimmon, both themes
 }
 
-local kaku_theme = {
-  foreground = KAKU.WHITE,
-  background = KAKU.BLACK,
-  cursor_bg = '#f25c05',   -- Kaji persimmon: the cursor is where you act
-  cursor_fg = KAKU.BLACK,
-  cursor_border = '#f25c05',
+local kaji_ember = {
+  foreground = KAJI.CREAM,
+  background = KAJI.EMBER,
+  cursor_bg = KAJI.SUN,    -- the cursor is where you act
+  cursor_fg = KAJI.EMBER,
+  cursor_border = KAJI.SUN,
   selection_bg = 'rgba(242,92,5,0.28)',
   selection_fg = 'none',
+  -- Warm-shifted ANSI: low-saturation, candle-lit; nothing colder than the
+  -- blue slot, and even that is grayed toward the cream.
   ansi = {
-    KAKU.ANSI_BLACK, KAKU.RED, KAKU.GREEN, KAKU.ORANGE,
-    KAKU.BLUE, KAKU.PURPLE, KAKU.GREEN, KAKU.WHITE,
+    KAJI.EMBER_EDGE, '#e05a48', '#a9b665', '#d8a657',
+    '#89a8c9', '#b392d8', '#8fbcab', KAJI.CREAM,
   },
   brights = {
-    KAKU.GRAY, KAKU.RED, KAKU.GREEN, KAKU.ORANGE,
-    KAKU.BRIGHT_BLUE, KAKU.PURPLE, KAKU.GREEN, KAKU.WHITE,
+    KAJI.ASH, '#f07a66', '#bdc97e', '#e8bc78',
+    '#a3bedb', '#c9a9e8', '#a6d0bf', '#f7f1e4',
   },
-  split = KAKU.SURFACE_ACTIVE,
+  split = KAJI.EMBER_HIGH,
+  scrollbar_thumb = '#3a322a',
+  -- Background remaps for truecolor grays agents like to paint with —
+  -- soften them into the ember family instead of cool slate.
   color_overrides = {
-    ['#6d6d6d'] = '#3A3942',
-    ['#6E6E6E'] = '#3A3942',
-    ['#8EC3FF'] = '#3A3942',
+    ['#6d6d6d'] = '#3a322a',
+    ['#6E6E6E'] = '#3a322a',
+    ['#8EC3FF'] = '#3a322a',
   },
 }
 
 config.color_schemes = config.color_schemes or {}
-config.color_schemes['Kaku Dark'] = kaku_theme
-config.color_schemes['Kaku Theme'] = kaku_theme
+config.color_schemes['Kaku Dark'] = kaji_ember   -- compat registry name
+config.color_schemes['Kaku Theme'] = kaji_ember  -- compat registry name
+config.color_schemes['Kaji Ember'] = kaji_ember
 
--- 'Kaku Light' — Kaku's warm cream palette (#FFFCF0 bg), ported verbatim so
--- Auto mode shows the same warm light theme Kaku does in daylight.
-local kaku_light = {
-  foreground = '#100F0F',
-  background = '#FFFCF0',
-  cursor_bg = '#343331',
-  cursor_fg = '#FFFCF0',
-  cursor_border = '#343331',
-  selection_bg = '#E8E6DB',
-  selection_fg = '#100F0F',
+-- Kaji Sun — paper bg matches the phone page light scheme (#fbf8f2), warm-ink
+-- ANSI family; replaces the Flexoki cream (#FFFCF0) Kaku Light shipped.
+local kaji_sun = {
+  foreground = KAJI.INK,
+  background = KAJI.PAPER,
+  cursor_bg = KAJI.SUN,
+  cursor_fg = KAJI.PAPER,
+  cursor_border = KAJI.SUN,
+  selection_bg = 'rgba(242,92,5,0.16)',
+  selection_fg = 'none',
   ansi = {
-    '#100F0F', '#AF3029', '#536907', '#8E6B02',
-    '#205EA6', '#A02F6F', '#1C6C66', '#575653',
+    KAJI.INK, '#c03a2b', '#5f7509', '#96690a',
+    '#3c6396', '#9a4a86', '#2f8577', '#6f675b',
   },
   brights = {
-    '#6F6E69', '#C03E35', '#66790D', '#8E6B02',
-    '#3171B2', '#B74583', '#2F968D', '#403E3C',
+    KAJI.DAY_MUTE, '#d05442', '#74880d', '#b07f0e',
+    '#5d83b5', '#b3679f', '#41998a', '#403a31',
   },
-  scrollbar_thumb = '#C9C2B1',
-  split = '#DDDBCF',
+  scrollbar_thumb = '#cfc6b4',
+  split = KAJI.PAPER_HIGH,
   tab_bar = {
-    background = '#FFFCF0',
-    inactive_tab_edge = '#FFFCF0',
-    active_tab   = { bg_color = '#E8E6DB', fg_color = '#100F0F', intensity = 'Bold' },
-    inactive_tab = { bg_color = '#FFFCF0', fg_color = '#4A4946', intensity = 'Normal' },
-    inactive_tab_hover = { bg_color = '#E8E6DB', fg_color = '#100F0F', italic = false },
-    new_tab       = { bg_color = '#FFFCF0', fg_color = '#4A4946' },
-    new_tab_hover = { bg_color = '#E8E6DB', fg_color = '#100F0F' },
+    background = KAJI.PAPER,
+    inactive_tab_edge = KAJI.PAPER,
+    active_tab   = { bg_color = KAJI.PAPER_HIGH, fg_color = KAJI.INK, intensity = 'Bold' },
+    inactive_tab = { bg_color = KAJI.PAPER, fg_color = KAJI.DAY_MUTE, intensity = 'Normal' },
+    inactive_tab_hover = { bg_color = KAJI.PAPER_HIGH, fg_color = KAJI.INK, italic = false },
+    new_tab       = { bg_color = KAJI.PAPER, fg_color = KAJI.DAY_MUTE },
+    new_tab_hover = { bg_color = KAJI.PAPER_HIGH, fg_color = KAJI.INK },
   },
+  -- Background remaps: ANSI colors used as cell BACKGROUNDS are too harsh on
+  -- paper — soften to a raised paper tone. Keys must equal the FINAL resolved
+  -- values, so they reference this scheme's own ANSI entries (plus a couple of
+  -- truecolor variants agents emit).
   color_overrides = {
-    ['#575653'] = '#F2F0EB', ['#585754'] = '#F2F0EB', ['#225FA6'] = '#F2F0EB',
-    ['#205EA6'] = '#F2F0EB', ['#1C6C66'] = '#F2F0EB', ['#536907'] = '#F2F0EB',
-    ['#8E6B02'] = '#F2F0EB',
+    ['#6f675b'] = '#f0ebe1', ['#3c6396'] = '#f0ebe1', ['#2f8577'] = '#f0ebe1',
+    ['#5f7509'] = '#f0ebe1', ['#96690a'] = '#f0ebe1', ['#225FA6'] = '#f0ebe1',
+    ['#585754'] = '#f0ebe1',
   },
   -- Pale agent/Claude Code text that is readable on dark themes but nearly
-  -- invisible against the cream background — remap to a legible base tone.
-  -- Ported verbatim from Kaku Light, which is why Kaku has no contrast issue.
+  -- invisible against paper — remap to a legible base tone.
   foreground_color_overrides = {
-    ['#FFFFDB'] = '#575653',  -- pale yellow text
-    ['#FFFFDC'] = '#575653',  -- pale yellow text variant
+    ['#FFFFDB'] = '#6f675b',  -- pale yellow text
+    ['#FFFFDC'] = '#6f675b',  -- pale yellow text variant
   },
 }
-config.color_schemes['Kaku Light'] = kaku_light
+config.color_schemes['Kaku Light'] = kaji_sun    -- compat registry name
+config.color_schemes['Kaji Sun'] = kaji_sun
 
 -- Resolve the scheme against the system appearance (Kaku's mechanism). Keeping
 -- the literal call `resolve_kaku_color_scheme(...)` on this line is also what
@@ -292,18 +308,18 @@ config.color_scheme = (wezterm.gui and wezterm.gui.get_appearance() or 'Dark'):f
 -- dark title bar, no close prompts, WebGpu rendering, macOS key handling.
 -- ════════════════════════════════════════════════════════════
 
--- Title bar — theme-aware so it matches the terminal background (cream in Kaku
--- Light, charcoal in Kaku Dark). Mirrors Kaku's get_window_frame_colors.
+-- Title bar — theme-aware so it matches the terminal background (paper in
+-- Kaji Sun, ember in Kaji Ember).
 local _is_light = (config.color_scheme == 'Kaku Light')
 config.window_frame = {
   font = wezterm.font({ family = 'JetBrains Mono', weight = 'Regular' }),
   font_size = 14.0,
-  active_titlebar_bg            = _is_light and '#FFFCF0' or KAKU.BLACK,
-  inactive_titlebar_bg          = _is_light and '#F8F5EA' or KAKU.BLACK,
-  active_titlebar_fg            = _is_light and '#100F0F' or KAKU.WHITE,
-  inactive_titlebar_fg          = _is_light and '#575653' or KAKU.GRAY,
-  active_titlebar_border_bottom = _is_light and '#E8E1D0' or KAKU.BLACK,
-  inactive_titlebar_border_bottom = _is_light and '#EDE6D6' or KAKU.BLACK,
+  active_titlebar_bg            = _is_light and KAJI.PAPER or KAJI.EMBER,
+  inactive_titlebar_bg          = _is_light and '#f4efe6' or KAJI.EMBER,
+  active_titlebar_fg            = _is_light and KAJI.INK or KAJI.CREAM,
+  inactive_titlebar_fg          = _is_light and KAJI.DAY_MUTE or KAJI.ASH,
+  active_titlebar_border_bottom = _is_light and KAJI.PAPER_HIGH or KAJI.EMBER,
+  inactive_titlebar_border_bottom = _is_light and KAJI.PAPER_HIGH or KAJI.EMBER,
   border_left_width = 0,
   border_right_width = 0,
   border_top_height = 0,
@@ -815,13 +831,13 @@ end
 Helm.status = {}
 
 -- Calm, low-saturation palette for the view compass — theme-aware so the dots
--- stay readable on both the cream (Kaku Light) and charcoal (Kaku Dark) bar.
+-- stay readable on both the paper (Kaji Sun) and ember (Kaji Ember) bar.
 local _light_status = (config.color_scheme == 'Kaku Light')
 -- Hand the scheme to spawned TUIs (Brain cockpit picks Sun Day/Night by it).
 wezterm.GLOBAL.helm_theme = _light_status and 'light' or 'dark'
 Helm.status.palette = {
-  dim    = _light_status and '#9A988F' or '#565f73',  -- inactive dots
-  text   = _light_status and '#403E3C' or '#a9b1d6',  -- primary text
+  dim    = _light_status and '#b5ab9c' or '#665e53',  -- inactive dots (ash)
+  text   = _light_status and '#6f675b' or '#9c9283',  -- primary text (mute)
   accent = '#f25c05',  -- active view + waiting quota: ONE persimmon, both themes
 }
 
@@ -1699,21 +1715,21 @@ config.tab_max_width = 6                -- markers are tiny; keep them tight
 config.colors = config.colors or {}
 if _is_light then
   config.colors.tab_bar = {
-    background = '#FFFCF0',
-    active_tab         = { bg_color = '#FFFCF0', fg_color = '#100F0F' },
-    inactive_tab       = { bg_color = '#FFFCF0', fg_color = '#9A988F' },
-    inactive_tab_hover = { bg_color = '#E8E6DB', fg_color = '#100F0F', italic = false },
-    new_tab            = { bg_color = '#FFFCF0', fg_color = '#9A988F' },
-    new_tab_hover      = { bg_color = '#E8E6DB', fg_color = '#100F0F' },
+    background = KAJI.PAPER,
+    active_tab         = { bg_color = KAJI.PAPER, fg_color = KAJI.INK },
+    inactive_tab       = { bg_color = KAJI.PAPER, fg_color = KAJI.DAY_ASH },
+    inactive_tab_hover = { bg_color = KAJI.PAPER_HIGH, fg_color = KAJI.INK, italic = false },
+    new_tab            = { bg_color = KAJI.PAPER, fg_color = KAJI.DAY_ASH },
+    new_tab_hover      = { bg_color = KAJI.PAPER_HIGH, fg_color = KAJI.INK },
   }
 else
   config.colors.tab_bar = {
-    background = '#16161e',
-    active_tab         = { bg_color = '#16161e', fg_color = '#8a8fa3' },
-    inactive_tab       = { bg_color = '#16161e', fg_color = '#3b4048' },
-    inactive_tab_hover = { bg_color = '#16161e', fg_color = '#565f73', italic = false },
-    new_tab            = { bg_color = '#16161e', fg_color = '#3b4048' },
-    new_tab_hover      = { bg_color = '#16161e', fg_color = '#565f73' },
+    background = KAJI.EMBER,
+    active_tab         = { bg_color = KAJI.EMBER, fg_color = KAJI.MUTE },
+    inactive_tab       = { bg_color = KAJI.EMBER, fg_color = '#4a4138' },
+    inactive_tab_hover = { bg_color = KAJI.EMBER, fg_color = KAJI.ASH, italic = false },
+    new_tab            = { bg_color = KAJI.EMBER, fg_color = '#4a4138' },
+    new_tab_hover      = { bg_color = KAJI.EMBER, fg_color = KAJI.ASH },
   }
 end
 
