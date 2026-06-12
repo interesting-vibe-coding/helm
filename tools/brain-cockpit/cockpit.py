@@ -713,6 +713,17 @@ def interactive(args) -> int:
                 if order:
                     em, eng = _get_engine(eng_box)
                     if eng:
+                        # Repaint once with the buffer cleared so the turn's
+                        # progress lines land under a frame that shows the
+                        # order in the transcript, not stale in the helm line.
+                        eng.transcript.append(("you", order))
+                        frame = render(sessions, events, selected=selected,
+                                       width=width, color=not args.no_color,
+                                       quota=quota, loading=False,
+                                       transcript=eng.transcript)
+                        sys.stdout.write("\033[2J\033[H" + frame + "\n")
+                        sys.stdout.flush()
+                        eng.transcript.pop()   # turn() appends it itself
                         flash = _engine_turn(em, eng, order, mode[0], fd, old_attrs)
                     else:   # engine unavailable → old one-shot planner path
                         flash = _dispatch(order, ordered, selected, mode[0],
