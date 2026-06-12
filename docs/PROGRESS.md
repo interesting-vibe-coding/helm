@@ -135,4 +135,11 @@ fleet + 共享 memory/skills**.
 - README v0.6 对齐（#160）: 舵线头条、⌘/ 双视图、Sun 色语、双窗额度; 中英同步。
 - QR 配对: `kaji-brain qr [--rotate] [out.png]` — token 走 URL #fragment（不经 relay 服务器）, 手机端自动收存; --rotate 换 token + 重启 serve。segno 已 vendor。
 
+**过夜冲刺 II（2026-06-11 深夜）**:
+- demo GIF（#162）: vhs 无头录 cockpit --demo（Sun Night + 舵线打字）→ assets/demo.gif, README 双语嵌入。
+- Landing（#163）: kaji.doabit.dev — docs/index.html 单文件 Sun 风（hero + 一键复制安装 + gif + 五特性）; GitHub Pages(main /docs) + CF CNAME, HTTP 已通, HTTPS 证书签发中(waiter 挂着)。repo About homepage/description 已设。
+- doctor 重写（#164)）: v0.6 现实体检（app/harness/token/serve/relay/quota）, 每个 ✗ 带修复命令; `kaji-brain doctor`。
+- mobile timeline（#165）: 选中行二次 tap → inline 最近 5 事件。
+- 额度纪律: 5h 窗 92% 时停手写状态; 哨兵(3min 轮询)报 STOP/RESUME。
+
 **Next（当前队列）**: ① cockpit 交互循环 + mobile/desktop UI 设计打磨（主战场: 轻量·交互·可视化, 管多 harness 必须比终端切换方便得多）② 统一额度 scraper ③ relay 加 QR 配对 + E2E 加密（launch 前安全叙事）④ demo（最后录）。
