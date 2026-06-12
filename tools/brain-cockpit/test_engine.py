@@ -52,6 +52,43 @@ class TestAdapters(unittest.TestCase):
         self.assertEqual(engine._oa_to_blocks(resp)[0]["input"], {})
 
 
+class TestTlsDowngradeGuard(unittest.TestCase):
+    def _http_error(self, body):
+        import io
+        import urllib.error
+        return urllib.error.HTTPError("https://x", 400, "Bad Request", {},
+                                      io.BytesIO(body))
+
+    def test_downgrade_aborts_without_retry(self):
+        calls = []
+
+        def fake_urlopen(req, timeout=0):
+            calls.append(1)
+            raise self._http_error(
+                b'{"message": "This request was sent over HTTP."}')
+        orig = engine.urllib.request.urlopen
+        engine.urllib.request.urlopen = fake_urlopen
+        try:
+            with self.assertRaises(engine.TlsDowngradeError):
+                engine._post("https://x", {}, {})
+        finally:
+            engine.urllib.request.urlopen = orig
+        self.assertEqual(len(calls), 1)     # no retry — the key must not re-leak
+
+    def test_downgrade_blocks_oauth_fallback(self):
+        eng = engine.Engine.__new__(engine.Engine)
+        eng.model, eng.backend = "m", "openrouter"
+        eng.messages, eng.transcript, eng._pending = [], [], None
+
+        def boom():
+            raise engine.TlsDowngradeError("downgraded")
+        eng._call_openrouter = boom
+        eng._call_oauth = lambda: self.fail("fallback must not fire")
+        with self.assertRaises(engine.TlsDowngradeError):
+            eng._call()
+        self.assertEqual(eng.backend, "openrouter")  # not flipped
+
+
 class TestTurnProtocol(unittest.TestCase):
     def _engine_with_script(self, script):
         eng = engine.Engine.__new__(engine.Engine)

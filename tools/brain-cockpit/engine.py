@@ -203,6 +203,11 @@ def execute_action(name, args):
     return False, "unknown action"
 
 
+class TlsDowngradeError(RuntimeError):
+    """The proxy forwarded our HTTPS request as plain HTTP — credentials
+    crossed in cleartext. Never retried, never falls back to another key."""
+
+
 def _post(url, payload, headers, attempts=4, max_429_wait=60.0):
     """POST JSON, ALWAYS through the system proxy (user rule: direct
     connections are not viable on this network — proxy is the only
@@ -215,11 +220,19 @@ def _post(url, payload, headers, attempts=4, max_429_wait=60.0):
             with urllib.request.urlopen(req, timeout=90) as r:
                 return json.loads(r.read())
         except urllib.error.HTTPError as e:
+            try:
+                body = e.read().decode("utf-8", "replace")[:300]
+            except Exception:
+                body = ""
+            if "sent over HTTP" in body:
+                # A broken proxy node downgraded the CONNECT tunnel to plain
+                # HTTP — the bearer token just crossed in cleartext. Do NOT
+                # retry (each retry re-leaks it); surface loudly instead.
+                raise TlsDowngradeError(
+                    "proxy downgraded TLS to plain HTTP — aborting to protect "
+                    "the API key. A node in the proxy pool mishandles CONNECT; "
+                    "switch node and retry. Rotate the key if this repeats.")
             if attempt == attempts - 1:
-                try:
-                    body = e.read().decode("utf-8", "replace")[:300]
-                except Exception:
-                    body = ""
                 raise RuntimeError("HTTP %d: %s" % (e.code, body or e.reason))
             if e.code == 429:
                 ra = e.headers.get("retry-after")
@@ -257,6 +270,8 @@ class Engine:
         if self.backend == "openrouter":
             try:
                 return self._call_openrouter()
+            except TlsDowngradeError:
+                raise               # do NOT push a second key down a bad pipe
             except Exception:
                 if not _token():
                     raise
