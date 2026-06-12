@@ -3,6 +3,27 @@
 All notable changes to Kaji are documented here.
 Format: [version] - date - description
 
+## [0.6.5] - 2026-06-12
+
+### Design pass: persimmon energy, Japanese restraint (#185, #187)
+- **Cockpit alignment** (#185) — quota hugs the right edge of the
+  header (the old pad was computed and never used); per-row meta
+  right-aligns into a clean column; the footer gets symmetric rules
+  and the hint line recedes to ash; transcript rendering deduped.
+- **Phone dark scheme: Kaji Ember** (#185) — warm ember black
+  (#16100b, never pure black) behind the same persimmon; peek and the
+  brand mark recolor via CSS vars / currentColor; theme-color meta for
+  both schemes; plan chips speak human ("claude · kaji", not
+  "pane 12").
+- **Top bar fixed for good** (#187) — every config reload rebuilds the
+  Lua VM and silently dropped all six event handlers (tab titles fell
+  back to truncated cwd, the compass froze). The registration guard
+  now lives on the per-eval module table, so handlers re-register on
+  every reload.
+- **Purple retired** (#187) — cursor, selection, and the compass
+  accent now use the one persimmon (#f25c05) in both themes; the only
+  purple left is the semantic ANSI palette.
+
 ## [0.6.4] - 2026-06-12
 
 ### Hardening from the live acceptance round (#176–#183)
