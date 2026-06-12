@@ -38,11 +38,11 @@ class TestAdapters(unittest.TestCase):
 
     def test_oa_to_blocks(self):
         resp = {"choices": [{"message": {
-            "content": "好",
+            "content": "aye",
             "tool_calls": [{"id": "x", "function": {
                 "name": "list_sessions", "arguments": "{}"}}]}}]}
         blocks = engine._oa_to_blocks(resp)
-        self.assertEqual(blocks[0], {"type": "text", "text": "好"})
+        self.assertEqual(blocks[0], {"type": "text", "text": "aye"})
         self.assertEqual(blocks[1]["type"], "tool_use")
         self.assertEqual(blocks[1]["name"], "list_sessions")
 
@@ -101,23 +101,23 @@ class TestTurnProtocol(unittest.TestCase):
         return eng
 
     def test_say_then_end(self):
-        eng = self._engine_with_script([[{"type": "text", "text": "两条船在岗。"}]])
-        evs = list(eng.turn("舰队咋样"))
-        self.assertEqual(evs, [("say", "两条船在岗。")])
-        self.assertEqual(eng.transcript[0], ("you", "舰队咋样"))
+        eng = self._engine_with_script([[{"type": "text", "text": "two ships on station."}]])
+        evs = list(eng.turn("how's the fleet"))
+        self.assertEqual(evs, [("say", "two ships on station.")])
+        self.assertEqual(eng.transcript[0], ("you", "how's the fleet"))
 
     def test_act_pauses_until_feed(self):
         eng = self._engine_with_script([
             [{"type": "tool_use", "id": "a", "name": "send_to_worker",
               "input": {"pane_id": 4, "text": "run tests"}}],
-            [{"type": "text", "text": "已派。"}],
+            [{"type": "text", "text": "dispatched."}],
         ])
-        it = eng.turn("派活")
+        it = eng.turn("dispatch work")
         ev = next(it)
         self.assertEqual(ev, ("act", "send_to_worker",
                               {"pane_id": 4, "text": "run tests"}))
         eng.feed(True, "sent")
-        self.assertEqual(next(it), ("say", "已派。"))
+        self.assertEqual(next(it), ("say", "dispatched."))
         acts = [t for t in eng.transcript if t[0] == "act"]
         self.assertEqual(len(acts), 1)
         self.assertTrue(acts[0][1].startswith("✓"))
@@ -126,9 +126,9 @@ class TestTurnProtocol(unittest.TestCase):
         eng = self._engine_with_script([
             [{"type": "tool_use", "id": "a", "name": "spawn_worker",
               "input": {"harness": "claude", "cwd": "/tmp"}}],
-            [{"type": "text", "text": "好，不开了。"}],
+            [{"type": "text", "text": "ok, standing down."}],
         ])
-        it = eng.turn("开个船")
+        it = eng.turn("spawn a ship")
         next(it)
         eng.feed(False, "captain cancelled")
         list(it)

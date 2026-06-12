@@ -419,7 +419,7 @@ function editPlan() {
   $("order").value = pendingPlan.action === "send" ? (pendingPlan.text || "")
                                                    : (pendingPlan.task || "");
   $("order").focus();
-  // edited text replaces the plan's payload on the next 执行
+  // edited text replaces the plan's payload on the next execute
   $("order").onkeydown = e => {
     if (e.key === "Enter") {
       if (pendingPlan.action === "send") pendingPlan.text = $("order").value.trim();

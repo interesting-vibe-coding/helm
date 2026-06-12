@@ -86,9 +86,9 @@ class RenderTests(unittest.TestCase):
 
     def test_transcript_replaces_spawn_line(self):
         out = self._plain(width=80, selected=0,
-                          transcript=[("you", "舰队咋样"), ("舵", "都在岗。")])
-        self.assertIn("you 舰队咋样", out)
-        self.assertIn("舵  都在岗。", out)
+                          transcript=[("you", "how's the fleet"), ("舵", "all on station.")])
+        self.assertIn("you how's the fleet", out)
+        self.assertIn("舵  all on station.", out)
         self.assertNotIn("▸ port upstream #452", out)
 
     def test_empty_fleet_message(self):

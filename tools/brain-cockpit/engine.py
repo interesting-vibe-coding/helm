@@ -9,7 +9,7 @@ gate (or auto mode). No SDK, no harness, stdlib only.
 
 Contract with the cockpit:
     eng = Engine()
-    for ev in eng.turn("开个 codex 去 wu 修路由"):
+    for ev in eng.turn("spawn a codex in wu to fix the routing"):
         ev = ("say", text)            render assistant prose
            | ("act", tool, args)      DANGEROUS action → caller confirms,
                                       then calls eng.feed(ok, result_str)
@@ -438,11 +438,11 @@ def _brief(name, args):
 
 
 if __name__ == "__main__":
-    # smoke: python3 engine.py "有哪些 session?" — DRY-RUN: dangerous actions
+    # smoke: python3 engine.py "which sessions are up?" — DRY-RUN: dangerous actions
     # are printed, not executed (pass --live to really run them).
     live = "--live" in sys.argv
     eng = Engine()
-    for word in [a for a in sys.argv[1:] if a != "--live"] or ["列一下现在的舰队"]:
+    for word in [a for a in sys.argv[1:] if a != "--live"] or ["list the fleet"]:
         it = eng.turn(word)
         for ev in it:
             if ev[0] == "say":
