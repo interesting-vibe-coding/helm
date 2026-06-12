@@ -209,3 +209,10 @@ fleet + 共享 memory/skills**.
 - **helm 残名审计**(宝宝提示): helm-gui 二进制(Activity Monitor 可见) / tools/helm-* 9 个 CLI / ~/.config/helm + ~/.local/share/helm 路径 / repo assets/macos/Helm.app / Lua Helm 表。约束: 改二进制名动 codesign+TCC、config 路径要迁移 shim、需真 binary 发版(覆盖法不够)。→ **Rust 正名轮**统一做(连 scheme 注册名 'Kaku Dark'→'Kaji Ember' 一起), 不零敲。gh issue 创建被 auto-mode 拦(用户未明示要 ticket), 暂记于此。
 
 **Next（当前队列）**: ① 设计专轮动工: PR A=Kaji Ember/Sun scheme+ANSI 暖移+默认切(Kaku 留可选) → PR B=tab/窗框克制化 → PR C=舵/KAJI 品牌规则清理(串行, 全碰 kaku.lua) ② 手机真机验收 ③ study 种子仓实建+pilot ④ 论文 \TODO(study 数据)。
+
+**2026-06-13 值夜后半（CLI 修复 PR #195 + 4 种子仓全齐）**:
+- **CLI "C stack overflow" 根因破案+修复(PR #195, auto-merge 已挂)**: config/src/lua.rs deferred-setup `__index` metamethod 先跑 deferred funcs 后摘自己 → 每个 register fn 走 get_or_create_sub_module → 非 raw `wezterm_mod.get()` → 重入 `__index` → 无限递归。仅 CLI 进程触发(kaku.lua 访问 `wezterm.gui`, CLI 未注册 gui = 唯一 unknown-key)。修=先摘 `__index` 再跑 funcs。debug helm 实测 spawn 零报错(旧二进制必报)。⚠️ **装机生效需真 binary 发版, 覆盖法不够**。
+- **既有测试失败(非本轮)**: config `bundled_kaku_lua_*` 8 个测试钉死 `assets/macos/Kaku.app/...` 路径, 仓里已改名 Helm.app → 文件缺失全挂(main 基线同挂, stash 验证过)。CI 只跑 Cargo Check 故未暴露。修归 Rust 正名轮。
+- **study 4 种子仓全齐** (`~/workspace/kaji-study/`): A seed-taskline(7p/9f) · B seed-linkboard(9 测试绿, 5 patch apply --check+实跑验证, diff-2 off-by-one/diff-4 无鉴权 DELETE 实证测不出) · C seed-notesvc(uv+fastapi, test_tags 3 红即规格三项, feat/tag-filter wip 分支, SETUP-SESSION.md+reset.sh 实跑过; 开口=Kaji history 导入命令待补) · D seed-mdsite(13/13 绿)。下一步=pilot。
+- 手机验收首轮失败: headless 截图 gate/fleet 两张同字节(28808)且都停 gate 页 — fragment token 未完成连接(截图太早或 server 没起), 重试中。
+- **手机浏览器验收(390px 真布局)通过 + 溢出修复(PR #196)**: 首轮失败根因二连 — ① fragment 格式是 `#tok=<hex>` 非裸 `#<hex>` ② headless `--window-size=420` 实际 layout viewport 被钳到 ~495px(标尺页实测), 截图裁 420 → "溢出"假象。真 390px 验收法 = 外层页 iframe 锁宽。真修复: 额度条按 harness 段折行(段内 nowrap span) + .who 省略保 status 全显。Ember 主题 fleet/舵 prompt/Send 全正常; Sun 主题 headless 强制 light 无 flag 可用, 跳过(修复与主题无关)。
