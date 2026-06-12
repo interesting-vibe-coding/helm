@@ -142,4 +142,12 @@ fleet + 共享 memory/skills**.
 - mobile timeline（#165）: 选中行二次 tap → inline 最近 5 事件。
 - 额度纪律: 5h 窗 92% 时停手写状态; 哨兵(3min 轮询)报 STOP/RESUME。
 
+**自研引擎 WIP（2026-06-12, branch feat/own-engine 未合）**:
+- `tools/brain-cockpit/engine.py` 完成+冒烟 ✅: 多轮 tool-use 循环直打 /v1/messages（CC OAuth token）; 工具 list_sessions/fleet_timeline(只读自动跑) + spawn/send(yield 给 cockpit 确认门); 生成器协程协议 turn()/feed(); 中文大副 persona 纯文本。
+- 实测: "问一下 codex 进展" → 自查 sessions+timeline → 简洁中文汇报 ✅。
+- **约束(实测)**: OAuth /v1/messages 上 **sonnet 必 429**(Max 留给 CC 客户端), haiku 畅通 → 默认 haiku; 429 退避 20-60s; **网络只走系统代理, 禁直连**(用户铁律)。
+- cockpit 接线: render() 对话区(transcript 8 行 you/舵/act)已加 ✅; **剩**: ⏎ dispatch 换 engine.turn(替代 nl_plan), act→_choose 确认/auto 直执, eng 实例懒加载, hints 更新, 测试, 热补。
+- 今晨修复(#168 已合): spawn 时登记 runtime.json(codex node 壳连 wezterm 都报不出进程名→检测改注册制), lua adopt 5s, ESC/Ctrl-U 清舵线。
+- 杂记: 顶栏 "Users/" 泄漏(新 tab title)待查; status bar compass 切换延迟已修(#159)。
+
 **Next（当前队列）**: ① cockpit 交互循环 + mobile/desktop UI 设计打磨（主战场: 轻量·交互·可视化, 管多 harness 必须比终端切换方便得多）② 统一额度 scraper ③ relay 加 QR 配对 + E2E 加密（launch 前安全叙事）④ demo（最后录）。

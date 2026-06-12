@@ -178,7 +178,8 @@ def fmt_quota_line(quota: Optional[Dict]) -> str:
 
 def render(sessions: List[Dict], events: List[Dict], selected: int = 0,
            width: int = 80, color: bool = True,
-           quota: Optional[Dict] = None, loading: bool = False) -> str:
+           quota: Optional[Dict] = None, loading: bool = False,
+           transcript: Optional[List] = None) -> str:
     """Render one cockpit frame as a string. Pure — no I/O, no globals."""
     width = max(40, width)
     ordered = sort_sessions(sessions)
@@ -260,8 +261,32 @@ def render(sessions: List[Dict], events: List[Dict], selected: int = 0,
             row = "    %s  %-9s %s" % (_hms(e.get("ts")), ev, _clip(detail, width - 24))
             out.append(_c(row, INK, color))
     out.append("")
+    # The conversation flow — the captain and the First Mate, newest last.
+    for who, text in (transcript or [])[-8:]:
+        for j, line in enumerate(_wrap(text, width - 8)):
+            if who == "you":
+                pre = _c("you ", MUTE, color) if j == 0 else "    "
+                out.append("  " + pre + _c(line, MUTE, color))
+            elif who == "act":
+                out.append("  " + _c(("    " if j else "    ") + line, SUN, color))
+            else:
+                pre = _c("舵  ", SUN, color) if j == 0 else "    "
+                out.append("  " + pre + _c(line, INK, color))
+    if transcript:
+        out.append("")
     out.append(compass())
     return "\n".join(out)
+
+
+def _wrap(text: str, width: int) -> List[str]:
+    width = max(20, width)
+    lines = []
+    for raw in str(text).splitlines() or [""]:
+        while len(raw) > width:
+            lines.append(raw[:width])
+            raw = raw[width:]
+        lines.append(raw)
+    return lines[:6]
 
 
 # ── data acquisition (I/O) ────────────────────────────────────────────────────
