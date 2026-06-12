@@ -20,6 +20,7 @@ Endpoints
   GET  /api/sessions            → [ {pane_id, harness, ...} ]
   GET  /api/quota               → {harness: tokens_today}
   GET  /api/timeline[?pane=N]   → [ events ]  (oldest first)
+  GET  /api/peek?pane=N[&lines=80] → {pane, lines, text}  live pane screen tail
   GET  /api/events              → text/event-stream: a `state` event every
                                   POLL secs + new timeline events as they land
   POST /api/send    {pane_id, text}            → inject text + Enter
@@ -192,6 +193,16 @@ class Handler(BaseHTTPRequestHandler):
             if pane is not None:
                 events = [e for e in events if e.get("pane") == pane]
             return self._json(events)
+        if path == "/api/peek":
+            pane = self._query_pane()
+            if pane is None:
+                return self._json({"error": "pane parameter required (int)"}, 400)
+            lines = self._query_int("lines", 80)
+            lines = max(1, min(lines, 1000))
+            rc, text, err = brain.peek_pane(pane, lines)
+            if rc != 0:
+                return self._json({"error": err}, 502)
+            return self._json({"pane": pane, "lines": lines, "text": text})
         if path == "/api/events":
             return self._stream_events()
         return self._json({"error": "not found"}, 404)
@@ -244,6 +255,18 @@ class Handler(BaseHTTPRequestHandler):
                 except ValueError:
                     return None
         return None
+
+    def _query_int(self, name, default):
+        if "?" not in self.path:
+            return default
+        q = self.path.split("?", 1)[1]
+        for part in q.split("&"):
+            if part.startswith(name + "="):
+                try:
+                    return int(part[len(name) + 1:])
+                except ValueError:
+                    return default
+        return default
 
     def _stream_events(self):
         """SSE: push a `state` snapshot every POLL_SECS + tail new events."""

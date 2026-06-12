@@ -439,6 +439,47 @@ def _send_text(cli, pane_id, text):
     return 0, ""
 
 
+def peek_pane(pane_id, lines=80):
+    """Tail of a pane's on-screen text. Returns (rc, text, errmsg).
+
+    Strips trailing blank lines (the pane viewport pads with them), then
+    keeps the last `lines` lines. Shared by `kaji-brain peek` and the
+    serve.py /api/peek endpoint.
+    """
+    cli = _helm_cli()
+    if not cli:
+        return 1, "", "helm cli not available (Kaji not installed?)"
+    rc, out, err = _cli_run(cli, ["get-text", "--pane-id", str(pane_id)])
+    if rc != 0:
+        return rc, "", (err.strip() or "get-text failed (pane %s gone?)" % pane_id)
+    rows = out.splitlines()
+    while rows and not rows[-1].strip():
+        rows.pop()
+    if lines > 0:
+        rows = rows[-lines:]
+    return 0, "\n".join(rows), ""
+
+
+def cmd_peek(args):
+    if not args:
+        print("usage: kaji-brain peek <pane_id> [lines]", file=sys.stderr)
+        return 2
+    pane_id = args[0]
+    lines = 80
+    if len(args) > 1:
+        try:
+            lines = int(args[1])
+        except ValueError:
+            print("invalid lines: %s" % args[1], file=sys.stderr)
+            return 2
+    rc, text, err = peek_pane(pane_id, lines)
+    if rc != 0:
+        print(err, file=sys.stderr)
+        return 1
+    print(text)
+    return 0
+
+
 def cmd_send(args):
     if len(args) < 2:
         print("usage: kaji-brain send <pane_id> <text>", file=sys.stderr)
@@ -733,6 +774,8 @@ USAGE = """kaji-brain — the Brain agent's eyes and hands
 usage:
   kaji-brain sessions                 print JSON array of worker sessions
   kaji-brain send <pane_id> <text>    inject text + Enter into a pane
+  kaji-brain peek <pane_id> [lines]   print the tail of a pane's screen text
+                                      (default 80 lines, trailing blanks cut)
   kaji-brain spawn <harness> <cwd> [task...]
                                       open a new worker session (kiro|claude|
                                       opencode|codex) in <cwd>, optionally
@@ -969,6 +1012,7 @@ COMMANDS = {
     "doctor": cmd_doctor,
     "quota": cmd_quota,
     "send": cmd_send,
+    "peek": cmd_peek,
     "spawn": cmd_spawn,
     "notify": cmd_notify,
     "watch": cmd_watch,
