@@ -203,4 +203,9 @@ fleet + 共享 memory/skills**.
 - 实机验证: cp 双部署 → reload → 背景像素采样 #15100c≈ember ✓, 顶栏存活(#187 再验) ✓。
 - 发布脚本 check_release_config.sh 在干净 main 也挂(钉死上游 Kaku.app 路径, 仓里无此目录) — 上游遗留, 非本轮引入。
 
+**2026-06-13 设计专轮 PR C（品牌符号一符一义）**:
+- 宝宝反馈 舵/kaji 混用 → 定规则: KAJI 字标=产品名(头部一处) · ◉ 轮标=产品的声音(大副回话行首+头部) · 舵=你手中的舵(仅 helm line prompt)。每符一义, 每义一符。
+- 改动: cockpit transcript 大副说话人 舵→◉ (宽度对齐 4 列); 内部协议 key ("舵", msg) 不动; KAJI_EMBER.md 刷成 v2(落地真值: 柿橙 #f25c05 单主角, v1 的 #ff7a1f/amber/teal 三色状态废弃; 加 Brand marks 表 + 实施状态)。
+- **helm 残名审计**(宝宝提示): helm-gui 二进制(Activity Monitor 可见) / tools/helm-* 9 个 CLI / ~/.config/helm + ~/.local/share/helm 路径 / repo assets/macos/Helm.app / Lua Helm 表。约束: 改二进制名动 codesign+TCC、config 路径要迁移 shim、需真 binary 发版(覆盖法不够)。→ **Rust 正名轮**统一做(连 scheme 注册名 'Kaku Dark'→'Kaji Ember' 一起), 不零敲。gh issue 创建被 auto-mode 拦(用户未明示要 ticket), 暂记于此。
+
 **Next（当前队列）**: ① 设计专轮动工: PR A=Kaji Ember/Sun scheme+ANSI 暖移+默认切(Kaku 留可选) → PR B=tab/窗框克制化 → PR C=舵/KAJI 品牌规则清理(串行, 全碰 kaku.lua) ② 手机真机验收 ③ study 种子仓实建+pilot ④ 论文 \TODO(study 数据)。

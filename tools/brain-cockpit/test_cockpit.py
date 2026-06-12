@@ -88,7 +88,7 @@ class RenderTests(unittest.TestCase):
         out = self._plain(width=80, selected=0,
                           transcript=[("you", "how's the fleet"), ("舵", "all on station.")])
         self.assertIn("you how's the fleet", out)
-        self.assertIn("舵  all on station.", out)
+        self.assertIn("◉   all on station.", out)
         self.assertNotIn("▸ port upstream #452", out)
 
     def test_empty_fleet_message(self):
