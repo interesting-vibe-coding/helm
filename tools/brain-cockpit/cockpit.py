@@ -178,7 +178,8 @@ def fmt_quota_line(quota: Optional[Dict]) -> str:
 
 def render(sessions: List[Dict], events: List[Dict], selected: int = 0,
            width: int = 80, color: bool = True,
-           quota: Optional[Dict] = None, loading: bool = False) -> str:
+           quota: Optional[Dict] = None, loading: bool = False,
+           transcript: Optional[List] = None) -> str:
     """Render one cockpit frame as a string. Pure — no I/O, no globals."""
     width = max(40, width)
     ordered = sort_sessions(sessions)
@@ -260,8 +261,32 @@ def render(sessions: List[Dict], events: List[Dict], selected: int = 0,
             row = "    %s  %-9s %s" % (_hms(e.get("ts")), ev, _clip(detail, width - 24))
             out.append(_c(row, INK, color))
     out.append("")
+    # The conversation flow — the captain and the First Mate, newest last.
+    for who, text in (transcript or [])[-8:]:
+        for j, line in enumerate(_wrap(text, width - 8)):
+            if who == "you":
+                pre = _c("you ", MUTE, color) if j == 0 else "    "
+                out.append("  " + pre + _c(line, MUTE, color))
+            elif who == "act":
+                out.append("  " + _c(("    " if j else "    ") + line, SUN, color))
+            else:
+                pre = _c("舵  ", SUN, color) if j == 0 else "    "
+                out.append("  " + pre + _c(line, INK, color))
+    if transcript:
+        out.append("")
     out.append(compass())
     return "\n".join(out)
+
+
+def _wrap(text: str, width: int) -> List[str]:
+    width = max(20, width)
+    lines = []
+    for raw in str(text).splitlines() or [""]:
+        while len(raw) > width:
+            lines.append(raw[:width])
+            raw = raw[width:]
+        lines.append(raw)
+    return lines[:6]
 
 
 # ── data acquisition (I/O) ────────────────────────────────────────────────────
@@ -500,6 +525,56 @@ def _choose(fd, options, default=0):
             return None
 
 
+def _get_engine(box):
+    """Lazy-load the conversational engine (engine.py, same dir). One try."""
+    if not box["tried"]:
+        box["tried"] = True
+        try:
+            sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+            import engine as _e
+            box["mod"], box["eng"] = _e, _e.Engine()
+        except Exception:
+            pass
+    return box["mod"], box["eng"]
+
+
+def _engine_turn(em, eng, order, mode, fd, old_attrs):
+    """舵 order → engine.turn() multi-step loop. The engine reads the fleet
+    itself; DANGEROUS actions surface here for the confirm gate (or run
+    straight through in auto mode). Returns flash."""
+    import termios
+    import tty
+    sys.stdout.write("\n   …\n")
+    sys.stdout.flush()
+    done = 0
+    for ev in eng.turn(order):
+        if ev[0] == "say":
+            for ln in _wrap(ev[1], 70):
+                sys.stdout.write("   %s\n" % ln)
+            sys.stdout.flush()
+            continue
+        _, name, act = ev
+        sys.stdout.write(" → %s %s\n" % (name, em._brief(name, act)))
+        sys.stdout.flush()
+        if mode == "confirm":
+            pick = _choose(fd, ["执行", "取消", "改一改"])
+            if pick is None or pick == 1:
+                eng.feed(False, "captain cancelled")
+                continue
+            if pick == 2:
+                termios.tcsetattr(fd, termios.TCSADRAIN, old_attrs)
+                edited = _prompt("   改: ")
+                tty.setcbreak(fd)
+                if not edited:
+                    eng.feed(False, "captain cancelled")
+                    continue
+                act["text" if name == "send_to_worker" else "task"] = edited
+        ok, res = em.execute_action(name, act)
+        eng.feed(ok, res)
+        done += 1
+    return ("✓ %d 个动作" % done) if done else ""
+
+
 def _dispatch(order, ordered, selected, mode, args, fd, old_attrs):
     """舵 order → plan → (confirm via arrows | auto) → execute. Returns flash."""
     import termios
@@ -586,6 +661,7 @@ def interactive(args) -> int:
     loaded = False
     helm_buf = [""]                  # the 舵 line, typed directly
     mode = ["confirm"]               # confirm ⇄ auto (Tab / Cmd+Shift+A)
+    eng_box = {"mod": None, "eng": None, "tried": False}   # lazy First Mate
     try:
         tty.setcbreak(fd)
         while True:
@@ -597,7 +673,9 @@ def interactive(args) -> int:
             selected = max(0, min(selected, max(0, len(ordered) - 1)))
             width = args.width or (os.get_terminal_size().columns if sys.stdout.isatty() else 80)
             frame = render(sessions, events, selected=selected, width=width,
-                           color=not args.no_color, quota=quota, loading=not loaded)
+                           color=not args.no_color, quota=quota, loading=not loaded,
+                           transcript=(eng_box["eng"].transcript
+                                       if eng_box["eng"] else None))
             tag = ("auto" if mode[0] == "auto" else "confirm")
             if not args.no_color:
                 tag = (SUN if mode[0] == "auto" else MUTE) + tag + RESET
@@ -642,8 +720,12 @@ def interactive(args) -> int:
                 order = helm_buf[0].strip()
                 helm_buf[0] = ""
                 if order:
-                    flash = _dispatch(order, ordered, selected, mode[0], args,
-                                      fd, old_attrs)
+                    em, eng = _get_engine(eng_box)
+                    if eng:
+                        flash = _engine_turn(em, eng, order, mode[0], fd, old_attrs)
+                    else:   # engine unavailable → old one-shot planner path
+                        flash = _dispatch(order, ordered, selected, mode[0],
+                                          args, fd, old_attrs)
                     kick()
                 elif ordered:
                     # empty ⏎ → classic reply-to-selected
