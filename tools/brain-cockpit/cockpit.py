@@ -627,7 +627,10 @@ def interactive(args) -> int:
                 mode[0] = "auto" if mode[0] == "confirm" else "confirm"
                 flash = "mode: " + mode[0]
                 continue
-            if buf == b"\x1b":        # bare ESC clears the buffer
+            if buf[:1] == b"\x1b":    # ESC (any non-arrow escape) clears
+                helm_buf[0] = ""
+                continue
+            if buf == b"\x15":        # Ctrl-U: clear line (readline habit)
                 helm_buf[0] = ""
                 continue
             if buf in (b"\x7f", b"\x08"):

@@ -592,8 +592,13 @@ end
 function Helm.sessions.track(pane)
   local sessions = wezterm.GLOBAL.helm_sessions
   local id = tostring(pane:pane_id())
-  local harness = Helm.harnesses.detect_pane(pane)
-  if not harness then return end  -- only track known harnesses
+  local sessions0 = wezterm.GLOBAL.helm_sessions or {}
+  local known = sessions0[tostring(pane:pane_id())]
+  -- Detection OR registration: kaji-brain spawn registers sessions it creates
+  -- (runtime.json → boot restore → helm_sessions), so a node-shim harness
+  -- whose process name defeats detect_pane() still gets tracked.
+  local harness = Helm.harnesses.detect_pane(pane) or (known and known.harness)
+  if not harness then return end  -- unknown pane: not a worker
   -- The Brain (and the other dedicated slots) are agent sessions too, but they
   -- are NOT workers. Never record them in helm_sessions/runtime.json: otherwise
   -- the Brain shows up as a "session" in the Monitor and — worse — kaji-brain
@@ -648,6 +653,36 @@ function Helm.sessions.track(pane)
   end
   wezterm.GLOBAL.helm_sessions = sessions
   Helm.sessions.save()
+end
+
+-- Adopt sessions registered by kaji-brain spawn (runtime.json) that this
+-- process hasn't seen yet — the registrar knows harness/cwd, so a node-shim
+-- harness gets tracked even when process detection can't name it. Throttled.
+function Helm.sessions.adopt()
+  local now = Helm.util.now()
+  if (now - (wezterm.GLOBAL.helm_last_adopt or 0)) < 5 then return end
+  wezterm.GLOBAL.helm_last_adopt = now
+  local f = io.open(Helm.cfg.RUNTIME_JSON, 'r')
+  if not f then return end
+  local body = f:read('*a'); f:close()
+  local ok, data = pcall(wezterm.json_parse, body)
+  if not (ok and type(data) == 'table') then return end
+  local sessions = wezterm.GLOBAL.helm_sessions or {}
+  local changed = false
+  for id, rec in pairs(data) do
+    if not sessions[id] and type(rec) == 'table' and rec.harness then
+      sessions[id] = {
+        harness       = rec.harness,
+        cwd           = rec.cwd,
+        cwd_full      = rec.cwd_full,
+        start_time    = rec.start_time or now,
+        last_accessed = rec.last_accessed or now,
+        state         = rec.state or 'working',
+      }
+      changed = true
+    end
+  end
+  if changed then wezterm.GLOBAL.helm_sessions = sessions end
 end
 
 -- Returns sessions sorted by last_accessed descending (most recent first).
@@ -1471,6 +1506,7 @@ function Helm.apply(config)
   -- pane. track() early-returns for non-worker panes, so this only costs a cheap
   -- fingerprint per live worker each ~1s tick.
   wezterm.on('update-right-status', function(win, pane)
+    Helm.sessions.adopt()
     for _, w in ipairs(wezterm.mux.all_windows()) do
       for _, tab in ipairs(w:tabs()) do
         for _, p in ipairs(tab:panes()) do
