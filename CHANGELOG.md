@@ -3,6 +3,22 @@
 All notable changes to Kaji are documented here.
 Format: [version] - date - description
 
+## [0.6.6] - 2026-06-13
+
+### The terminal wears its own face (#190, #192, #193)
+- **Kaji Ember / Kaji Sun terminal schemes** (#192) — the ported Kaku
+  palettes retire. Night is ember black (#16100b, warm, never pure)
+  with candle-lit cream and a warm-shifted ANSI sixteen; day is paper
+  (#fbf8f2) with warm ink. Window frame, tab bar, and compass follow,
+  so the shell, the cockpit, and the phone finally share one face.
+- **One mark, one meaning** (#193) — KAJI is the wordmark in the
+  header; the wheel (◉) is the product's voice in the transcript; 舵
+  marks only the helm line you type into. The design doc
+  (KAJI_EMBER.md v2) now carries the shipped tokens and the rule.
+- **English to the edges** (#190) — residual Chinese in comments,
+  docstrings, smoke prompts, and dialogue fixtures moves to English;
+  the 舵 brand mark and load-bearing CJK fixtures stay.
+
 ## [0.6.5] - 2026-06-12
 
 ### Design pass: persimmon energy, Japanese restraint (#185, #187)
