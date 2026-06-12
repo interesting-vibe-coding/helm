@@ -196,4 +196,11 @@ fleet + 共享 memory/skills**.
 - **#190 残留中文清退**: 5 文件 15 处(注释/docstring/smoke prompt/对话 fixture → 英文低语 voice)。保留: 舵 品牌、kaku.lua 内建 屏名匹配(功能)、unicode round-trip fixture、UTF-8 半字符注释例。28+65+7 测试绿 + luac -p 过。
 - **设计专轮开题**: 现状 preview 已出 (~/workspace/stuff/kaji-design-now-preview/) — 核心发现=三套底色并存: 终端壳 Kaku Dark 冷黑 #15141b(SURFACE #1f1d28 偏紫) vs cockpit/phone Kaji Ember 暖黑 #16100b; Kaku Light=Flexoki #FFFCF0 ≠ Kaji paper #fbf8f2。提案: 自有 Kaji Ember/Sun color_scheme 三步走(① scheme 落地+默认切 ② ANSI 暖移 ③ tab 克制化)。宝宝已拍板(06-13): 三步全做 + 新增第四项=舵/KAJI 品牌混用清理(一 surface 一 mark 规则)。
 
+**2026-06-13 设计专轮 PR A（Kaji Ember / Kaji Sun 终端落地）**:
+- kaku.lua 调色全面去 Kaku: scheme 内容换成 Kaji Ember(夜 #16100b ember + cream #ece4d6 + 暖移 ANSI 16 色) / Kaji Sun(日 paper #fbf8f2 + warm ink, 替 Flexoki #FFFCF0); 窗框/tab bar/compass 状态字全套暖化(原 #16161e/#a9b1d6/#565f73 冷系清退)。
+- **约束发现**: scheme 注册名必须留 'Kaku Dark'/'Kaku Light' — kaku_theme.rs `parse_color_scheme_selection_line` 从配置文本 parse 这俩字面量(settings TUI + Auto 检测), 改名要动 Rust。'Kaji Ember'/'Kaji Sun' 已加 alias, Rust 轮再正名。
+- color_overrides 语义(查 term/src/color.rs): bg 重映射, 在 palette index 解析**之后**比对 → 键必须等于最终色值; 改 ANSI 时 light 的柔化键全部跟着换成新 ANSI 值。
+- 实机验证: cp 双部署 → reload → 背景像素采样 #15100c≈ember ✓, 顶栏存活(#187 再验) ✓。
+- 发布脚本 check_release_config.sh 在干净 main 也挂(钉死上游 Kaku.app 路径, 仓里无此目录) — 上游遗留, 非本轮引入。
+
 **Next（当前队列）**: ① 设计专轮动工: PR A=Kaji Ember/Sun scheme+ANSI 暖移+默认切(Kaku 留可选) → PR B=tab/窗框克制化 → PR C=舵/KAJI 品牌规则清理(串行, 全碰 kaku.lua) ② 手机真机验收 ③ study 种子仓实建+pilot ④ 论文 \TODO(study 数据)。
