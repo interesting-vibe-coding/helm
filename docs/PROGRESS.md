@@ -175,3 +175,12 @@ fleet + 共享 memory/skills**.
 - 论文线(项目第二): VINCI 7/15 主投 + HAI 大阪 poster 8/7 已定; v1 重写完成已推 Overleaf。
 
 **Next（当前队列）**: ① 用户真机验收(英文舱/舵线/手机 peek) ② VINCI 模板换装 + poster 2 页稿 ③ mobile/desktop 持续精简 ④ v0.6.4 发版(攒批)。
+
+**2026-06-12 深夜批（#181-185 + v0.6.4 发布 + UI design pass）**:
+- 白天累计: #181 ~ 落地真 home(SYSTEM 注入+spawn 重映射)+空舰队不吞对话 · #182 turn 前重绘 · #183 mobile auth gate 修死(inline display 干掉 hidden) · #184 CHANGELOG。
+- **v0.6.4 released**(覆盖发版法, asset 61MB 验证): 顶栏水位+免费调度 bench+TLS 守卫+验收轮修复。
+- #185 UI design pass(高级简约+柿橙能量+日系克制): cockpit quota 右贴边(原 pad 算了没用=真 bug)、meta 列右对齐对齐手机节奏、footer 双 rule 对称+hint 退 ash 低语、transcript 渲染去重; mobile 暗色方案(KAJI_EMBER ember black #16100b, peek/品牌 mark 分 var/currentColor, theme-color 双 meta)、plan 条人话标签(claude · kaji 替代 pane 12)、全角冒号修、placeholder 收敛 "give an order…"。headless Chrome 双色+mock 舰队页截图验收 ✓; pty 抓帧验 footer ✓。实机已热补(mobile 每请求读盘即生效, cockpit 下次 Cmd+1 生效)。
+- 论文: 产品名改回 Kaji(用户拍板, 匿名只匿作者; VINCI CFP 查证=匿名评审非单盲, 曾误记)。User study 确认要跑, 设计已完整在 main.tex §Study(N=16 within-subjects, Task A-D, HiL latency 主指标, H1-H3)。
+- 经验: headless Chrome 窄 window-size 下 viewport 偏移(390 宽截图内容偏右), 拿 800 宽对照排除 CSS 嫌疑再下结论。
+
+**Next（当前队列）**: ① 手机真机验收(暗色+peek+gate) ② Work 视图走查/继续精简 ③ 论文剩余 \TODO(截图×2+引文) ④ user study 物料(任务仓+观察表) ⑤ 残留中文统一清(放最后)。
