@@ -183,4 +183,11 @@ fleet + 共享 memory/skills**.
 - 论文: 产品名改回 Kaji(用户拍板, 匿名只匿作者; VINCI CFP 查证=匿名评审非单盲, 曾误记)。User study 确认要跑, 设计已完整在 main.tex §Study(N=16 within-subjects, Task A-D, HiL latency 主指标, H1-H3)。
 - 经验: headless Chrome 窄 window-size 下 viewport 偏移(390 宽截图内容偏右), 拿 800 宽对照排除 CSS 嫌疑再下结论。
 
-**Next（当前队列）**: ① 手机真机验收(暗色+peek+gate) ② Work 视图走查/继续精简 ③ 论文剩余 \TODO(截图×2+引文) ④ user study 物料(任务仓+观察表) ⑤ 残留中文统一清(放最后)。
+**2026-06-12 深夜批 II（#187 顶栏修复）**:
+- 走查抓到 "Mission Controlworksp" 粘连 + title 紫色残留。根因: handler 注册 guard 的 flag 存 `wezterm.GLOBAL`(跨 reload 持久), 但 config reload 重建 Lua VM 清空 handler 表 → 任意一次 reload 后全部 handler 静默失联, tab 回落 cwd 标题("worksp"=workspace 截 6), compass 冻结。注释里 "wezterm.on 会累积" 是误诊(reload=全新 Lua context)。修: guard 改挂 per-eval 的 `Helm` 表。
+- 顺手清 Kaku 紫残留: cursor/cursor_border → 柿橙 #f25c05, selection → 暖橙淡, compass accent 双主题统一柿橙(原 dark 用 #bb9af7 紫)。ANSI 色板里的语义紫不动。
+- 实机验证: 改 ~/.config/helm/kaku.lua 触发 reload → 顶栏即愈("· ● Work" 柿橙 + 右侧水位), 二次 reload 不退化。
+- 教训: 热补运行时配置本身就是触发本 bug 的动作——之前每次 rsync kaku.lua 都在悄悄打断顶栏, 一直误以为是别的问题。
+- 遗留(设计专轮): Kaku Dark 背景仍是冷黑 #15141b, 换 ember 暖黑 #16100b 待整体配色轮; CLI 进程加载 GUI 配置报 C stack overflow(cli spawn 时), 不影响 GUI, 待查。
+
+**Next（当前队列）**: ① v0.6.5 发版(CHANGELOG #185+#187 → 覆盖法) ② 手机真机验收(暗色+peek+gate) ③ 论文剩余 \TODO(user study 数据) ④ user study 物料(任务仓+观察表) ⑤ 残留中文统一清(放最后) ⑥ 设计专轮(Kaku Dark ember 化)。

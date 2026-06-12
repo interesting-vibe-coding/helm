@@ -213,10 +213,10 @@ local KAKU = {
 local kaku_theme = {
   foreground = KAKU.WHITE,
   background = KAKU.BLACK,
-  cursor_bg = KAKU.PURPLE,
+  cursor_bg = '#f25c05',   -- Kaji persimmon: the cursor is where you act
   cursor_fg = KAKU.BLACK,
-  cursor_border = KAKU.PURPLE,
-  selection_bg = KAKU.PURPLE_FADING,
+  cursor_border = '#f25c05',
+  selection_bg = 'rgba(242,92,5,0.28)',
   selection_fg = 'none',
   ansi = {
     KAKU.ANSI_BLACK, KAKU.RED, KAKU.GREEN, KAKU.ORANGE,
@@ -822,7 +822,7 @@ wezterm.GLOBAL.helm_theme = _light_status and 'light' or 'dark'
 Helm.status.palette = {
   dim    = _light_status and '#9A988F' or '#565f73',  -- inactive dots
   text   = _light_status and '#403E3C' or '#a9b1d6',  -- primary text
-  accent = _light_status and '#D97757' or '#bb9af7',  -- active dot: Anthropic orange on cream, Kaji purple on charcoal
+  accent = '#f25c05',  -- active view + waiting quota: ONE persimmon, both themes
 }
 
 -- format-tab-title: the bar is now a single clean status line, so tabs shrink
@@ -871,7 +871,7 @@ end
 
 -- update-right-status render: a dynamic VIEW COMPASS. One dot per LIVE view, in
 -- fixed order (Brain · Work · Monitor · Terminal); the view you're in lights up
--- in Kaji purple with its name, the rest stay dim. Closing a view drops its dot.
+-- in Kaji persimmon with its name, the rest stay dim. Closing a view drops its dot.
 function Helm.status.render(window, pane)
   local P = Helm.status.palette
   local view = Helm.status.current_view(pane)
@@ -1519,11 +1519,13 @@ function Helm.apply(config)
   wezterm.GLOBAL.helm_sessions = wezterm.GLOBAL.helm_sessions or {}
 
   -- The help bar (bottom cheat-sheet) is VISIBLE by default; ⌘/ toggles it.
-  -- Register event handlers ONCE per process. wezterm.on ACCUMULATES handlers
-  -- on every config reload (Cmd+R) — without this guard, after N reloads each
-  -- event fires N times, which degrades input/scroll responsiveness badly.
-  if not wezterm.GLOBAL.helm_handlers_registered then
-    wezterm.GLOBAL.helm_handlers_registered = true
+  -- Register event handlers once per CONFIG EVALUATION. A config reload builds
+  -- a fresh Lua context (empty handler table), so the guard must reset with it:
+  -- key it on the per-eval Helm table, NOT wezterm.GLOBAL. A GLOBAL flag
+  -- survives the reload while the handlers do not — after any reload every
+  -- handler was silently gone (tabs fell back to cwd titles, the compass froze).
+  if not Helm.__handlers_registered then
+    Helm.__handlers_registered = true
 
   -- The single update-right-status handler: (1) track EVERY agent pane's session
   -- (working/waiting idle heuristic) — not just the active one, so a worker in a
