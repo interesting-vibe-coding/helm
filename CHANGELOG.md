@@ -3,6 +3,31 @@
 All notable changes to Kaji are documented here.
 Format: [version] - date - description
 
+## [0.6.2] - 2026-06-12
+
+### The helm line everywhere (overnight sprint, #157–#166)
+- **Phone helm line** (#157) — `POST /api/plan` + plan card with
+  执行 / 取消 / 改一改 chips; same grammar as the desktop cockpit.
+- **Planner 9s → ~2.5s** (#158) — direct /v1/messages (Claude Code OAuth
+  token + haiku) with CLI fallback; prompt hardened (chatter → none,
+  imperative send text, real ~/workspace project dirs fed in).
+- **QR pairing** (#161) — `kaji-brain qr [--rotate] [out.png]`; the token
+  rides the URL #fragment (never reaches the relay server).
+- **`kaji-brain doctor`** (#164) — v0.6 seaworthiness check, every ✗ with
+  its exact fix command.
+- **Tap-for-history on mobile** (#165) — second tap on a session expands
+  its last five events inline.
+- **focus_pane really focuses** (#159) — compass/keyboard no longer stick
+  to the Brain after a switch.
+- **Animated README demo** (#162, vhs) + **landing page** (#163) —
+  https://kaji.doabit.dev (GitHub Pages + CNAME, HTTPS enforced).
+
+## [0.6.1] - 2026-06-11
+
+- Typing-first hardening from live dogfood (#156): letters never trigger
+  commands (quit = Ctrl-C), waiting-notifications no longer leak into the
+  舵 input, planner maps project names to real ~/workspace dirs.
+
 ## [0.6.0] - 2026-06-11
 
 ### Kaji Sun — the terminal wears its own design
