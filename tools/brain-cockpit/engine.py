@@ -39,6 +39,17 @@ sys.path.insert(0, os.path.join(HERE, "..", "helm-quota"))
 OR_MODEL = os.environ.get("KAJI_ENGINE_OR_MODEL",
                           "qwen/qwen3-next-80b-a3b-instruct:free")
 MODEL = os.environ.get("KAJI_ENGINE_MODEL", "claude-haiku-4-5-20251001")
+OLLAMA_MODEL = os.environ.get("KAJI_ENGINE_OLLAMA_MODEL", "qwen3:4b")
+GH_MODEL = os.environ.get("KAJI_ENGINE_GH_MODEL", "openai/gpt-4.1-mini")
+
+
+def _gh_token():
+    try:
+        out = subprocess.run(["gh", "auth", "token"], stdout=subprocess.PIPE,
+                             stderr=subprocess.DEVNULL, timeout=10).stdout
+        return out.decode().strip() or None
+    except Exception:
+        return None
 MAX_STEPS = 8           # tool round-trips per captain turn — dispatcher, not a coder
 
 SYSTEM = """You are the Kaji First Mate — the fleet dispatcher, not a coder.
@@ -208,16 +219,18 @@ class TlsDowngradeError(RuntimeError):
     crossed in cleartext. Never retried, never falls back to another key."""
 
 
-def _post(url, payload, headers, attempts=4, max_429_wait=60.0):
-    """POST JSON, ALWAYS through the system proxy (user rule: direct
-    connections are not viable on this network — proxy is the only
-    sanctioned path). Flakes are retried on the same path, never bypassed."""
+def _post(url, payload, headers, attempts=4, max_429_wait=60.0, proxy=True):
+    """POST JSON. Follows the system proxy by default (never alters the
+    user's proxy setup); proxy=False dials direct — used for localhost
+    backends where a proxy hop is wrong by definition."""
     import time as _t
     req = urllib.request.Request(url, data=json.dumps(payload).encode(),
                                  headers=headers)
+    opener = urllib.request.build_opener() if proxy else \
+        urllib.request.build_opener(urllib.request.ProxyHandler({}))
     for attempt in range(attempts):
         try:
-            with urllib.request.urlopen(req, timeout=90) as r:
+            with opener.open(req, timeout=90) as r:
                 return json.loads(r.read())
         except urllib.error.HTTPError as e:
             try:
@@ -257,16 +270,32 @@ class Engine:
         self.messages = []          # full API history (Anthropic content blocks)
         self.transcript = []        # [(who, text)] for the TUI: you / 舵 / act
         self._pending = None        # set by feed()
-        # free-first: OpenRouter when a key exists, else Claude OAuth haiku
+        # free-first, benched 2026-06-12 (tools/brain-cockpit/bench_engine.py):
+        #   github gpt-4.1-mini  8/8  median 6.7s   $0, gh token already here
+        #   oauth haiku          5/5* median 3.4s   burns Max quota
+        #   openrouter qwen-free ok but slow at peak; key to babysit
+        #   ollama qwen3:4b      5/8  median 37s    too weak/slow on 16GB
         self.backend = os.environ.get("KAJI_ENGINE_BACKEND") or \
-            ("openrouter" if _or_key() else "oauth")
+            ("github" if _gh_token() else
+             "openrouter" if _or_key() else "oauth")
 
     def feed(self, ok, result):
         """Resolve the action the generator is paused on."""
         self._pending = (ok, result)
 
     def _call(self):
-        """One model call → Anthropic-style content blocks (both backends)."""
+        """One model call → Anthropic-style content blocks (any backend)."""
+        if self.backend == "ollama":
+            return self._call_ollama()      # local — no fallback, fail honest
+        if self.backend == "github":
+            try:
+                return self._call_github()
+            except TlsDowngradeError:
+                raise
+            except Exception:
+                if not (_or_key() or _token()):
+                    raise
+                self.backend = "openrouter" if _or_key() else "oauth"
         if self.backend == "openrouter":
             try:
                 return self._call_openrouter()
@@ -277,6 +306,47 @@ class Engine:
                     raise
                 self.backend = "oauth"   # sticky fallback for this session
         return self._call_oauth()
+
+    def _call_github(self):
+        """GitHub Models — free with the gh CLI token already on the machine.
+        No new account, no key on disk; rotate with `gh auth refresh`."""
+        tok = _gh_token()
+        if not tok:
+            raise RuntimeError("no gh token (run `gh auth login`)")
+        resp = _post(
+            "https://models.github.ai/inference/chat/completions",
+            {"model": GH_MODEL, "max_tokens": 1200,
+             "messages": _oa_messages(self.messages), "tools": _oa_tools()},
+            {"Authorization": "Bearer %s" % tok,
+             "Content-Type": "application/json"})
+        return _oa_to_blocks(resp)
+
+    def _call_ollama(self):
+        msgs = _oa_messages(self.messages)
+        if OLLAMA_MODEL.startswith("qwen3"):
+            # qwen3's soft switch: thinking mode costs 30s+ per turn on a
+            # laptop and makes the dispatcher timid; the helm wants reflexes.
+            msgs[0]["content"] += "\n/no_think"
+        resp = _post(
+            "http://127.0.0.1:11434/v1/chat/completions",
+            {"model": OLLAMA_MODEL, "max_tokens": 1200,
+             "messages": msgs, "tools": _oa_tools()},
+            {"Content-Type": "application/json"},
+            attempts=2, proxy=False)        # localhost — proxy hop is wrong
+        blocks = _oa_to_blocks(resp)
+        # qwen3 thinks out loud in <think>…</think>; the helm only wants
+        # the conclusion.
+        out = []
+        for b in blocks:
+            if b.get("type") == "text":
+                import re
+                t = re.sub(r"<think>.*?</think>", "", b["text"],
+                           flags=re.DOTALL).strip()
+                if t:
+                    out.append({"type": "text", "text": t})
+            else:
+                out.append(b)
+        return out
 
     def _call_openrouter(self):
         resp = _post(
