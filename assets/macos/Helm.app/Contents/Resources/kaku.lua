@@ -1409,7 +1409,7 @@ function Helm.keys.bind(config)
     end),
   })
 
-  -- Cmd+Shift+M: 轮转 kiro 模型 sonnet ↔ opus
+  -- Cmd+Shift+M: cycle the kiro model sonnet ↔ opus
   table.insert(config.keys, {
     key = 'M',
     mods = 'CMD|SHIFT',
@@ -1420,7 +1420,7 @@ function Helm.keys.bind(config)
       local next_model = current:find('opus') and 'claude-sonnet-4.6' or 'claude-opus-4.8'
       pane:inject_output('')  -- noop, use SendString
       wezterm.GLOBAL.kiro_next_model = next_model
-      -- SendString 无法从 callback 直接调，用 MultiplexedPane:send_text
+      -- SendString can't be called from a callback; use MultiplexedPane:send_text
       pane:send_text('/model ' .. next_model .. '\r')
     end),
   })
