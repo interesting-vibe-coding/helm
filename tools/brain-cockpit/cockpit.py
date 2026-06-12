@@ -662,6 +662,11 @@ def interactive(args) -> int:
     helm_buf = [""]                  # the 舵 line, typed directly
     mode = ["confirm"]               # confirm ⇄ auto (Tab / Cmd+Shift+A)
     eng_box = {"mod": None, "eng": None, "tried": False}   # lazy First Mate
+    # Incremental decoder: a multibyte char split across read() boundaries
+    # (fast typing, IME, paste) must not be dropped — the old per-chunk
+    # decode(errors="ignore") ate half-characters ("列一下" → "列一").
+    import codecs
+    decoder = codecs.getincrementaldecoder("utf-8")("ignore")
     try:
         tty.setcbreak(fd)
         while True:
@@ -744,11 +749,9 @@ def interactive(args) -> int:
             # text (an order may start with s/r/q — see the live misfire where
             # "spawn a claude…" opened the manual spawn form). Quit = Ctrl-C,
             # select = arrows, refresh = the 2s tick.
-            # text: append to the 舵 buffer (UTF-8 safe)
-            try:
-                chunk = buf.decode("utf-8")
-            except UnicodeDecodeError:
-                chunk = buf.decode("utf-8", "ignore")
+            # text: append to the 舵 buffer. The incremental decoder holds a
+            # partial multibyte sequence until its tail arrives in the next read.
+            chunk = decoder.decode(buf)
             helm_buf[0] += "".join(c for c in chunk if c.isprintable())
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, old_attrs)
