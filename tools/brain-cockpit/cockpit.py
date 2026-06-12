@@ -205,7 +205,11 @@ def render(sessions: List[Dict], events: List[Dict], selected: int = 0,
                 elif who == "act":
                     out.append("  " + _c("    " + line, SUN, color))
                 else:
-                    pre = _c("舵  ", SUN, color) if j == 0 else "    "
+                    # ◉ is the product's voice (one mark, one meaning: the
+                    # wheel speaks). 舵 is reserved for the helm line you type
+                    # into; KAJI is the wordmark in the header. See
+                    # docs/design/KAJI_EMBER.md "Brand marks".
+                    pre = _c("◉   ", SUN, color) if j == 0 else "    "
                     out.append("  " + pre + _c(line, INK, color))
         out.append("")
 
