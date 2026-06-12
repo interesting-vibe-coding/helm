@@ -3,6 +3,26 @@
 All notable changes to Kaji are documented here.
 Format: [version] - date - description
 
+## [0.6.4] - 2026-06-12
+
+### Hardening from the live acceptance round (#176–#183)
+- **Quota in the top bar** (#179) — the Claude five-hour percent sits in
+  the right status, persimmon at >=80%; read from the disk cache, zero
+  API calls from Lua.
+- **Engine backends benched** (#178) — github gpt-4.1-mini (8/8, median
+  6.7s, free via the gh token) is the default dispatcher; openrouter
+  and oauth fall back; local ollama stays an explicit opt-in.
+- **TLS downgrade guard** (#176) — a proxy node that forwards HTTPS as
+  plain HTTP now aborts the call immediately instead of re-leaking the
+  key on retries.
+- **Acceptance-round fixes** (#181, #182, #183) — the mate grounds ~ in
+  the captain's real home (no more /home/user spawns); the conversation
+  survives an empty fleet; the frame repaints before a turn; the phone
+  auth gate actually gates (inline display defeated the hidden attr).
+- **Unified quota, first cut** (#177) — per-project context usage in
+  /api/state, phone rows enumerate harnesses dynamically, atomic cache
+  writes.
+
 ## [0.6.3] - 2026-06-12
 
 ### Our own engine at the helm (#169–#174)
