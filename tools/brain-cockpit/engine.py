@@ -159,11 +159,17 @@ class Engine:
                 with urllib.request.urlopen(req, timeout=90) as r:
                     return json.loads(r.read())
             except urllib.error.HTTPError as e:
-                if e.code != 429 or attempt == 3:
+                if attempt == 3:
                     raise
-                ra = e.headers.get("retry-after")
-                # OAuth /v1/messages burst-limits hard; it recovers in ~60s.
-                _t.sleep(min(float(ra) if ra else 20.0 * (attempt + 1), 60))
+                if e.code == 429:
+                    ra = e.headers.get("retry-after")
+                    # OAuth /v1/messages burst-limits hard; recovers in ~60s.
+                    _t.sleep(min(float(ra) if ra else 20.0 * (attempt + 1), 60))
+                elif e.code == 400 or e.code >= 500:
+                    # Clash sometimes hands back junk 400/5xx — same-path retry
+                    _t.sleep(2.0 * (attempt + 1))
+                else:
+                    raise
             except urllib.error.URLError:
                 # proxy hiccup (Clash SSL EOF etc.) — brief backoff, retry
                 if attempt == 3:
