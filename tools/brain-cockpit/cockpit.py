@@ -126,14 +126,6 @@ def last_activity(events: List[Dict], pane) -> str:
     return ev or ""
 
 
-def _hms(ts) -> str:
-    import time
-    try:
-        return time.strftime("%H:%M", time.localtime(int(ts)))
-    except Exception:
-        return "--:--"
-
-
 def _visible_len(s: str) -> int:
     return len(s)
 
@@ -197,17 +189,6 @@ def render(sessions: List[Dict], events: List[Dict], selected: int = 0,
     out.append(_c("  " + "─" * (width - 4), ASH, color))
     out.append("")
 
-    # Footer compass: one dot per session, in display order, colored by state.
-    def compass() -> str:
-        if not ordered:
-            return _c("  (no live sessions)", DIM, color)
-        dots = []
-        for i, s in enumerate(ordered):
-            glyph, col, _ = status_style(s.get("state"))
-            d = _c(glyph, SEL if i == sel else col, color)
-            dots.append(d)
-        return "  " + " ".join(dots)
-
     if loading and not ordered:
         out.append(_c("  …", ASH, color))
         out.append("")
@@ -217,7 +198,6 @@ def render(sessions: List[Dict], events: List[Dict], selected: int = 0,
         out.append(_c("  No active sessions.", MUTE, color))
         out.append(_c("  Spawn a worker (Cmd+Shift+K) and it shows up here.", DIM, color))
         out.append("")
-        out.append(compass())
         return "\n".join(out)
 
     # Session list — one line per worker (v3: no event sub-lines).
@@ -239,42 +219,29 @@ def render(sessions: List[Dict], events: List[Dict], selected: int = 0,
         out.append(line)
     out.append("")
 
-    # Selected session detail — its recent history (newest first).
-    cur = ordered[sel]
-    out.append(_c("  ── pane %s · %s/%s ──" % (
-        cur.get("pane_id"), cur.get("harness", "?"), cur.get("project", "?")),
-        SEL, color))
-    hist = pane_events(events, cur.get("pane_id"))
-    if not hist:
-        out.append(_c("    (no history yet)", DIM, color))
-    else:
-        for e in reversed(hist[-6:]):
-            ev = e.get("ev", "?")
-            if ev == "spawn":
-                detail = e.get("task") or "(no task)"
-            elif ev == "dispatch":
-                detail = e.get("text") or ""
-            elif ev == "state":
-                detail = e.get("to") or "?"
-            else:
-                detail = ""
-            row = "    %s  %-9s %s" % (_hms(e.get("ts")), ev, _clip(detail, width - 24))
-            out.append(_c(row, INK, color))
-    out.append("")
-    # The conversation flow — the captain and the First Mate, newest last.
-    for who, text in (transcript or [])[-8:]:
-        for j, line in enumerate(_wrap(text, width - 8)):
-            if who == "you":
-                pre = _c("you ", MUTE, color) if j == 0 else "    "
-                out.append("  " + pre + _c(line, MUTE, color))
-            elif who == "act":
-                out.append("  " + _c(("    " if j else "    ") + line, SUN, color))
-            else:
-                pre = _c("舵  ", SUN, color) if j == 0 else "    "
-                out.append("  " + pre + _c(line, INK, color))
+    # The conversation — the captain and the First Mate, newest last. This is
+    # the body of the screen now: the old per-pane event feed and compass-dot
+    # footer are gone (the fleet list above already carries one dot per ship,
+    # and history is something you ASK the mate for, not ambient noise).
     if transcript:
+        for who, text in transcript[-12:]:
+            for j, line in enumerate(_wrap(text, width - 8)):
+                if who == "you":
+                    pre = _c("you ", MUTE, color) if j == 0 else "    "
+                    out.append("  " + pre + _c(line, MUTE, color))
+                elif who == "act":
+                    out.append("  " + _c("    " + line, SUN, color))
+                else:
+                    pre = _c("舵  ", SUN, color) if j == 0 else "    "
+                    out.append("  " + pre + _c(line, INK, color))
         out.append("")
-    out.append(compass())
+    else:
+        cur = ordered[sel]
+        spawn = next((e.get("task") for e in reversed(pane_events(events, cur.get("pane_id")))
+                      if e.get("ev") == "spawn" and e.get("task")), "")
+        if spawn:
+            out.append(_c("  ▸ " + _clip(str(spawn), width - 6), MUTE, color))
+            out.append("")
     return "\n".join(out)
 
 
@@ -482,7 +449,7 @@ def parse_key(buf: bytes) -> str:
     return "none"
 
 
-HINTS = "直接打字下指令 · ⏎ 发 · ⇥ confirm/auto · ↑↓ 选 · 空⏎ 回它 · ^C 退"
+HINTS = "打字下令 ⏎ · 空⏎ 回选中 · ⇥ 模式 · ^C 退"
 
 
 def _prompt(line: str) -> str:

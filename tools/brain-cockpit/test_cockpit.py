@@ -76,11 +76,20 @@ class RenderTests(unittest.TestCase):
         # the waiting session (kaji) should appear before a done one (wu)
         self.assertLess(out.index("kaji"), out.index("wu"))
 
-    def test_selected_detail_shows_pane_history(self):
-        # Select row 0 (the waiting kaji pane after sorting) and expect its
-        # dispatched instruction to render in the detail panel.
+    def test_minimal_frame_no_event_feed(self):
+        # The per-pane event feed is gone — only the selected ship's spawn
+        # task shows as a single quiet line when there is no conversation.
         out = self._plain(width=80, selected=0)
-        self.assertIn("run the full test suite", out)
+        self.assertNotIn("run the full test suite", out)
+        self.assertNotIn("──", out.replace("─" * 76, ""))  # no section headers
+        self.assertIn("▸ port upstream #452", out)
+
+    def test_transcript_replaces_spawn_line(self):
+        out = self._plain(width=80, selected=0,
+                          transcript=[("you", "舰队咋样"), ("舵", "都在岗。")])
+        self.assertIn("you 舰队咋样", out)
+        self.assertIn("舵  都在岗。", out)
+        self.assertNotIn("▸ port upstream #452", out)
 
     def test_empty_fleet_message(self):
         out = ck.render([], [], color=False, width=80)
