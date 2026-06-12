@@ -191,4 +191,9 @@ fleet + 共享 memory/skills**.
 - 遗留(设计专轮): Kaku Dark 背景仍是冷黑 #15141b, 换 ember 暖黑 #16100b 待整体配色轮; CLI 进程加载 GUI 配置报 C stack overflow(cli spawn 时), 不影响 GUI, 待查。
 - **v0.6.5 released**(覆盖发版法, asset 61MB 验证): #185 UI design pass + #187 顶栏 handler 修复 + Kaku 紫清退。插曲: #187 与 #186 撞 PROGRESS.md → mergeStateStatus DIRTY, CI 不跑 auto-merge 永挂; 解法=撤 auto-merge → merge main 解冲突 → push → 重挂(冻结纪律只禁"加新 commit 抢跑", 解冲突先撤 auto 即安全)。
 
-**Next（当前队列）**: ① 手机真机验收(暗色+peek+gate) ② 论文剩余 \TODO(user study 数据) ③ user study 物料(任务仓+观察表) ④ 残留中文统一清(放最后) ⑤ 设计专轮(Kaku Dark ember 化)。
+**2026-06-13 凌晨批（study 物料 + 中文清退 #190 + 设计专轮开题）**:
+- **User study 物料备齐** → `~/workspace/kaji-study/` 10 文件: README(设计摘要+counterbalance 16人 Latin square+run-day checklist) · tasks/a-d 种子仓规格(每任务 ≥3 HiL 决策点, 具体到可直接建仓) · forms(consent 占位符版/观察记录表/NASA-TLX 标准译/SUS 标准译/筛选问卷)。known issue: 16%6≠0, A/B/C 六序中 ACB/BAC 各 2 人。下一步=实建 4 种子仓 + Codex 预置会话 + 5 patch + pilot 1-2 人。
+- **#190 残留中文清退**: 5 文件 15 处(注释/docstring/smoke prompt/对话 fixture → 英文低语 voice)。保留: 舵 品牌、kaku.lua 内建 屏名匹配(功能)、unicode round-trip fixture、UTF-8 半字符注释例。28+65+7 测试绿 + luac -p 过。
+- **设计专轮开题**: 现状 preview 已出 (~/workspace/stuff/kaji-design-now-preview/) — 核心发现=三套底色并存: 终端壳 Kaku Dark 冷黑 #15141b(SURFACE #1f1d28 偏紫) vs cockpit/phone Kaji Ember 暖黑 #16100b; Kaku Light=Flexoki #FFFCF0 ≠ Kaji paper #fbf8f2。提案: 自有 Kaji Ember/Sun color_scheme 三步走(① scheme 落地+默认切 ② ANSI 暖移 ③ tab 克制化)。宝宝已拍板(06-13): 三步全做 + 新增第四项=舵/KAJI 品牌混用清理(一 surface 一 mark 规则)。
+
+**Next（当前队列）**: ① 设计专轮动工: PR A=Kaji Ember/Sun scheme+ANSI 暖移+默认切(Kaku 留可选) → PR B=tab/窗框克制化 → PR C=舵/KAJI 品牌规则清理(串行, 全碰 kaku.lua) ② 手机真机验收 ③ study 种子仓实建+pilot ④ 论文 \TODO(study 数据)。
