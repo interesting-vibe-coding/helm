@@ -29,8 +29,15 @@ import urllib.request
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "helm-quota"))
 
-# haiku: the OAuth /v1/messages path rate-limits sonnet hard (Max plan keeps
-# the big models for the CC client itself); haiku is fast and generous.
+# Two transports, free-first:
+#   openrouter — free models (:free), costs nothing, default when key present
+#   oauth      — Claude Code OAuth /v1/messages; haiku only (sonnet 429s hard)
+# Both go through the system proxy — direct connections are not sanctioned.
+# Researched 2026-06: best free dispatcher on OpenRouter — strong Chinese,
+# reliable tool use, 262K ctx, MoE so latency is low. ~200 req/day per model
+# on the free pool (1000/day account-wide with $10 topped up) — plenty.
+OR_MODEL = os.environ.get("KAJI_ENGINE_OR_MODEL",
+                          "qwen/qwen3-next-80b-a3b-instruct:free")
 MODEL = os.environ.get("KAJI_ENGINE_MODEL", "claude-haiku-4-5-20251001")
 MAX_STEPS = 8           # tool round-trips per captain turn — dispatcher, not a coder
 
@@ -75,6 +82,76 @@ def _token():
         return quota._claude_oauth_token()
     except Exception:
         return None
+
+
+def _or_key():
+    """OpenRouter key: env first, else the fish config it is exported from."""
+    k = os.environ.get("OPENROUTER_API_KEY")
+    if k:
+        return k
+    try:
+        cfg = os.path.expanduser("~/.config/fish/config.fish")
+        with open(cfg) as f:
+            for ln in f:
+                if "OPENROUTER_API_KEY" in ln:
+                    return ln.split()[-1].strip("'\"")
+    except Exception:
+        pass
+    return None
+
+
+# ── OpenAI-format adapters (OpenRouter speaks chat/completions) ──────────────
+
+def _oa_messages(messages):
+    """Anthropic-block history → OpenAI chat messages."""
+    out = [{"role": "system", "content": SYSTEM}]
+    for m in messages:
+        c = m["content"]
+        if isinstance(c, str):
+            out.append({"role": m["role"], "content": c})
+            continue
+        if m["role"] == "assistant":
+            text, calls = [], []
+            for b in c:
+                if b.get("type") == "text":
+                    text.append(b.get("text", ""))
+                elif b.get("type") == "tool_use":
+                    calls.append({"id": b["id"], "type": "function",
+                                  "function": {"name": b["name"],
+                                               "arguments": json.dumps(b.get("input") or {})}})
+            msg = {"role": "assistant", "content": "\n".join(text) or None}
+            if calls:
+                msg["tool_calls"] = calls
+            out.append(msg)
+        else:                                   # user turn carrying tool results
+            for b in c:
+                if b.get("type") == "tool_result":
+                    out.append({"role": "tool", "tool_call_id": b["tool_use_id"],
+                                "content": str(b.get("content", ""))})
+    return out
+
+
+def _oa_tools():
+    return [{"type": "function",
+             "function": {"name": t["name"], "description": t["description"],
+                          "parameters": t["input_schema"]}} for t in TOOLS]
+
+
+def _oa_to_blocks(resp):
+    """OpenAI chat response → Anthropic-style content blocks."""
+    msg = (resp.get("choices") or [{}])[0].get("message") or {}
+    blocks = []
+    if msg.get("content"):
+        blocks.append({"type": "text", "text": msg["content"]})
+    for tc in msg.get("tool_calls") or []:
+        fn = tc.get("function") or {}
+        try:
+            args = json.loads(fn.get("arguments") or "{}")
+        except Exception:
+            args = {}
+        blocks.append({"type": "tool_use", "id": tc.get("id") or "tc",
+                       "name": fn.get("name"), "input": args})
+    return blocks
 
 
 def _hb():
@@ -124,58 +201,94 @@ def execute_action(name, args):
     return False, "unknown action"
 
 
+def _post(url, payload, headers, attempts=4, max_429_wait=60.0):
+    """POST JSON, ALWAYS through the system proxy (user rule: direct
+    connections are not viable on this network — proxy is the only
+    sanctioned path). Flakes are retried on the same path, never bypassed."""
+    import time as _t
+    req = urllib.request.Request(url, data=json.dumps(payload).encode(),
+                                 headers=headers)
+    for attempt in range(attempts):
+        try:
+            with urllib.request.urlopen(req, timeout=90) as r:
+                return json.loads(r.read())
+        except urllib.error.HTTPError as e:
+            if attempt == attempts - 1:
+                try:
+                    body = e.read().decode("utf-8", "replace")[:300]
+                except Exception:
+                    body = ""
+                raise RuntimeError("HTTP %d: %s" % (e.code, body or e.reason))
+            if e.code == 429:
+                ra = e.headers.get("retry-after")
+                _t.sleep(min(float(ra) if ra else 10.0 * (attempt + 1),
+                             max_429_wait))
+            elif e.code == 400 or e.code >= 500:
+                # Clash sometimes hands back junk 400/5xx — same-path retry
+                _t.sleep(2.0 * (attempt + 1))
+            else:
+                raise
+        except (urllib.error.URLError, ConnectionError, OSError):
+            # proxy hiccup (SSL EOF / RemoteDisconnected) — brief backoff, retry
+            if attempt == attempts - 1:
+                raise
+            _t.sleep(1.5 * (attempt + 1))
+    raise RuntimeError("unreachable")
+
+
 class Engine:
     def __init__(self, model=MODEL):
         self.model = model
-        self.messages = []          # full API history (content blocks)
+        self.messages = []          # full API history (Anthropic content blocks)
         self.transcript = []        # [(who, text)] for the TUI: you / 舵 / act
         self._pending = None        # set by feed()
+        # free-first: OpenRouter when a key exists, else Claude OAuth haiku
+        self.backend = os.environ.get("KAJI_ENGINE_BACKEND") or \
+            ("openrouter" if _or_key() else "oauth")
 
     def feed(self, ok, result):
         """Resolve the action the generator is paused on."""
         self._pending = (ok, result)
 
     def _call(self):
+        """One model call → Anthropic-style content blocks (both backends)."""
+        if self.backend == "openrouter":
+            try:
+                return self._call_openrouter()
+            except Exception:
+                if not _token():
+                    raise
+                self.backend = "oauth"   # sticky fallback for this session
+        return self._call_oauth()
+
+    def _call_openrouter(self):
+        resp = _post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            {"model": OR_MODEL, "max_tokens": 1200,
+             "messages": _oa_messages(self.messages), "tools": _oa_tools()},
+            {"Authorization": "Bearer %s" % _or_key(),
+             "Content-Type": "application/json",
+             "HTTP-Referer": "https://kaji.doabit.dev",
+             "X-Title": "kaji"},
+            attempts=2, max_429_wait=8.0)   # free pool 429s → fail fast, fall back
+        if resp.get("error"):               # OpenRouter tucks errors in 200s too
+            raise RuntimeError(resp["error"].get("message", "openrouter error"))
+        return _oa_to_blocks(resp)
+
+    def _call_oauth(self):
         tok = _token()
         if not tok:
             raise RuntimeError("no Claude Code OAuth token (run `claude` once)")
-        req = urllib.request.Request(
+        resp = _post(
             "https://api.anthropic.com/v1/messages",
-            data=json.dumps({
-                "model": self.model, "max_tokens": 1200, "system": SYSTEM,
-                "tools": TOOLS, "messages": self.messages,
-            }).encode(),
-            headers={"Authorization": "Bearer %s" % tok,
-                     "anthropic-beta": "oauth-2025-04-20",
-                     "anthropic-version": "2023-06-01",
-                     "Content-Type": "application/json",
-                     "User-Agent": "claude-code/2.1.90"})
-        import time as _t
-        # ALWAYS through the system proxy (user rule: direct connections are
-        # not viable on this network — proxy is the only sanctioned path).
-        # Flakes are retried, never bypassed.
-        for attempt in range(4):
-            try:
-                with urllib.request.urlopen(req, timeout=90) as r:
-                    return json.loads(r.read())
-            except urllib.error.HTTPError as e:
-                if attempt == 3:
-                    raise
-                if e.code == 429:
-                    ra = e.headers.get("retry-after")
-                    # OAuth /v1/messages burst-limits hard; recovers in ~60s.
-                    _t.sleep(min(float(ra) if ra else 20.0 * (attempt + 1), 60))
-                elif e.code == 400 or e.code >= 500:
-                    # Clash sometimes hands back junk 400/5xx — same-path retry
-                    _t.sleep(2.0 * (attempt + 1))
-                else:
-                    raise
-            except urllib.error.URLError:
-                # proxy hiccup (Clash SSL EOF etc.) — brief backoff, retry
-                if attempt == 3:
-                    raise
-                _t.sleep(1.5 * (attempt + 1))
-        raise RuntimeError("unreachable")
+            {"model": self.model, "max_tokens": 1200, "system": SYSTEM,
+             "tools": TOOLS, "messages": self.messages},
+            {"Authorization": "Bearer %s" % tok,
+             "anthropic-beta": "oauth-2025-04-20",
+             "anthropic-version": "2023-06-01",
+             "Content-Type": "application/json",
+             "User-Agent": "claude-code/2.1.90"})
+        return resp.get("content") or []
 
     def turn(self, user_text):
         """One captain turn. Yields ('say', text) / ('act', tool, args);
@@ -184,13 +297,12 @@ class Engine:
         self.messages.append({"role": "user", "content": user_text})
         for _ in range(MAX_STEPS):
             try:
-                resp = self._call()
+                blocks = self._call()
             except Exception as e:  # noqa: BLE001
                 msg = "engine error: %s" % e
                 self.transcript.append(("舵", msg))
                 yield ("say", msg)
                 return
-            blocks = resp.get("content") or []
             self.messages.append({"role": "assistant", "content": blocks})
             results = []
             for b in blocks:
@@ -231,9 +343,11 @@ def _brief(name, args):
 
 
 if __name__ == "__main__":
-    # smoke: python3 engine.py "有哪些 session?" — auto-approves actions.
+    # smoke: python3 engine.py "有哪些 session?" — DRY-RUN: dangerous actions
+    # are printed, not executed (pass --live to really run them).
+    live = "--live" in sys.argv
     eng = Engine()
-    for word in sys.argv[1:] or ["列一下现在的舰队"]:
+    for word in [a for a in sys.argv[1:] if a != "--live"] or ["列一下现在的舰队"]:
         it = eng.turn(word)
         for ev in it:
             if ev[0] == "say":
@@ -241,7 +355,10 @@ if __name__ == "__main__":
             else:
                 _, name, args = ev
                 print("act:", name, json.dumps(args, ensure_ascii=False))
-                ok, res = execute_action(name, args)
+                if live:
+                    ok, res = execute_action(name, args)
+                else:
+                    ok, res = True, "(dry-run: pretended to execute)"
                 eng.feed(ok, res)
         print("--- transcript ---")
         for who, t in eng.transcript:
