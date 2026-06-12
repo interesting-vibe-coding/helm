@@ -61,18 +61,20 @@ class TestTlsDowngradeGuard(unittest.TestCase):
 
     def test_downgrade_aborts_without_retry(self):
         calls = []
+        outer = self
 
-        def fake_urlopen(req, timeout=0):
-            calls.append(1)
-            raise self._http_error(
-                b'{"message": "This request was sent over HTTP."}')
-        orig = engine.urllib.request.urlopen
-        engine.urllib.request.urlopen = fake_urlopen
+        class FakeOpener:
+            def open(self, req, timeout=0):
+                calls.append(1)
+                raise outer._http_error(
+                    b'{"message": "This request was sent over HTTP."}')
+        orig = engine.urllib.request.build_opener
+        engine.urllib.request.build_opener = lambda *h: FakeOpener()
         try:
             with self.assertRaises(engine.TlsDowngradeError):
                 engine._post("https://x", {}, {})
         finally:
-            engine.urllib.request.urlopen = orig
+            engine.urllib.request.build_opener = orig
         self.assertEqual(len(calls), 1)     # no retry — the key must not re-leak
 
     def test_downgrade_blocks_oauth_fallback(self):
