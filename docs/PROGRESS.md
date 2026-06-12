@@ -160,4 +160,11 @@ fleet + 共享 memory/skills**.
 - 经验: subagent 同树并行时主线程 commit 必须显式路径, `git add -A` 会误吞 WIP(hub pitfalls 已记)。
 - 待办: mobile peek 真机点按验证; auto 模式实测; "Users/" 泄漏(需可视复现)。
 
-**Next（当前队列）**: ① mobile/desktop UI 持续精简打磨（用户主诉: 再精致再简洁）② 统一额度 scraper ③ demo 重录（界面已大改）。
+**2026-06-12 傍晚批（#173-174 + v0.6.3 发布）**:
+- #173: README 双语重写(只认 claude+codex; 舵线段=对话式大副+免费模型; 手机段+实时屏幕) + demo 英文重录(assets/demo.tape 入库, 牺牲舰法)。
+- #174: 英文为主全扫——cockpit hints/选择器(run/cancel/edit)/flash、引擎 persona+工具 schema、mobile 按钮/占位符、landing 文案; 舵字保留品牌符号。修 ^C 裸 traceback(cbreak ISIG)、英文断词(textwrap)。
+- **v0.6.3 released**(覆盖发版法, asset 61MB 已验证): 自研引擎+免费调度+极简舱+手机 peek+英文化。
+- 录制破案: cockpit 启动 quota 采集突发与引擎首调挤同一 Clash 通道→首单偶发 400/"sent over HTTP"; 引擎退避已拉长; demo 录制遇免费池慢用 KAJI_ENGINE_BACKEND=oauth。**安全**: key 曾明文出过一次, 已提醒用户轮换 OpenRouter key。
+- 经验: vhs 不支持 Hidden(旧版)/绝对路径 Output; gif 验收必须 ffmpeg 抽帧看结尾帧。
+
+**Next（当前队列）**: ① 用户真机验收(英文舱/手机 peek/QR/doctor) ② mobile/desktop 持续精简 ③ 统一额度 scraper ④ auto 模式实测 ⑤ "Users/" 泄漏(可视复现)。
