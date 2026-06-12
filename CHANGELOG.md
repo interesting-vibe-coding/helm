@@ -3,6 +3,29 @@
 All notable changes to Kaji are documented here.
 Format: [version] - date - description
 
+## [0.6.3] - 2026-06-12
+
+### Our own engine at the helm (#169–#174)
+- **Conversational First Mate** (#169) — the helm line now drives our own
+  tool-use engine (stdlib, no harness shell): it converses, reads the
+  fleet itself, and yields spawn/send to the cockpit's confirm gate
+  (run / cancel / edit) or auto mode.
+- **Free-model dispatch** (#169) — OpenRouter `:free` model by default
+  (strong tool use, 262K ctx, $0), sticky fallback to Claude haiku;
+  proxy-only transport with same-path retries.
+- **Minimal cockpit** (#171) — the conversation is the body: per-pane
+  event feed and compass dots removed; the fleet list and the dialogue
+  are the whole screen.
+- **Peek from the phone** (#172) — tap a session, see its live screen
+  (`kaji-brain peek`, `GET /api/peek`, 3s refresh while open).
+- **English-first surface** (#174) — hints, selector, engine replies,
+  mobile labels, landing copy; the 舵 glyph stays as the brand mark.
+- Fixes: CJK characters split across reads no longer drop (#170);
+  ^C exits cleanly from anywhere (#174); README/demo re-recorded
+  against the real engine (#173).
+- Worker registration at spawn (#168) — codex's node shim defeated
+  process detection; sessions now self-register in runtime state.
+
 ## [0.6.2] - 2026-06-12
 
 ### The helm line everywhere (overnight sprint, #157–#166)
