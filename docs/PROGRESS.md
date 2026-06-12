@@ -142,12 +142,15 @@ fleet + 共享 memory/skills**.
 - mobile timeline（#165）: 选中行二次 tap → inline 最近 5 事件。
 - 额度纪律: 5h 窗 92% 时停手写状态; 哨兵(3min 轮询)报 STOP/RESUME。
 
-**自研引擎 WIP（2026-06-12, branch feat/own-engine 未合）**:
-- `tools/brain-cockpit/engine.py` 完成+冒烟 ✅: 多轮 tool-use 循环直打 /v1/messages（CC OAuth token）; 工具 list_sessions/fleet_timeline(只读自动跑) + spawn/send(yield 给 cockpit 确认门); 生成器协程协议 turn()/feed(); 中文大副 persona 纯文本。
-- 实测: "问一下 codex 进展" → 自查 sessions+timeline → 简洁中文汇报 ✅。
-- **约束(实测)**: OAuth /v1/messages 上 **sonnet 必 429**(Max 留给 CC 客户端), haiku 畅通 → 默认 haiku; 429 退避 20-60s; **网络只走系统代理, 禁直连**(用户铁律)。
-- cockpit 接线: render() 对话区(transcript 8 行 you/舵/act)已加 ✅; **剩**: ⏎ dispatch 换 engine.turn(替代 nl_plan), act→_choose 确认/auto 直执, eng 实例懒加载, hints 更新, 测试, 热补。
+**自研引擎（2026-06-12, PR #169）**:
+- `tools/brain-cockpit/engine.py` ✅: 多轮 tool-use 循环, stdlib only; 工具 list_sessions/fleet_timeline(只读自动跑) + spawn/send(yield 给 cockpit 确认门); 生成器协程协议 turn()/feed(); 中文大副 persona 纯文本。
+- **传输 free-first** ✅: 默认 OpenRouter `qwen/qwen3-next-80b-a3b-instruct:free`($0, 中文强, tool use 稳, 262K ctx, key 在 fish env), 失败 sticky 回退 CC OAuth haiku。共享 `_post`: 只走系统代理(铁律), 429/垃圾400/5xx/SSL-EOF 同路径重试。内部史保持 Anthropic blocks, OpenAI 格式 per-call 适配。
+- cockpit 接线 ✅: ⏎ → engine.turn(); say→transcript 渲染; act→confirm 模式 _choose(执行/取消/改一改)/auto 直执; eng 懒加载; 引擎加载失败回退 nl_plan。
+- 实测 ✅: 免费模型自查舰队中文汇报; 多步链 观察→send(祈使句)→收尾; OAuth haiku 链同通。smoke 默认 dry-run(--live 才真执行)。
+- 测试: test_engine.py 7 个离线(adapters+协程协议), CI discover 自动收。
+- **约束(实测)**: OAuth /v1/messages 上 **sonnet 必 429**(Max 留给 CC 客户端); OpenRouter free 池限 ~200 req/day/模型(账户充$10 后 1000/day); 偶发 RemoteDisconnected/400 = 代理抖动, 重试即过。
+- 免费模型调研存档: Cerebras(Llama3.3-70B, 1M tok/day)和 Groq(14400 req/day)更快更宽, 但需新开账号——以后用户自己注册可切, env `KAJI_ENGINE_BACKEND`/`KAJI_ENGINE_OR_MODEL` 已留口。
 - 今晨修复(#168 已合): spawn 时登记 runtime.json(codex node 壳连 wezterm 都报不出进程名→检测改注册制), lua adopt 5s, ESC/Ctrl-U 清舵线。
-- 杂记: 顶栏 "Users/" 泄漏(新 tab title)待查; status bar compass 切换延迟已修(#159)。
+- 杂记: 顶栏 "Users/" 泄漏(新 tab title)待查(需可视复现); status bar compass 切换延迟已修(#159)。
 
 **Next（当前队列）**: ① cockpit 交互循环 + mobile/desktop UI 设计打磨（主战场: 轻量·交互·可视化, 管多 harness 必须比终端切换方便得多）② 统一额度 scraper ③ relay 加 QR 配对 + E2E 加密（launch 前安全叙事）④ demo（最后录）。
