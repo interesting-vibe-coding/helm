@@ -216,3 +216,9 @@ fleet + 共享 memory/skills**.
 - **study 4 种子仓全齐** (`~/workspace/kaji-study/`): A seed-taskline(7p/9f) · B seed-linkboard(9 测试绿, 5 patch apply --check+实跑验证, diff-2 off-by-one/diff-4 无鉴权 DELETE 实证测不出) · C seed-notesvc(uv+fastapi, test_tags 3 红即规格三项, feat/tag-filter wip 分支, SETUP-SESSION.md+reset.sh 实跑过; 开口=Kaji history 导入命令待补) · D seed-mdsite(13/13 绿)。下一步=pilot。
 - 手机验收首轮失败: headless 截图 gate/fleet 两张同字节(28808)且都停 gate 页 — fragment token 未完成连接(截图太早或 server 没起), 重试中。
 - **手机浏览器验收(390px 真布局)通过 + 溢出修复(PR #196)**: 首轮失败根因二连 — ① fragment 格式是 `#tok=<hex>` 非裸 `#<hex>` ② headless `--window-size=420` 实际 layout viewport 被钳到 ~495px(标尺页实测), 截图裁 420 → "溢出"假象。真 390px 验收法 = 外层页 iframe 锁宽。真修复: 额度条按 harness 段折行(段内 nowrap span) + .who 省略保 status 全显。Ember 主题 fleet/舵 prompt/Send 全正常; Sun 主题 headless 强制 light 无 flag 可用, 跳过(修复与主题无关)。
+
+**2026-06-13 值夜末段（v0.6.7 发版 + TUI 调色 + README hero）**:
+- **v0.6.7 released** (universal arm64+x86_64, asset 65.2MB 验证): #195 CLI stack overflow 修复**首次进装机二进制**(覆盖法到不了 Rust) + #198 settings TUI 调色 Kaji Ember/Sun(识别新 scheme 名 alias) + #196 手机额度条折行/项目名省略 + #199 README hero 重摄(◉ speaker/英文/去 kiro/与论文图同叙事 claude+codex)。/Applications 未替换(用户在用), 装机升级留白天。
+- **PR 并行 BEHIND 坑**: require-up-to-date 下每合一个 PR 其余全变 BEHIND, auto-merge 不自动 update branch → 卡死; #196 还 born-BEHIND(建分支时 pull 被脏树挡)。解法 disarm → `gh pr update-branch` → re-arm。已沉淀 hub pitfalls(#78)。
+- **build 工具链坑(双连环)**: ① 终端 cargo/rustc 是 homebrew 的(/opt/homebrew/bin), 只带 arm64 std, `rustup target add` 对它无效 → universal build E0463; 修 = PATH 前置 ~/.cargo/bin 走 rustup proxy。② rustup `target add` 默认进 default toolchain, 项目 rust-toolchain.toml 钉 1.93.0 要 `--toolchain 1.93.0`。③ 换 rustc 来源后 target/ 缓存全失效, 双架构全量重编 ~20min。④ tail 截断吞编译错误两次 — 看错误必须 grep "^error" -A。
+- demo.gif 仍旧设计, 待重录(动画工程, 另轮)。
