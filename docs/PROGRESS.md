@@ -167,4 +167,11 @@ fleet + 共享 memory/skills**.
 - 录制破案: cockpit 启动 quota 采集突发与引擎首调挤同一 Clash 通道→首单偶发 400/"sent over HTTP"; 引擎退避已拉长; demo 录制遇免费池慢用 KAJI_ENGINE_BACKEND=oauth。**安全**: key 曾明文出过一次, 已提醒用户轮换 OpenRouter key。
 - 经验: vhs 不支持 Hidden(旧版)/绝对路径 Output; gif 验收必须 ffmpeg 抽帧看结尾帧。
 
-**Next（当前队列）**: ① 用户真机验收(英文舱/手机 peek/QR/doctor) ② mobile/desktop 持续精简 ③ 统一额度 scraper ④ auto 模式实测 ⑤ "Users/" 泄漏(可视复现)。
+**2026-06-12 夜批（#176-179）**:
+- #176 TLS 降级守卫(坏代理节点明文转发→立停护 key, 不重试不换 key 兜底) · #177 额度第一刀(context 进 /api/state, mobile 动态 harness, limits 缓存原子写) · #178 引擎 github+ollama 后端 + 8 场景 bench(github gpt-4.1-mini 8/8 中位 6.7s 设默认; 本地 qwen3:4b 5/8 中位 37s 不达标留开关) · #179 顶栏 5h 水位(读磁盘缓存, ≥80% 柿橙)。
+- auto 模式 pty 实测 ✓(直执无门+✓ flash)。
+- **"Users/" 泄漏结案**: 根因=从 Kaku 终端启动 Kaji 继承 KAKU_CONFIG_FILE 加载错配置; LaunchServices 干净重启根治(hub pitfall 已记)。整天 lua 热补也因此无效——真配置是 ~/.config/helm/kaku.lua。
+- Codex MCP 已装(user 级): 调研类派活走它吃 OpenAI 额度。
+- 论文线(项目第二): VINCI 7/15 主投 + HAI 大阪 poster 8/7 已定; v1 重写完成已推 Overleaf。
+
+**Next（当前队列）**: ① 用户真机验收(英文舱/舵线/手机 peek) ② VINCI 模板换装 + poster 2 页稿 ③ mobile/desktop 持续精简 ④ v0.6.4 发版(攒批)。
