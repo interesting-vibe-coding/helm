@@ -194,10 +194,28 @@ def render(sessions: List[Dict], events: List[Dict], selected: int = 0,
         out.append("")
         return "\n".join(out)
 
-    if not ordered:
-        out.append(_c("  No active sessions.", MUTE, color))
-        out.append(_c("  Spawn a worker (Cmd+Shift+K) and it shows up here.", DIM, color))
+    def emit_transcript():
+        for who, text in (transcript or [])[-12:]:
+            for j, line in enumerate(_wrap(text, width - 8)):
+                if who == "you":
+                    pre = _c("you ", MUTE, color) if j == 0 else "    "
+                    out.append("  " + pre + _c(line, MUTE, color))
+                elif who == "act":
+                    out.append("  " + _c("    " + line, SUN, color))
+                else:
+                    pre = _c("舵  ", SUN, color) if j == 0 else "    "
+                    out.append("  " + pre + _c(line, INK, color))
         out.append("")
+
+    if not ordered:
+        # An empty fleet must NOT swallow the conversation — the mate's
+        # explanation of a failed spawn is exactly what the captain needs.
+        if transcript:
+            emit_transcript()
+        else:
+            out.append(_c("  No active sessions.", MUTE, color))
+            out.append(_c("  Spawn a worker (Cmd+Shift+K), or just ask for one below.", DIM, color))
+            out.append("")
         return "\n".join(out)
 
     # Session list — one line per worker (v3: no event sub-lines).
