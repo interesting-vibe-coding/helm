@@ -40,8 +40,13 @@
   header svg { transform: translateY(2px); flex: none; }
   .brand { font: 700 17px/1 Georgia, serif; letter-spacing: .16em; }
   .brand i { font-style: normal; color: var(--sun); }
-  #quota { margin-left: auto; color: var(--dim); font-size: 11px; text-align: right; }
+  /* Quota strip must never widen the page on narrow phones: each
+     harness segment stays whole (nowrap) but the strip wraps between
+     segments instead of overflowing past the viewport edge. */
+  #quota { margin-left: auto; color: var(--dim); font-size: 11px; text-align: right;
+           min-width: 0; line-height: 1.5; }
   #quota b { color: var(--ink); font-weight: 600; }
+  #quota .qseg { white-space: nowrap; }
   .hr { border: 0; border-top: 1px solid var(--faint); margin: 14px 0 4px; }
 
   #err {
@@ -60,6 +65,9 @@
   .d.run { background: var(--ink); }
   .d.off { background: var(--ash); }
   @keyframes pulse { 50% { opacity: .25; } }
+  /* Status (right) always shows in full; the project name (left) is the
+     part that gives way and ellipsizes when a row runs out of room. */
+  .who { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .who b { font-weight: 600; }
   .who span { color: var(--dim); }
   .sess .st { margin-left: auto; font-size: 11.5px; color: var(--dim); text-align: right; flex: none; }
@@ -260,7 +268,7 @@ function render(state) {
     if (fh == null && sd == null && q[k]) t += " <b>" + fmtTokens(q[k]) + "</b>";
     segs.push(t);
   }
-  $("quota").innerHTML = segs.join(" · ");
+  $("quota").innerHTML = segs.map(t => '<span class="qseg">' + t + "</span>").join(" · ");
 
   const sessions = state.sessions || [];
   lastSessions = sessions;
