@@ -143,27 +143,32 @@ fn palette_matches_builtin(
 }
 
 fn dark_palette() -> ThemePalette {
+    // Kaji Ember (docs/design/KAJI_EMBER.md): warm black + cream text,
+    // persimmon SUN as the single accent. Must track the bundled
+    // kaku.lua `kaji_ember` scheme.
     ThemePalette {
-        primary: rgb("#8E6AD9"),
-        secondary: rgb("#58D8AD"),
-        accent: rgb("#DAAE76"),
-        error: rgb("#D85D5D"),
-        text: rgb("#D5D4D6"),
-        muted: rgb("#6D6D6D"),
-        bg: rgb("#15141B"),
+        primary: rgb("#f25c05"),   // SUN — also the scheme cursor_bg
+        secondary: rgb("#a9b665"), // ember green
+        accent: rgb("#d8a657"),    // ember yellow
+        error: rgb("#e05a48"),     // ember red
+        text: rgb("#ece4d6"),      // CREAM
+        muted: rgb("#9c9283"),     // MUTE
+        bg: rgb("#16100b"),        // EMBER
         is_light: false,
     }
 }
 
 fn light_palette() -> ThemePalette {
+    // Kaji Sun: warm paper + ink text, same SUN accent. Must track the
+    // bundled kaku.lua `kaji_sun` scheme.
     ThemePalette {
-        primary: rgb("#5E3DB3"),
-        secondary: rgb("#24837B"),
-        accent: rgb("#9A7400"),
-        error: rgb("#AF3029"),
-        text: rgb("#403E3C"),
-        muted: rgb("#7A7872"),
-        bg: rgb("#FFFCF0"),
+        primary: rgb("#f25c05"),   // SUN — also the scheme cursor_bg
+        secondary: rgb("#5f7509"), // sun green
+        accent: rgb("#96690a"),    // sun yellow
+        error: rgb("#c03a2b"),     // sun red
+        text: rgb("#211c15"),      // INK
+        muted: rgb("#8a8174"),     // DAY_MUTE
+        bg: rgb("#fbf8f2"),        // PAPER
         is_light: true,
     }
 }
@@ -187,12 +192,14 @@ fn appearance_sensitive_theme(palette: ThemePalette, is_dark: bool) -> CachedThe
 fn builtin_kaku_theme(config: &ConfigHandle) -> Option<CachedTheme> {
     let dark = dark_palette();
     let light = light_palette();
-    let dark_terminal_text = rgb("#D5D4D6");
-    let light_terminal_text = rgb("#100F0F");
-    let light_cursor = rgb("#343331");
+    // Resolved-palette fingerprints of the bundled schemes (kaku.lua):
+    // foreground / background / cursor_bg.
+    let dark_terminal_text = rgb("#ece4d6");
+    let light_terminal_text = rgb("#211c15");
+    let light_cursor = rgb("#f25c05");
 
     match config.color_scheme.as_deref() {
-        Some("Kaku Dark") | Some("Kaku Theme") => {
+        Some("Kaku Dark") | Some("Kaku Theme") | Some("Kaji Ember") => {
             // The color_scheme field might hold "Kaku Dark" either because:
             //   (a) the user explicitly chose Kaku Dark, OR
             //   (b) the user chose Auto, but the TUI process evaluated the Lua
@@ -209,7 +216,7 @@ fn builtin_kaku_theme(config: &ConfigHandle) -> Option<CachedTheme> {
             }
             return Some(cached_theme(dark));
         }
-        Some("Kaku Light") => return Some(cached_theme(light)),
+        Some("Kaku Light") | Some("Kaji Sun") => return Some(cached_theme(light)),
         None => {
             // The Lua config may not have been *evaluated* in this process —
             // the standalone settings TUI (`helm config`) parses the config
@@ -274,11 +281,14 @@ fn parse_color_scheme_selection_line(line: &str) -> Option<ColorSchemeSelection>
     }
 
     let rhs = color_scheme_assignment_rhs(trimmed)?;
-    if rhs_starts_with_quoted_literal(rhs, "Kaku Light") {
+    if rhs_starts_with_quoted_literal(rhs, "Kaku Light")
+        || rhs_starts_with_quoted_literal(rhs, "Kaji Sun")
+    {
         return Some(ColorSchemeSelection::Light);
     }
     if rhs_starts_with_quoted_literal(rhs, "Kaku Dark")
         || rhs_starts_with_quoted_literal(rhs, "Kaku Theme")
+        || rhs_starts_with_quoted_literal(rhs, "Kaji Ember")
     {
         return Some(ColorSchemeSelection::Dark);
     }
@@ -498,6 +508,18 @@ mod tests {
                 "config.color_scheme = resolve_kaku_color_scheme(config.color_scheme)"
             ),
             Some(ColorSchemeSelection::Auto)
+        );
+    }
+
+    #[test]
+    fn detects_kaji_scheme_aliases() {
+        assert_eq!(
+            parse_color_scheme_selection_line("config.color_scheme = 'Kaji Sun'"),
+            Some(ColorSchemeSelection::Light)
+        );
+        assert_eq!(
+            parse_color_scheme_selection_line("config.color_scheme = \"Kaji Ember\""),
+            Some(ColorSchemeSelection::Dark)
         );
     }
 
