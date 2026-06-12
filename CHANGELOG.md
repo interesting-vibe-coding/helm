@@ -3,6 +3,24 @@
 All notable changes to Kaji are documented here.
 Format: [version] - date - description
 
+## [0.6.7] - 2026-06-13
+
+### The quiet fixes release (#195, #196, #198, #199)
+- **CLI stack overflow fixed** (#195) — every `helm cli` call tripped
+  a "C stack overflow" inside the Lua module bootstrap: the deferred
+  setup hook re-entered itself through non-raw module lookups. The
+  hook now detaches before it runs. First release to carry the fix in
+  the binary.
+- **Settings TUI wears Kaji** (#198) — the TUI chrome palette syncs
+  to Kaji Ember / Kaji Sun (the old Kaku purple and Flexoki paper
+  retire), and the 'Kaji Ember' / 'Kaji Sun' scheme names are
+  recognized alongside the legacy ones.
+- **The phone page fits the phone** (#196) — the quota strip wraps
+  per harness instead of running off the right edge at iPhone widths,
+  and long project names ellipsize so the status column always shows.
+- **README hero re-shot to brand** (#199) — the mate speaks as ◉, the
+  rudder stays at the helm line, transcript in English.
+
 ## [0.6.6] - 2026-06-13
 
 ### The terminal wears its own face (#190, #192, #193)
