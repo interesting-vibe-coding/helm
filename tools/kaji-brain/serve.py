@@ -16,7 +16,7 @@ Design mirrors the MCP server (tools/kaji-brain/mcp_server.py): a thin adapter.
 Endpoints
   GET  /                        → mobile cockpit page          (no auth; static)
   GET  /healthz                 → {"ok": true}                 (no auth)
-  GET  /api/state               → {sessions, quota, ts}        (one glance)
+  GET  /api/state               → {sessions, quota, limits, context, ts}  (one glance)
   GET  /api/sessions            → [ {pane_id, harness, ...} ]
   GET  /api/quota               → {harness: tokens_today}
   GET  /api/timeline[?pane=N]   → [ events ]  (oldest first)
@@ -116,6 +116,7 @@ def build_state():
         "sessions": brain.collect_sessions(),
         "quota": brain.load_quota(),
         "limits": brain.load_limits(),
+        "context": brain.load_context(),
         "ts": int(time.time()),
     }
 
