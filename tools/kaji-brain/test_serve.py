@@ -176,6 +176,46 @@ class TestServeWrites(unittest.TestCase):
         self.assertEqual(json.loads(body)["pane_id"], 7)
 
 
+class TestServePeek(unittest.TestCase):
+    def setUp(self):
+        self._peek = brain.peek_pane
+        self.httpd, self.base = _start()
+
+    def tearDown(self):
+        self.httpd.shutdown(); self.httpd.server_close()
+        brain.peek_pane = self._peek
+
+    def test_peek_ok(self):
+        brain.peek_pane = lambda pane, lines=80: (0, "line1\nline2", "")
+        code, body = _get(self.base, "/api/peek?pane=4&lines=20")
+        self.assertEqual(code, 200)
+        d = json.loads(body)
+        self.assertEqual(d["pane"], 4)
+        self.assertEqual(d["lines"], 20)
+        self.assertEqual(d["text"], "line1\nline2")
+
+    def test_peek_default_lines(self):
+        brain.peek_pane = lambda pane, lines=80: (0, "x", "")
+        _, body = _get(self.base, "/api/peek?pane=4")
+        self.assertEqual(json.loads(body)["lines"], 80)
+
+    def test_peek_requires_pane(self):
+        with self.assertRaises(urllib.error.HTTPError) as cm:
+            _get(self.base, "/api/peek")
+        self.assertEqual(cm.exception.code, 400)
+
+    def test_peek_bad_pane(self):
+        with self.assertRaises(urllib.error.HTTPError) as cm:
+            _get(self.base, "/api/peek?pane=nope")
+        self.assertEqual(cm.exception.code, 400)
+
+    def test_peek_cli_error(self):
+        brain.peek_pane = lambda pane, lines=80: (1, "", "pane 99 gone")
+        with self.assertRaises(urllib.error.HTTPError) as cm:
+            _get(self.base, "/api/peek?pane=99")
+        self.assertEqual(cm.exception.code, 502)
+
+
 class TestNonLoopbackGuard(unittest.TestCase):
     def test_refuses_public_bind_without_token(self):
         # run() must refuse a non-loopback host with no token (rc 2), not bind.

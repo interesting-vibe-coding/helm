@@ -65,6 +65,12 @@
   .hist .ev .t { color: var(--ash); margin-right: 8px; }
   .hist .ev b { color: var(--ink); font-weight: 500; }
 
+  .peek { margin: 8px 2px 6px 0; padding: 10px 12px; background: var(--ink);
+          color: var(--faint); border-radius: 10px;
+          font: 11px/1.55 ui-monospace, "SF Mono", Menlo, monospace;
+          max-height: 40vh; overflow: auto; white-space: pre;
+          -webkit-overflow-scrolling: touch; }
+
   #newbar { display: flex; justify-content: center; padding: 14px 0 0; }
   .ghost { background: none; border: 1px solid var(--faint); color: var(--dim);
            border-radius: 999px; padding: 7px 16px; font: inherit; font-size: 12px; }
@@ -192,6 +198,7 @@ function saveToken() {
 function logout(msg) {
   localStorage.removeItem("kaji-token"); token = "";
   clearInterval(timer); timer = null;
+  stopPeek(); openHist = null;
   $("app").hidden = true; $("gate").hidden = false;
   if (msg) { $("gate").querySelector("p").textContent = msg; }
 }
@@ -252,9 +259,11 @@ function render(state) {
   if (!sessions.length) {
     list.innerHTML = '<div class="empty">no active sessions</div>';
     $("target").textContent = "";
+    openHist = null; stopPeek();
     return;
   }
   list.innerHTML = "";
+  let openSeen = false;
   for (const s of sessions) {
     const st = (s.state || "").toLowerCase();
     const row = document.createElement("div");
@@ -274,14 +283,25 @@ function render(state) {
     };
     list.appendChild(row);
     if (openHist === s.pane_id) {
+      openSeen = true;
       const h = document.createElement("div");
       h.className = "hist open";
       h.id = "hist-" + s.pane_id;
       h.innerHTML = '<div class="ev">…</div>';
       list.appendChild(h);
       fillHist(s.pane_id, h);
+      // Live screen: dark pre under the history, refreshed by the peek poller.
+      const pk = document.createElement("pre");
+      pk.className = "peek";
+      pk.id = "peek-" + s.pane_id;
+      pk.textContent = (peekPane === s.pane_id && peekText) ? peekText : "…";
+      h.appendChild(pk);
+      if (pk.textContent !== "…") pk.scrollTop = pk.scrollHeight;
+      startPeek(s.pane_id);
     }
   }
+  if (!openSeen && openHist != null) { openHist = null; }
+  if (openHist == null) stopPeek();
   const sel = sessions.find(s => s.pane_id === selected);
   $("target").innerHTML = sel
     ? "→ <b>" + esc(sel.harness) + " · " + esc(sel.project || "?") + "</b>"
@@ -293,7 +313,40 @@ let openHist = null;          // pane_id whose history is expanded
 
 function toggleHist(paneId) {
   openHist = (openHist === paneId) ? null : paneId;
+  if (openHist == null) stopPeek();
   refresh();
+}
+
+// ── live screen peek ── one interval at a time; collapse/switch kills it.
+let peekPane = null, peekTimer = null, peekText = "";
+
+function startPeek(paneId) {
+  if (peekPane === paneId && peekTimer) return;
+  stopPeek();
+  peekPane = paneId;
+  fillPeek();
+  peekTimer = setInterval(fillPeek, 3000);
+}
+
+function stopPeek() {
+  if (peekTimer) clearInterval(peekTimer);
+  peekTimer = null; peekPane = null; peekText = "";
+}
+
+async function fillPeek() {
+  if (peekPane == null) return;
+  const pane = peekPane;
+  try {
+    const r = await api("/api/peek?pane=" + pane + "&lines=80");
+    if (pane !== peekPane) return;   // collapsed/switched while in flight
+    peekText = r.text || "";
+    const el = $("peek-" + pane);
+    if (el) { el.textContent = peekText || "(blank screen)"; el.scrollTop = el.scrollHeight; }
+  } catch (e) {
+    if (e.message === "401" || pane !== peekPane) return;
+    const el = $("peek-" + pane);
+    if (el) el.textContent = "(screen unavailable: " + e.message + ")";
+  }
 }
 
 async function fillHist(paneId, el) {

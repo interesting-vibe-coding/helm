@@ -153,4 +153,11 @@ fleet + 共享 memory/skills**.
 - 今晨修复(#168 已合): spawn 时登记 runtime.json(codex node 壳连 wezterm 都报不出进程名→检测改注册制), lua adopt 5s, ESC/Ctrl-U 清舵线。
 - 杂记: 顶栏 "Users/" 泄漏(新 tab title)待查(需可视复现); status bar compass 切换延迟已修(#159)。
 
-**Next（当前队列）**: ① cockpit 交互循环 + mobile/desktop UI 设计打磨（主战场: 轻量·交互·可视化, 管多 harness 必须比终端切换方便得多）② 统一额度 scraper ③ relay 加 QR 配对 + E2E 加密（launch 前安全叙事）④ demo（最后录）。
+**2026-06-12 下午批（#170-172）**:
+- #170: 舵线 UTF-8 边界丢字修复(os.read 8B 截断多字节 → incremental decoder)。PTY 端到端冒烟抓到的。
+- #171: cockpit 极简帧——对话即主体(12 行), 删 per-pane 事件流+compass 点排(列表已带 dot, 历史问大副), 无对话时选中船显 spawn 任务一行, hints 缩 4 手势。
+- #172: 手机看 session 实时屏幕——`kaji-brain peek <pane> [lines]`(mux get-text) + `GET /api/peek` + mobile.html 卡片展开内嵌终端 tail(monospace 深底, 3s 轮询, 收起即停)。
+- 经验: subagent 同树并行时主线程 commit 必须显式路径, `git add -A` 会误吞 WIP(hub pitfalls 已记)。
+- 待办: mobile peek 真机点按验证; auto 模式实测; "Users/" 泄漏(需可视复现)。
+
+**Next（当前队列）**: ① mobile/desktop UI 持续精简打磨（用户主诉: 再精致再简洁）② 统一额度 scraper ③ demo 重录（界面已大改）。
