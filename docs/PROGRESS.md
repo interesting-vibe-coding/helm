@@ -189,5 +189,6 @@ fleet + 共享 memory/skills**.
 - 实机验证: 改 ~/.config/helm/kaku.lua 触发 reload → 顶栏即愈("· ● Work" 柿橙 + 右侧水位), 二次 reload 不退化。
 - 教训: 热补运行时配置本身就是触发本 bug 的动作——之前每次 rsync kaku.lua 都在悄悄打断顶栏, 一直误以为是别的问题。
 - 遗留(设计专轮): Kaku Dark 背景仍是冷黑 #15141b, 换 ember 暖黑 #16100b 待整体配色轮; CLI 进程加载 GUI 配置报 C stack overflow(cli spawn 时), 不影响 GUI, 待查。
+- **v0.6.5 released**(覆盖发版法, asset 61MB 验证): #185 UI design pass + #187 顶栏 handler 修复 + Kaku 紫清退。插曲: #187 与 #186 撞 PROGRESS.md → mergeStateStatus DIRTY, CI 不跑 auto-merge 永挂; 解法=撤 auto-merge → merge main 解冲突 → push → 重挂(冻结纪律只禁"加新 commit 抢跑", 解冲突先撤 auto 即安全)。
 
-**Next（当前队列）**: ① v0.6.5 发版(CHANGELOG #185+#187 → 覆盖法) ② 手机真机验收(暗色+peek+gate) ③ 论文剩余 \TODO(user study 数据) ④ user study 物料(任务仓+观察表) ⑤ 残留中文统一清(放最后) ⑥ 设计专轮(Kaku Dark ember 化)。
+**Next（当前队列）**: ① 手机真机验收(暗色+peek+gate) ② 论文剩余 \TODO(user study 数据) ③ user study 物料(任务仓+观察表) ④ 残留中文统一清(放最后) ⑤ 设计专轮(Kaku Dark ember 化)。
