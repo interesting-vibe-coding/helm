@@ -7,7 +7,7 @@
 
 ---
 
-Kaji runs a crew of coding agents — Claude Code, Kiro, opencode, Codex — side by side, and gives you one calm surface to steer them all: every worker visible at once, quota at a glance, and a phone page that works from anywhere. You hold the rudder (舵, *kaji*); the agents row.
+Kaji runs a crew of coding agents — Claude Code and Codex, side by side — and gives you one calm surface to steer them all: every worker visible at once, quota at a glance, and a phone page that works from anywhere. You hold the rudder (舵, *kaji*); the agents row.
 
 > Your prefrontal cortex is finite.
 > Stop spending it switching context between agents. `(ᴗ‿ᴗ)`
@@ -16,7 +16,7 @@ Kaji runs a crew of coding agents — Claude Code, Kiro, opencode, Codex — sid
 
 ![Kaji cockpit demo](assets/demo.gif)
 
-*The cockpit, live: type one sentence at the helm — confirm — it rows.*
+*The cockpit, live: ask the First Mate, get an answer, give an order — confirm — it rows.*
 
 ## Install
 
@@ -28,15 +28,18 @@ Open Kaji. Mission Control greets you. Say what to build.
 
 ## What you get
 
-**Say it, don't manage it.** Mission Control opens on the helm line — type one
-sentence (*"spin up codex in wu and fix the newsletter route"*), a small model
-turns it into a plan, you confirm with arrow keys (or flip to auto mode with
-`Tab`), and the worker is rowing. No forms, no flags.
+**A First Mate, not a form.** Mission Control opens on the helm line — talk to
+it (*"spin up codex in wu and fix the newsletter route"*). The mate converses:
+it reads the fleet itself, answers questions, and when an order means action it
+proposes the exact spawn/send for you to confirm with arrow keys (or flip to
+auto mode with `Tab`). Dispatch runs on a free model by default — an
+OpenRouter `:free` model when you have a key, falling back to Claude haiku —
+so steering costs you $0 in agent quota.
 
 **Two views, one key.** `Cmd+/` flips between **Mission Control** (the fleet,
 the quota, the helm line) and **Work** (the worker you were just steering).
-That's the whole navigation model. `Cmd+Shift+K` launches any harness;
-workers tile side by side — claude next to codex next to kiro.
+That's the whole navigation model. `Cmd+Shift+K` launches a harness;
+workers tile side by side — claude next to codex.
 
 **A fleet you can read in one glance.** Kaji Sun, day and night: one persimmon
 accent that means exactly one thing — *a worker needs you*. Working is ink,
@@ -50,8 +53,9 @@ budget.
 
 **Your fleet, from your phone.** `kaji-brain serve` + the built-in relay put
 the same cockpit — helm line included — in your phone's browser over plain
-HTTPS. No inbound ports on your Mac, no VPN slot on your phone, works behind
-any proxy. See [docs/remote.md](docs/remote.md).
+HTTPS. Tap a session to watch its actual screen, live. No inbound ports on
+your Mac, no VPN slot on your phone, works behind any proxy.
+See [docs/remote.md](docs/remote.md).
 
 **Engine-agnostic by design.** The Brain is a thin service (CLI + HTTP + MCP)
 over an append-only event substrate — not a model. Any harness can be a
