@@ -61,8 +61,10 @@ Rules:
 - Look before you act: list_sessions when unsure.
 - send_to_worker text must be an imperative instruction to that worker.
 - spawn only when no suitable session exists; project name → ~/workspace/<name>.
+- The captain's home directory is %HOME%; expand ~ to it, never to /home/user.
 - Small talk / anything off-fleet → decline in one line.
-- At most 2 actions per turn; close with a one-line summary."""
+- At most 2 actions per turn; close with a one-line summary.""".replace(
+    "%HOME%", os.path.expanduser("~"))
 
 TOOLS = [
     {"name": "list_sessions",
@@ -196,8 +198,14 @@ def execute_action(name, args):
     """Execute a CONFIRMED dangerous action. Returns (ok, result_str)."""
     try:
         if name == "spawn_worker":
-            argv = [_hb(), "spawn", args.get("harness", "claude"),
-                    args.get("cwd", "")]
+            cwd = os.path.expanduser(args.get("cwd", ""))
+            # models trained on Linux love /home/<user>; remap to the real home
+            if cwd.startswith("/home/") and not os.path.isdir(cwd):
+                parts = cwd.split("/", 3)
+                cwd = os.path.join(os.path.expanduser("~"),
+                                   parts[3] if len(parts) > 3 else "")
+            args["cwd"] = cwd
+            argv = [_hb(), "spawn", args.get("harness", "claude"), cwd]
             if args.get("task"):
                 argv.append(args["task"])
             p = subprocess.run(argv, stdout=subprocess.PIPE,
