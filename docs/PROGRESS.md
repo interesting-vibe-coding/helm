@@ -222,3 +222,5 @@ fleet + 共享 memory/skills**.
 - **PR 并行 BEHIND 坑**: require-up-to-date 下每合一个 PR 其余全变 BEHIND, auto-merge 不自动 update branch → 卡死; #196 还 born-BEHIND(建分支时 pull 被脏树挡)。解法 disarm → `gh pr update-branch` → re-arm。已沉淀 hub pitfalls(#78)。
 - **build 工具链坑(双连环)**: ① 终端 cargo/rustc 是 homebrew 的(/opt/homebrew/bin), 只带 arm64 std, `rustup target add` 对它无效 → universal build E0463; 修 = PATH 前置 ~/.cargo/bin 走 rustup proxy。② rustup `target add` 默认进 default toolchain, 项目 rust-toolchain.toml 钉 1.93.0 要 `--toolchain 1.93.0`。③ 换 rustc 来源后 target/ 缓存全失效, 双架构全量重编 ~20min。④ tail 截断吞编译错误两次 — 看错误必须 grep "^error" -A。
 - demo.gif 仍旧设计, 待重录(动画工程, 另轮)。
+- **demo.gif 重录(#202)**: staged HTML 7 帧(下单→大副提案卡 run/edit/cancel→spawn→新 worker 入列) → headless 渲染 → ffmpeg palettegen 拼 gif, 101KB(旧 340KB)。与新 hero 同 Sun 主题同叙事。
+- **config 测试对齐 Kaji 现实(#203)**: 8 红根因两层 — 路径钉死已改名的 Kaku.app + 断言 spec 的是 upstream Kaku 行为(SmartPrompt/remember_last_cwd/cmd_w 全屏/对比度/Hermes 黑映射), Kaji 早已有意分道(NeverPrompt 注释明示)。处理: 路径全修(含 lib.rs resolve_bundled_config 三级 fallback → Helm.app/Kaji.app), 4 测试改断现实, 3 测试删(功能不存在)。55/0 绿(原 50/8)。watcher 已带 BEHIND 自恢复(disarm→update-branch→re-arm 自动)。
