@@ -224,3 +224,8 @@ fleet + 共享 memory/skills**.
 - demo.gif 仍旧设计, 待重录(动画工程, 另轮)。
 - **demo.gif 重录(#202)**: staged HTML 7 帧(下单→大副提案卡 run/edit/cancel→spawn→新 worker 入列) → headless 渲染 → ffmpeg palettegen 拼 gif, 101KB(旧 340KB)。与新 hero 同 Sun 主题同叙事。
 - **config 测试对齐 Kaji 现实(#203)**: 8 红根因两层 — 路径钉死已改名的 Kaku.app + 断言 spec 的是 upstream Kaku 行为(SmartPrompt/remember_last_cwd/cmd_w 全屏/对比度/Hermes 黑映射), Kaji 早已有意分道(NeverPrompt 注释明示)。处理: 路径全修(含 lib.rs resolve_bundled_config 三级 fallback → Helm.app/Kaji.app), 4 测试改断现实, 3 测试删(功能不存在)。55/0 绿(原 50/8)。watcher 已带 BEHIND 自恢复(disarm→update-branch→re-arm 自动)。
+
+**2026-06-13 晨间清场（装机 + issue 清零 + 分支大扫除）**:
+- **装机升级**: /Applications/Kaji.app ← dist v0.6.7 universal(旧版备份 /tmp/Kaji.app.bak-v066)。运行中实例继续跑旧码, 重启 Kaji 生效。装后 `helm cli spawn` 烟测干净。
+- **issue 清零(4→0)**: #98 adler → 真修(PR #205: miniz_oxide 0.7→0.8, term 单点 decompress_to_vec_zlib API 兼容, adler 出树, term 测试 82/0); #139 WAITING 误报 → 真修(PR #206: STARTUP_GRACE=15s 堵第二失效模式——启动横幅期稳屏误翻 waiting; #140 busy markers 堵的是第一模式冻屏工作; 信号只延迟不丢失, adopt 恢复会话保留原 start_time 不重新宽限); #99 bincode / #100 paste → blocked-upstream 分析后关闭(bincode: syntect 钉 1.x + session_restore 磁盘格式迁移无净收益; paste: metal←wgpu 编译期 proc-macro 零运行时面), 各留 re-open trigger。
+- **分支大扫除**: remote 163→2(main + feat/goose-engine-spike 留审——PR #116 CLOSED spike 含 2 独有 commit), local 75→1(main)。判据 = merged PR headRefName 名单求交集批量删, 非盲删。repo 设置确认 allow_auto_merge + delete_branch_on_merge 已开, 不再堆积。
