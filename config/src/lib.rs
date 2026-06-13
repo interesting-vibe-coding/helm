@@ -752,8 +752,8 @@ else
 end
 
 -- Kaku follows macOS appearance by default. Uncomment one line to force a theme:
--- config.color_scheme = 'Kaku Dark'
--- config.color_scheme = 'Kaku Light'
+-- config.color_scheme = 'Kaji Ember'
+-- config.color_scheme = 'Kaji Sun'
 
 -- User overrides:
 -- Kaku intentionally keeps WezTerm-compatible Lua API names
@@ -1114,12 +1114,12 @@ mod tests {
             "generated user config should explain the default theme behavior"
         );
         assert!(
-            !content.contains("\nconfig.color_scheme = 'Kaku Dark'\n"),
+            !content.contains("\nconfig.color_scheme = 'Kaji Ember'\n"),
             "generated user config must not pin first-run users to dark mode"
         );
         assert!(
-            content.contains("-- config.color_scheme = 'Kaku Dark'")
-                && content.contains("-- config.color_scheme = 'Kaku Light'"),
+            content.contains("-- config.color_scheme = 'Kaji Ember'")
+                && content.contains("-- config.color_scheme = 'Kaji Sun'"),
             "generated user config should still show explicit theme examples"
         );
     }

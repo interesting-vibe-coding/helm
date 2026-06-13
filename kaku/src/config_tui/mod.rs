@@ -288,7 +288,7 @@ impl App {
                 lua_key: "color_scheme",
                 value: String::new(),
                 default: "Auto".into(),
-                options: vec!["Auto", "Kaku Dark", "Kaku Light"],
+                options: vec!["Auto", "Kaji Ember", "Kaji Sun"],
                 skip_write: false,
             },
             ConfigField {
@@ -818,6 +818,21 @@ impl App {
                     || Self::is_number_literal(raw)
                 {
                     None
+                } else if lua_key == "color_scheme" {
+                    // Migrate legacy Kaku-named selections to the current Kaji
+                    // option labels so the saved value still matches a selector
+                    // option (start_edit falls back to index 0 = Auto otherwise,
+                    // silently dropping the user's theme). The schemes stay
+                    // registered under the Kaku names in kaku.lua as aliases, so
+                    // back-compat resolution is unaffected.
+                    Some(
+                        match raw {
+                            "Kaku Dark" | "Kaku Theme" => "Kaji Ember",
+                            "Kaku Light" => "Kaji Sun",
+                            other => other,
+                        }
+                        .to_string(),
+                    )
                 } else {
                     Some(raw.to_string())
                 }
@@ -1659,7 +1674,7 @@ mod tests {
             .iter()
             .position(|f| f.lua_key == "color_scheme")
             .expect("color_scheme field to exist");
-        app.fields[idx].value = "Kaku Light".to_string();
+        app.fields[idx].value = "Kaji Sun".to_string();
 
         let content = "\
 local wezterm = require 'wezterm'
@@ -1682,7 +1697,7 @@ return config
         assert!(!updated.contains("-- ===== Kaku Theme ====="));
         assert!(!updated.contains("config.colors"));
         assert!(!updated.contains("config.window_frame"));
-        assert!(updated.contains("config.color_scheme = 'Kaku Light'"));
+        assert!(updated.contains("config.color_scheme = 'Kaji Sun'"));
         assert!(updated.contains("return config"));
     }
 
@@ -1694,7 +1709,7 @@ return config
             .iter()
             .position(|f| f.lua_key == "color_scheme")
             .expect("color_scheme field to exist");
-        app.fields[idx].value = "Kaku Light".to_string();
+        app.fields[idx].value = "Kaji Sun".to_string();
 
         let content = "\
 local config = {}
@@ -1709,7 +1724,7 @@ return config
 
         assert!(updated.contains("config.colors"));
         assert!(updated.contains("background = '#111111'"));
-        assert!(updated.contains("config.color_scheme = 'Kaku Light'"));
+        assert!(updated.contains("config.color_scheme = 'Kaji Sun'"));
     }
 
     #[test]
@@ -1967,7 +1982,7 @@ return config
             app.dirty,
             "ESC in Selecting mode should commit the selection"
         );
-        assert_eq!(app.fields[idx].value, "Kaku Dark");
+        assert_eq!(app.fields[idx].value, "Kaji Ember");
     }
 
     #[test]

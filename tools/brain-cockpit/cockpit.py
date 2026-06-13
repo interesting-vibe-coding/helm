@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 from typing import Dict, List, Optional, Tuple
@@ -52,11 +53,15 @@ if _DARK:                        # Sun Night
     MUTE = _fg(0x9C, 0x92, 0x83) # secondary
     ASH = _fg(0x66, 0x5E, 0x53)  # quiet
     _ERR = _fg(0xE0, 0x5A, 0x48)
+    GOLD = _fg(0xD8, 0xA6, 0x57)   # quota bar — normal (warm gold)
+    AMBER = _fg(0xC8, 0x7A, 0x2A)  # quota bar — near limit (>=80%, deeper, no neon)
 else:                            # Sun Day
     INK = _fg(0x21, 0x1C, 0x15)  # warm ink on cream
     MUTE = _fg(0x8A, 0x81, 0x74)
     ASH = _fg(0xC0, 0xB8, 0xA8)
     _ERR = _fg(0xC0, 0x3A, 0x2B)
+    GOLD = _fg(0xA1, 0x62, 0x07)   # quota bar — normal (deeper for cream bg)
+    AMBER = _fg(0xB4, 0x53, 0x09)  # quota bar — near limit (>=80%)
 GHOST = SUN                      # back-compat alias
 SEL = SUN
 
@@ -126,8 +131,12 @@ def last_activity(events: List[Dict], pane) -> str:
     return ev or ""
 
 
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+
 def _visible_len(s: str) -> int:
-    return len(s)
+    # Visible width, ignoring 24-bit ANSI color escapes embedded by _c().
+    return len(_ANSI_RE.sub("", s))
 
 
 def _clip(s: str, n: int) -> str:
@@ -141,8 +150,33 @@ def _c(text: str, color: str, color_on: bool) -> str:
     return (color + text + RESET) if color_on else text
 
 
-def fmt_quota_line(quota: Optional[Dict]) -> str:
-    """One plain line: per-harness tokens today + %-left where known."""
+_EIGHTHS = "▏▎▍▌▋▊▉█"  # 1/8 .. 8/8 partial blocks
+
+
+def _bullet_parts(pct: float, cells: int = 6) -> Tuple[str, str]:
+    """Eighth-block bullet bar split into (filled, empty) glyph runs.
+
+    Sub-cell precision via the eighth blocks — a linear-position encoding that
+    reads at a glance (Cleveland-McGill; faster in a TUI than a radial gauge).
+    """
+    pct = max(0.0, min(100.0, float(pct)))
+    eighths = int(round(pct / 100.0 * cells * 8))
+    eighths = max(0, min(eighths, cells * 8))
+    full, rem = divmod(eighths, 8)
+    filled = "█" * full
+    if rem and full < cells:
+        filled += _EIGHTHS[rem - 1]
+    empty = "░" * (cells - len(filled))
+    return filled, empty
+
+
+def fmt_quota_line(quota: Optional[Dict], color: bool = True) -> str:
+    """One header line: per-harness tokens today + a 5h used% bullet bar + wk%.
+
+    The 5h window (the one that bites) is the hero — an eighth-block bar in warm
+    GOLD, deepening to AMBER at >=80%. This function OWNS its color (callers must
+    not re-wrap it); _visible_len() is ANSI-aware so right-alignment still works.
+    """
     if not quota:
         return ""
     parts = []
@@ -156,14 +190,18 @@ def fmt_quota_line(quota: Optional[Dict]) -> str:
         sd = lim.get("seven_day_used_percent", lim.get("secondary_used_percent"))
         if not tok and fh is None and sd is None:
             continue
-        seg = name
+        seg = _c(name, MUTE, color)
         if tok:
-            seg += " %s" % ("%.1fM" % (tok / 1e6) if tok >= 1e6 else
-                            "%dk" % (tok // 1000) if tok >= 1000 else str(tok))
+            toks = ("%.1fM" % (tok / 1e6) if tok >= 1e6 else
+                    "%dk" % (tok // 1000) if tok >= 1000 else str(tok))
+            seg += _c(" " + toks, MUTE, color)
         if fh is not None:
-            seg += " 5h %d%%" % round(fh)
+            fill = AMBER if fh >= 80 else GOLD
+            filled, empty = _bullet_parts(fh)
+            seg += (_c(" 5h ", MUTE, color) + _c(filled, fill, color)
+                    + _c(empty, ASH, color) + _c(" %d%%" % round(fh), fill, color))
         if sd is not None:
-            seg += " wk %d%%" % round(sd)
+            seg += _c(" wk %d%%" % round(sd), MUTE, color)
         parts.append(seg)
     return "   ".join(parts)
 
@@ -171,95 +209,105 @@ def fmt_quota_line(quota: Optional[Dict]) -> str:
 def render(sessions: List[Dict], events: List[Dict], selected: int = 0,
            width: int = 80, color: bool = True,
            quota: Optional[Dict] = None, loading: bool = False,
-           transcript: Optional[List] = None) -> str:
-    """Render one cockpit frame as a string. Pure — no I/O, no globals."""
+           transcript: Optional[List] = None, height: int = 0) -> str:
+    """Render one cockpit frame as a string. Pure — no I/O, no globals.
+
+    Layout: the fleet (+ quota header) pins to the TOP; the chat (transcript)
+    pins to the BOTTOM, right above the 舵 helm line the caller appends —
+    matching the phone client, where the input bottom-anchors via a flex
+    spacer. When `height` (live terminal rows) is given, a spacer between the
+    two blocks bottom-anchors the chat; height=0 (tests, --once, non-tty)
+    falls back to a single blank line (no bottom-pin, original ordering).
+    """
     width = max(40, width)
     ordered = sort_sessions(sessions)
     n = len(ordered)
     sel = min(max(0, selected), n - 1) if n else 0
-    out: List[str] = []
 
-    # Header — one line: mark + brand + quota numbers (v3: no taglines).
-    qline = fmt_quota_line(quota)
+    # ── TOP block: header + quota + divider + fleet list (pins to top) ──
+    top: List[str] = []
+    qline = fmt_quota_line(quota, color)
     head = _c("  ◉ ", SUN, color) + _c("KA", BOLD, color) + _c("JI", SUN, color)
     if qline:
         # Right-aligned, mirroring the phone header: brand left, numbers right.
-        qtxt = _clip(qline, width - 12)
-        pad = max(2, width - 10 - _visible_len(qtxt))
-        head += " " * pad + _c(qtxt, MUTE, color)
-    out.append(head)
-    out.append(_c("  " + "─" * (width - 4), ASH, color))
-    out.append("")
+        # fmt_quota_line owns its colors (bar fills); fall back to plain, clipped
+        # text only when the colored line would overflow a narrow header.
+        if _visible_len(qline) > width - 12:
+            qline = _c(_clip(fmt_quota_line(quota, False), width - 12), MUTE, color)
+        pad = max(2, width - 10 - _visible_len(qline))
+        head += " " * pad + qline
+    top.append(head)
+    top.append(_c("  " + "─" * (width - 4), ASH, color))
 
     if loading and not ordered:
-        out.append(_c("  …", ASH, color))
-        out.append("")
-        return "\n".join(out)
+        top.append("")
+        top.append(_c("  …", ASH, color))
+        return "\n".join(top)
 
-    def emit_transcript():
+    if ordered:
+        top.append("")
+        # Session list — one line per worker (v3: no event sub-lines).
+        for i, s in enumerate(ordered):
+            glyph, col, label = status_style(s.get("state"))
+            state = (s.get("state") or "").lower()
+            marker = _c("▌", SUN, color) if i == sel else " "
+            dot = _c(glyph, col, color)
+            proj = "%s · %s" % (s.get("harness", "?"), s.get("project", "?"))
+            rt = fmt_runtime(s.get("runtime_secs"))
+            ctx = int(s.get("context_pct") or 0)
+            meta_txt = "%s %s%s" % (label, rt, (" · ctx %d%%" % ctx) if ctx else "")
+            meta_col = SUN if state == "waiting" else (ASH if state in ("idle", "done") else MUTE)
+            body_col = ASH if state in ("idle", "done") else INK
+            # Name left, meta pinned right — same column rhythm as the phone list.
+            ptxt = _clip(proj, max(16, width - 6 - len(meta_txt) - 4))
+            gap = max(2, width - 6 - len(ptxt) - len(meta_txt) - 2)
+            line = "  %s %s %s%s%s" % (marker, dot, _c(ptxt, body_col, color),
+                                       " " * gap, _c(meta_txt, meta_col, color))
+            if i == sel:
+                line = _c(line, BOLD, color)
+            top.append(line)
+
+    # ── CHAT block: the captain and the First Mate, newest last. Pins to the
+    # bottom, just above the 舵 line. The old per-pane event feed and
+    # compass-dot footer are gone (the fleet list carries one dot per ship,
+    # and history is something you ASK the mate for, not ambient noise). ──
+    chat: List[str] = []
+    if transcript:
         for who, text in (transcript or [])[-12:]:
             for j, line in enumerate(_wrap(text, width - 8)):
                 if who == "you":
                     pre = _c("you ", MUTE, color) if j == 0 else "    "
-                    out.append("  " + pre + _c(line, MUTE, color))
+                    chat.append("  " + pre + _c(line, MUTE, color))
                 elif who == "act":
-                    out.append("  " + _c("    " + line, SUN, color))
+                    chat.append("  " + _c("    " + line, SUN, color))
                 else:
                     # ◉ is the product's voice (one mark, one meaning: the
                     # wheel speaks). 舵 is reserved for the helm line you type
                     # into; KAJI is the wordmark in the header. See
                     # docs/design/KAJI_EMBER.md "Brand marks".
                     pre = _c("◉   ", SUN, color) if j == 0 else "    "
-                    out.append("  " + pre + _c(line, INK, color))
-        out.append("")
-
-    if not ordered:
-        # An empty fleet must NOT swallow the conversation — the mate's
-        # explanation of a failed spawn is exactly what the captain needs.
-        if transcript:
-            emit_transcript()
-        else:
-            out.append(_c("  No active sessions.", MUTE, color))
-            out.append(_c("  Spawn a worker (Cmd+Shift+K), or just ask for one below.", DIM, color))
-            out.append("")
-        return "\n".join(out)
-
-    # Session list — one line per worker (v3: no event sub-lines).
-    for i, s in enumerate(ordered):
-        glyph, col, label = status_style(s.get("state"))
-        state = (s.get("state") or "").lower()
-        marker = _c("▌", SUN, color) if i == sel else " "
-        dot = _c(glyph, col, color)
-        proj = "%s · %s" % (s.get("harness", "?"), s.get("project", "?"))
-        rt = fmt_runtime(s.get("runtime_secs"))
-        ctx = int(s.get("context_pct") or 0)
-        meta_txt = "%s %s%s" % (label, rt, (" · ctx %d%%" % ctx) if ctx else "")
-        meta_col = SUN if state == "waiting" else (ASH if state in ("idle", "done") else MUTE)
-        body_col = ASH if state in ("idle", "done") else INK
-        # Name left, meta pinned right — same column rhythm as the phone list.
-        ptxt = _clip(proj, max(16, width - 6 - len(meta_txt) - 4))
-        gap = max(2, width - 6 - len(ptxt) - len(meta_txt) - 2)
-        line = "  %s %s %s%s%s" % (marker, dot, _c(ptxt, body_col, color),
-                                   " " * gap, _c(meta_txt, meta_col, color))
-        if i == sel:
-            line = _c(line, BOLD, color)
-        out.append(line)
-    out.append("")
-
-    # The conversation — the captain and the First Mate, newest last. This is
-    # the body of the screen now: the old per-pane event feed and compass-dot
-    # footer are gone (the fleet list above already carries one dot per ship,
-    # and history is something you ASK the mate for, not ambient noise).
-    if transcript:
-        emit_transcript()
+                    chat.append("  " + pre + _c(line, INK, color))
+    elif not ordered:
+        # An empty fleet must NOT swallow the conversation — but with no
+        # transcript either, point the captain at how to start.
+        chat.append(_c("  No active sessions.", MUTE, color))
+        chat.append(_c("  Spawn a worker (Cmd+Shift+K), or just ask for one below.", DIM, color))
     else:
         cur = ordered[sel]
         spawn = next((e.get("task") for e in reversed(pane_events(events, cur.get("pane_id")))
                       if e.get("ev") == "spawn" and e.get("task")), "")
         if spawn:
-            out.append(_c("  ▸ " + _clip(str(spawn), width - 6), MUTE, color))
-            out.append("")
-    return "\n".join(out)
+            chat.append(_c("  ▸ " + _clip(str(spawn), width - 6), MUTE, color))
+
+    # ── Assemble: bottom-pin the chat when the terminal height is known. The
+    # caller appends a 4-row footer (a joining blank + rule + 舵 + hint), so
+    # reserve it here; the chat then sits just above the helm line. ──
+    if height and height > 0:
+        FOOTER_ROWS = 4
+        spacer = max(1, height - len(top) - len(chat) - FOOTER_ROWS)
+    else:
+        spacer = 1
+    return "\n".join(top + [""] * spacer + chat)
 
 
 def _wrap(text: str, width: int) -> List[str]:
@@ -377,9 +425,12 @@ def demo_data() -> Tuple[List[Dict], List[Dict], Dict]:
         {"ts": 1780990000, "pane": 3, "ev": "spawn", "harness": "claude", "cwd": "wu", "task": "letter view polish"},
         {"ts": 1780995400, "pane": 3, "ev": "state", "to": "done"},
     ]
-    quota = {"claude": {"tokens_today": 73000},
+    quota = {"claude": {"tokens_today": 73000,
+                        "limits": {"five_hour_used_percent": 56.0,
+                                   "seven_day_used_percent": 36.0, "plan": "max"}},
              "codex": {"tokens_today": 50800,
-                       "limits": {"secondary_used_percent": 38.0, "plan": "plus"}}}
+                       "limits": {"five_hour_used_percent": 82.0,
+                                  "secondary_used_percent": 38.0, "plan": "plus"}}}
     return sessions, events, quota
 
 
@@ -662,10 +713,11 @@ def interactive(args) -> int:
             ordered = sort_sessions(sessions)
             selected = max(0, min(selected, max(0, len(ordered) - 1)))
             width = args.width or (os.get_terminal_size().columns if sys.stdout.isatty() else 80)
+            height = os.get_terminal_size().lines if sys.stdout.isatty() else 0
             frame = render(sessions, events, selected=selected, width=width,
                            color=not args.no_color, quota=quota, loading=not loaded,
                            transcript=(eng_box["eng"].transcript
-                                       if eng_box["eng"] else None))
+                                       if eng_box["eng"] else None), height=height)
             tag = ("auto" if mode[0] == "auto" else "confirm")
             if not args.no_color:
                 tag = (SUN if mode[0] == "auto" else MUTE) + tag + RESET
@@ -722,7 +774,7 @@ def interactive(args) -> int:
                         frame = render(sessions, events, selected=selected,
                                        width=width, color=not args.no_color,
                                        quota=quota, loading=False,
-                                       transcript=eng.transcript)
+                                       transcript=eng.transcript, height=height)
                         sys.stdout.write("\033[2J\033[H" + frame + "\n")
                         sys.stdout.flush()
                         eng.transcript.pop()   # turn() appends it itself

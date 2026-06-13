@@ -229,3 +229,10 @@ fleet + 共享 memory/skills**.
 - **装机升级**: /Applications/Kaji.app ← dist v0.6.7 universal(旧版备份 /tmp/Kaji.app.bak-v066)。运行中实例继续跑旧码, 重启 Kaji 生效。装后 `helm cli spawn` 烟测干净。
 - **issue 清零(4→0)**: #98 adler → 真修(PR #205: miniz_oxide 0.7→0.8, term 单点 decompress_to_vec_zlib API 兼容, adler 出树, term 测试 82/0); #139 WAITING 误报 → 真修(PR #206: STARTUP_GRACE=15s 堵第二失效模式——启动横幅期稳屏误翻 waiting; #140 busy markers 堵的是第一模式冻屏工作; 信号只延迟不丢失, adopt 恢复会话保留原 start_time 不重新宽限); #99 bincode / #100 paste → blocked-upstream 分析后关闭(bincode: syntect 钉 1.x + session_restore 磁盘格式迁移无净收益; paste: metal←wgpu 编译期 proc-macro 零运行时面), 各留 re-open trigger。
 - **分支大扫除**: remote 163→2(main + feat/goose-engine-spike 留审——PR #116 CLOSED spike 含 2 独有 commit), local 75→1(main)。判据 = merged PR headRefName 名单求交集批量删, 非盲删。repo 设置确认 allow_auto_merge + delete_branch_on_merge 已开, 不再堆积。
+
+**2026-06-13 product 主攻三件 ②③④(product > paper)**:
+- **② quota glyph(cockpit.py)**: 纯文字 5h% → eighth-block bullet bar(▏▎▍▌▋▊▉█ 子格精度, Cleveland-McGill 线性位置编码, TUI 里比径向 gauge 更快读)。GOLD 常态 / AMBER ≥80%(深暖不刺眼)。`_visible_len` 改 ANSI-aware(正则剥 24-bit 色)保右对齐;`fmt_quota_line` 自持色, caller 不再包。
+- **③ chat 置底(cockpit.py render)**: 拆 TOP(fleet+quota 顶) / chat transcript 底, `height` 给真终端行数时插 spacer 底锚(对齐手机端 flex 输入底锚);height=0(测试/--once/非 tty)回落单空行原序。
+- **④ Settings 换 Kaji 配色**: config_tui 选项 Kaku Dark/Light → Kaji Ember/Sun + 旧值迁移(否则 start_edit 丢主题回 Auto);config/lib.rs 生成配置注释 + 测试同步改名。kaku.lua 配色早以 Kaji Ember/Sun 注册(Kaku 名留 alias 兼容)。
+- 验证: `cargo check -p kaku` EXIT 0;cockpit 19 tests OK;`--demo` 渲染确认 bullet bar + chat 底。
+- 坑: 工作区曾混入误 revert #205(miniz 0.8→0.7)/#206(删 STARTUP_GRACE)+ 删本 PROGRESS 块 → 已丢弃复原(备份 /tmp/helm-worktree-backup-1781334287.patch), 只提交 ②③④。
