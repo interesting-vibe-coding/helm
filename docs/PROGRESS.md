@@ -236,3 +236,12 @@ fleet + 共享 memory/skills**.
 - **④ Settings 换 Kaji 配色**: config_tui 选项 Kaku Dark/Light → Kaji Ember/Sun + 旧值迁移(否则 start_edit 丢主题回 Auto);config/lib.rs 生成配置注释 + 测试同步改名。kaku.lua 配色早以 Kaji Ember/Sun 注册(Kaku 名留 alias 兼容)。
 - 验证: `cargo check -p kaku` EXIT 0;cockpit 19 tests OK;`--demo` 渲染确认 bullet bar + chat 底。
 - 坑: 工作区曾混入误 revert #205(miniz 0.8→0.7)/#206(删 STARTUP_GRACE)+ 删本 PROGRESS 块 → 已丢弃复原(备份 /tmp/helm-worktree-backup-1781334287.patch), 只提交 ②③④。
+
+**2026-06-13 product 主攻 ①(Ctrl+O)+ theme-aware accent**:
+- **① Ctrl+O session 详情 toggle(#209 MERGED)**: 四件主攻最后一件落地。聚焦 session 按 Ctrl+O 展开 overlay 看其状态 + 从开始到 now 的活动可视化。新 `kaku-gui/src/overlay/session_detail.rs`。四件全 DONE。
+- **theme-aware accent(#210 MERGED)**: Kaji 重音("where you act / needs you")随外观翻 — **昼=柿橙 #f25c05(Kaji Sun)/ 夜=金 #d8a657(Kaji Ember)**, 跟 Kaji Gauge 表盘一致(夜更高贵)。
+  - `kaku.lua`: 加 `KAJI.GOLD`; kaji_ember cursor_bg/border + selection_bg → 金; status palette accent 按主题(`_light_status and '#f25c05' or '#d8a657'`)。kaji_sun 不动(昼仍柿橙)。
+  - `kaku_theme.rs`: dark_palette primary → 金, 让 fallback 指纹(palette_matches_builtin)继续匹配 bundled kaji_ember cursor_bg。
+  - `cockpit.py`: `ACCENT` 按主题(夜金昼橙), waiting/SEL/GHOST 跟随。
+  - 验证: cargo check -p kaku clean; kaku_theme 13 tests + config bundled 5 tests 绿; luac -p + py_compile 过; CI 三项绿(含 Lint & Brand Guards 接受金色)。
+  - ⚠️ Rust 那条装机生效需真 binary 发版(覆盖法到不了); kaku.lua 默认配置改动重启 dev 版即吃到。夜间(dark 外观)才看得到金光标 — 待肉眼签。
