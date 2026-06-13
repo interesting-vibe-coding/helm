@@ -177,7 +177,7 @@ maplit = "1.0"
 memmap2 = "0.9"
 memmem = "0.1"
 metrics = "0.23"
-miniz_oxide = "0.7"
+miniz_oxide = "0.8"
 mio = "0.8"
 mlua = "0.9"
 mux = { path = "mux" }
