@@ -143,13 +143,15 @@ fn palette_matches_builtin(
 }
 
 fn dark_palette() -> ThemePalette {
-    // Kaji Ember (docs/design/KAJI_EMBER.md): warm black + cream text,
-    // persimmon SUN as the single accent. Must track the bundled
-    // kaku.lua `kaji_ember` scheme.
+    // Kaji Ember (docs/design/KAJI_EMBER.md): warm black + cream text.
+    // The accent is THEME-AWARE: persimmon by day (Kaji Sun), ember GOLD by
+    // night (Kaji Ember) — luxurious at night, like the Kaji Gauge rings. So
+    // the night primary is ember gold and must track the bundled kaku.lua
+    // `kaji_ember` cursor_bg (the fallback fingerprint at palette_matches_builtin).
     ThemePalette {
-        primary: rgb("#f25c05"),   // SUN — also the scheme cursor_bg
+        primary: rgb("#d8a657"),   // ember GOLD — also the night scheme cursor_bg
         secondary: rgb("#a9b665"), // ember green
-        accent: rgb("#d8a657"),    // ember yellow
+        accent: rgb("#d8a657"),    // ember gold
         error: rgb("#e05a48"),     // ember red
         text: rgb("#ece4d6"),      // CREAM
         muted: rgb("#9c9283"),     // MUTE

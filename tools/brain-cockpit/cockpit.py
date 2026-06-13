@@ -47,7 +47,7 @@ def _fg(r: int, g: int, b: int) -> str:
 # or --theme; default night — safe on the dark terminals most people run.
 _DARK = os.environ.get("KAJI_THEME", "dark").lower() != "light"
 
-SUN = _fg(0xF2, 0x5C, 0x05)     # persimmon — brand + waiting + selection
+SUN = _fg(0xF2, 0x5C, 0x05)     # persimmon — the day accent
 if _DARK:                        # Sun Night
     INK = _fg(0xEC, 0xE4, 0xD6)  # warm cream (paper, inverted)
     MUTE = _fg(0x9C, 0x92, 0x83) # secondary
@@ -62,13 +62,17 @@ else:                            # Sun Day
     _ERR = _fg(0xC0, 0x3A, 0x2B)
     GOLD = _fg(0xA1, 0x62, 0x07)   # quota bar — normal (deeper for cream bg)
     AMBER = _fg(0xB4, 0x53, 0x09)  # quota bar — near limit (>=80%)
-GHOST = SUN                      # back-compat alias
-SEL = SUN
+# The active/waiting accent is THEME-AWARE: persimmon by day (Sun), ember gold
+# by night (Ember) — matches the cursor + the Kaji Gauge rings.
+ACCENT = _fg(0xD8, 0xA6, 0x57) if _DARK else SUN
+GHOST = ACCENT                   # back-compat alias
+SEL = ACCENT
 
-# state -> (glyph, color, label). Orange has ONE meaning: needs you.
+# state -> (glyph, color, label). The accent (persimmon by day, ember gold by
+# night) has ONE meaning: needs you.
 # Working = ink (visible, calm); done/idle = ash (silence is data).
 _STATE_STYLE = {
-    "waiting":    ("●", SUN, "waiting"),
+    "waiting":    ("●", ACCENT, "waiting"),
     "working":    ("●", INK, "working"),
     "error":      ("●", _ERR, "error"),
     "background": ("●", MUTE, "background"),
