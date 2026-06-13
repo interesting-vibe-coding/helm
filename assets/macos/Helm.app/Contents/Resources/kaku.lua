@@ -1532,6 +1532,18 @@ function Helm.keys.bind(config)
     mods = 'CMD',
     action = wezterm.action.SendKey { key = 'l', mods = 'CTRL' },
   })
+
+  -- Ctrl+O: open the read-only session-detail overlay for the focused pane.
+  -- The Rust handler (EmitEvent branch in termwindow/mod.rs) reads
+  -- ~/.helm/sessions/{runtime.json,events.jsonl} for pane:pane_id() and renders
+  -- the phase ribbon / event stream / NOW line. Press Ctrl+O again or Esc to close.
+  table.insert(config.keys, {
+    key = 'o',
+    mods = 'CTRL',
+    action = wezterm.action_callback(function(window, pane)
+      window:perform_action(wezterm.action.EmitEvent 'kaku-session-detail', pane)
+    end),
+  })
 end
 
 -- ════════════════════════════════════════════════════════════
@@ -1699,6 +1711,13 @@ function Helm.apply(config)
         end
       end
     end
+  end)
+
+  -- session-detail overlay open: Rust handles rendering via the EmitEvent
+  -- branch in termwindow/mod.rs. This Lua handler is a no-op placeholder so the
+  -- event name is registered and future Lua-side behavior can attach here.
+  wezterm.on('kaku-session-detail', function(_window, _pane)
+    -- intentionally empty; overlay is created on the Rust side
   end)
 
   end  -- end helm_handlers_registered guard
