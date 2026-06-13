@@ -9,6 +9,7 @@ use wezterm_term::{TerminalConfiguration, TerminalSize};
 pub mod ai_chat;
 pub mod confirm;
 pub mod confirm_close_pane;
+pub mod session_detail;
 pub mod copy;
 pub mod launcher;
 pub mod prompt;

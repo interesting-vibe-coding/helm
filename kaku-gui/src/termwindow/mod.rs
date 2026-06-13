@@ -4536,6 +4536,41 @@ impl TermWindow {
                         }
                     })
                     .detach();
+                } else if name == "kaku-session-detail" {
+                    let cwd = pane
+                        .get_current_working_dir(CachePolicy::AllowStale)
+                        .map(|u| u.path().to_string())
+                        .unwrap_or_default();
+
+                    let pal = self.palette().clone();
+                    // colors.0 layout: 0-7 = ANSI, 8-15 = bright ANSI.
+                    // bright black (8) = border -- same sampling as the
+                    // kaku-ai-chat branch above.
+                    let detail_colors = crate::overlay::session_detail::DetailPalette {
+                        bg: pal.background,
+                        fg: pal.foreground,
+                        border: pal.colors.0[8],
+                    };
+                    let context = crate::overlay::session_detail::SessionDetailContext {
+                        cwd,
+                        colors: detail_colors,
+                    };
+                    let pane_id = pane.pane_id();
+                    let (overlay, future) =
+                        start_overlay_pane(self, &pane, move |pane_id, term| {
+                            crate::overlay::session_detail::session_detail_overlay(
+                                pane_id, term, context,
+                            )
+                        });
+                    self.assign_overlay_for_pane(pane_id, overlay);
+                    promise::spawn::spawn(async move {
+                        if let Err(e) = future.await {
+                            log::error!(
+                                "Session detail overlay error for pane {pane_id}: {e:#}"
+                            );
+                        }
+                    })
+                    .detach();
                 } else if name == "update-kaku" || name == "run-kaku-update" {
                     crate::frontend::run_kaku_update_from_menu();
                 } else if name == "restart-to-update" {
