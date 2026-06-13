@@ -192,7 +192,8 @@ config.initial_rows = 22
 -- Color scheme — Kaji's own faces (docs/design/KAJI_EMBER.md):
 --   Kaji Ember (night) — ember black, candle-lit cream, warm-shifted ANSI
 --   Kaji Sun   (day)   — paper and warm ink, same family as the phone page
--- Persimmon has ONE meaning across both: needs you / where you act.
+-- The accent ("needs you / where you act") is theme-aware: persimmon by day
+-- (Sun), ember gold by night (Ember) — one meaning, two faces.
 -- The schemes stay REGISTERED under the names 'Kaku Dark' / 'Kaku Light':
 -- kaku_theme.rs and the settings TUI parse those literals out of this file
 -- (see parse_color_scheme_selection_line), so renaming the registry keys
@@ -213,16 +214,20 @@ local KAJI = {
   INK         = '#211c15',
   DAY_MUTE    = '#8a8174',
   DAY_ASH     = '#b5ab9c',
-  SUN         = '#f25c05',  -- persimmon, both themes
+  SUN         = '#f25c05',  -- persimmon — the day accent
+  GOLD        = '#d8a657',  -- ember gold — the night accent (luxurious, like the gauge)
 }
+-- The Kaji accent is THEME-AWARE: persimmon by day (Sun), ember gold by night
+-- (Ember). One semantic ("where you act / needs you"), two faces — matches the
+-- Kaji Gauge rings flipping to gold at night.
 
 local kaji_ember = {
   foreground = KAJI.CREAM,
   background = KAJI.EMBER,
-  cursor_bg = KAJI.SUN,    -- the cursor is where you act
+  cursor_bg = KAJI.GOLD,    -- night: the cursor (where you act) is ember gold
   cursor_fg = KAJI.EMBER,
-  cursor_border = KAJI.SUN,
-  selection_bg = 'rgba(242,92,5,0.28)',
+  cursor_border = KAJI.GOLD,
+  selection_bg = 'rgba(216,166,87,0.28)',  -- night: ember-gold highlight
   selection_fg = 'none',
   -- Warm-shifted ANSI: low-saturation, candle-lit; nothing colder than the
   -- blue slot, and even that is grayed toward the cream.
@@ -845,7 +850,9 @@ wezterm.GLOBAL.helm_theme = _light_status and 'light' or 'dark'
 Helm.status.palette = {
   dim    = _light_status and '#b5ab9c' or '#665e53',  -- inactive dots (ash)
   text   = _light_status and '#6f675b' or '#9c9283',  -- primary text (mute)
-  accent = '#f25c05',  -- active view + waiting quota: ONE persimmon, both themes
+  -- active view + waiting quota: theme-aware accent — persimmon by day (Sun),
+  -- ember gold by night (Ember), matching the cursor + the gauge.
+  accent = _light_status and '#f25c05' or '#d8a657',
 }
 
 -- format-tab-title: the bar is now a single clean status line, so tabs shrink
@@ -972,7 +979,8 @@ function Helm.status.render(window, pane)
   local right = {}
   local pct = Helm.status.quota_pct()
   if pct then
-    -- persimmon means "needs you" everywhere in Kaji; ≥80% the budget does.
+    -- the accent means "needs you" in Kaji (persimmon day / ember gold night);
+    -- ≥80% the budget does.
     table.insert(right, { Foreground = { Color = (pct >= 80) and P.accent or P.dim } })
     table.insert(right, { Text = '5h ' .. pct .. '%   ' })
   end
