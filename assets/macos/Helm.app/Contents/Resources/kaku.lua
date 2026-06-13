@@ -446,6 +446,12 @@ Helm.cfg = {
   -- notify. This suppresses the repeat while still allowing a genuine new
   -- waiting after real subsequent work.
   NOTIFY_COOLDOWN = 20,
+  -- Startup grace (#139): a freshly spawned harness sits on its welcome /
+  -- permission banner for a few seconds — content stable, no busy marker —
+  -- which used to flip the session to 'waiting' before it even started the
+  -- task. No waiting transition until the session is this old; a genuinely
+  -- idle worker still flips (and notifies) right after the grace expires.
+  STARTUP_GRACE  = 15,
   RUNTIME_JSON   = (os.getenv('HOME') or '/tmp') .. '/.helm/sessions/runtime.json',
   -- Busy markers (#139): when the trailing pane text contains one of these,
   -- the agent is mid-task no matter how long the fingerprint stays stable —
@@ -652,6 +658,7 @@ function Helm.sessions.track(pane)
         s.last_change = t
         s.state = 'working'
       elseif (t - (s.last_change or t)) > Helm.cfg.IDLE_THRESHOLD
+          and (t - (s.start_time or 0)) > Helm.cfg.STARTUP_GRACE
           and not Helm.sessions.looks_busy(text) then
         -- working → waiting transition: fire the Brain event exactly ONCE
         -- (the guard `s.state ~= 'waiting'` prevents re-firing every idle tick).
