@@ -444,17 +444,17 @@ fn lookup_ai_toast(event_name: &str) -> Option<&'static str> {
     const AI_TOAST_MAP: &[(&str, &str)] = &[
         (
             "kaku-toast-ai-ready",
-            "Kaku Assistant suggestion ready. Press Cmd+Shift+E",
+            "Kaji Assistant suggestion ready. Press Cmd+Shift+E",
         ),
-        ("kaku-toast-ai-unavailable", "Kaku Assistant unavailable"),
+        ("kaku-toast-ai-unavailable", "Kaji Assistant unavailable"),
         (
             "kaku-toast-ai-missing-key",
-            "Run kaku ai to set up Kaku Assistant.",
+            "Run kaku ai to set up Kaji Assistant.",
         ),
         ("kaku-toast-ai-no-pane", "No active pane"),
         ("kaku-toast-ai-no-suggestion", "No executable suggestion"),
         ("kaku-toast-ai-send-failed", "Failed to apply suggestion"),
-        ("kaku-toast-ai-info", "Kaku Assistant update"),
+        ("kaku-toast-ai-info", "Kaji Assistant update"),
     ];
     AI_TOAST_MAP
         .iter()
@@ -2290,7 +2290,7 @@ impl TermWindow {
                                 })
                                 .unwrap_or((None, None, String::new(), None));
                         ToastNotification {
-                            title: "Kaku".to_string(),
+                            title: "Kaji".to_string(),
                             message: bell_notification_message(
                                 last_command.as_deref(),
                                 reported_program.as_deref(),
@@ -4582,10 +4582,10 @@ impl TermWindow {
                 } else if let Some(msg) = lookup_kaku_toast(name) {
                     self.show_toast(msg.to_string());
                 } else if name == "kaku-toast-ai-analyzing" {
-                    let message = "Kaku Assistant analyzing command";
+                    let message = "Kaji Assistant analyzing command";
                     self.show_ai_progress_toast(message.to_string(), ai_toast_lifetime_ms(message));
                 } else if name == "kaku-toast-ai-generating" {
-                    let message = "Kaku generating command";
+                    let message = "Kaji generating command";
                     self.show_ai_progress_toast(message.to_string(), ai_toast_lifetime_ms(message));
                 } else if name == "kaku-toast-ai-applied" {
                     // No notification on successful apply; command output is enough.
@@ -4602,7 +4602,7 @@ impl TermWindow {
                     match Connection::get() {
                         Some(conn) => match conn.set_default_terminal() {
                             Ok(()) => {
-                                self.show_toast("Kaku is now the default terminal".to_string());
+                                self.show_toast("Kaji is now the default terminal".to_string());
                             }
                             Err(err) => {
                                 log::error!("Failed to set Kaku as default terminal: {err:#}");
