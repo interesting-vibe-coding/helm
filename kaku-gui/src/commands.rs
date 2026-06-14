@@ -712,7 +712,7 @@ impl CommandDef {
         commands.retain(|cmd| !cmd.menubar.is_empty());
 
         // Prefer to put the menus in this order
-        let mut order: Vec<&'static str> = vec!["Kaku", "Shell", "Edit", "View", "Window", "Help"];
+        let mut order: Vec<&'static str> = vec!["Kaji", "Shell", "Edit", "View", "Window", "Help"];
         // Add any other menus on the end
         for cmd in &commands {
             if !order.contains(&cmd.menubar[0]) {
@@ -722,7 +722,7 @@ impl CommandDef {
 
         fn command_rank_for_menu(title: &str, action: &KeyAssignment) -> usize {
             match title {
-                "Kaku" => match action {
+                "Kaji" => match action {
                     HideApplication => 80,
                     QuitApplication => 90,
                     _ => 500,
@@ -863,11 +863,11 @@ impl CommandDef {
                     // routing. Kaku owns its own tab/window switcher and
                     // has no help book, so the AppKit-managed children
                     // have no value here.
-                    if cmd.menubar[0] == "Kaku" {
+                    if cmd.menubar[0] == "Kaji" {
                         menu.assign_as_app_menu();
 
                         let about_item = MenuItem::new_with(
-                            &format!("Kaku V{}", config::wezterm_version()),
+                            &format!("Kaji V{}", config::wezterm_version()),
                             Some(kaku_perform_key_assignment_sel),
                             "",
                         );
@@ -1246,11 +1246,11 @@ pub fn derive_command_from_key_assignment(action: &KeyAssignment) -> Option<Comm
             icon: None,
         },
         HideApplication => CommandDef {
-            brief: "Hide Kaku".into(),
-            doc: "Hide all Kaku windows".into(),
+            brief: "Hide Kaji".into(),
+            doc: "Hide all Kaji windows".into(),
             keys: vec![(Modifiers::SUPER, "h".into())],
             args: &[],
-            menubar: &["Kaku"],
+            menubar: &["Kaji"],
             icon: None,
         },
         SpawnWindow => CommandDef {
@@ -1294,7 +1294,7 @@ pub fn derive_command_from_key_assignment(action: &KeyAssignment) -> Option<Comm
             icon: None,
         },
         ShowDebugOverlay => CommandDef {
-            brief: "Kaku Doctor".into(),
+            brief: "Kaji Doctor".into(),
             doc: "Run kaku doctor in the current pane".into(),
             keys: vec![(Modifiers::CTRL.union(Modifiers::SHIFT), "l".into())],
             args: &[ArgType::ActiveWindow],
@@ -1594,7 +1594,7 @@ pub fn derive_command_from_key_assignment(action: &KeyAssignment) -> Option<Comm
             } else if name == "kaku-ai-apply-last-fix" {
                 CommandDef {
                     brief: "Apply Last AI Fix".into(),
-                    doc: "Apply the latest Kaku Assistant suggestion for the active pane".into(),
+                    doc: "Apply the latest Kaji Assistant suggestion for the active pane".into(),
                     keys: vec![(Modifiers::SUPER.union(Modifiers::SHIFT), "e".into())],
                     args: &[ArgType::ActiveWindow],
                     menubar: &["Shell"],
@@ -1850,11 +1850,11 @@ pub fn derive_command_from_key_assignment(action: &KeyAssignment) -> Option<Comm
             icon: None,
         },
         QuitApplication => CommandDef {
-            brief: "Quit Kaku".into(),
-            doc: "Quits Kaku".into(),
+            brief: "Quit Kaji".into(),
+            doc: "Quits Kaji".into(),
             keys: vec![(Modifiers::SUPER, "q".into())],
             args: &[],
-            menubar: &["Kaku"],
+            menubar: &["Kaji"],
             icon: None,
         },
         MoveTabRelative(-1) => CommandDef {
