@@ -254,8 +254,8 @@ impl CommandDef {
             ShowTabNavigator,
             // Help menu
             ShowDebugOverlay,
-            OpenUri("https://github.com/tw93/Kaku".to_string()),
-            OpenUri("https://github.com/tw93/Kaku/issues/".to_string()),
+            OpenUri("https://github.com/interesting-vibe-coding/kaji".to_string()),
+            OpenUri("https://github.com/interesting-vibe-coding/kaji/issues/".to_string()),
         ];
 
         let mut result = vec![];
@@ -795,9 +795,9 @@ impl CommandDef {
                     _ => 500,
                 },
                 "Help" => match action {
-                    OpenUri(uri) if uri == "https://github.com/tw93/Kaku" => 10,
-                    OpenUri(uri) if uri == "https://github.com/tw93/Kaku/discussions/" => 20,
-                    OpenUri(uri) if uri == "https://github.com/tw93/Kaku/issues/" => 30,
+                    OpenUri(uri) if uri == "https://github.com/interesting-vibe-coding/kaji" => 10,
+                    OpenUri(uri) if uri == "https://github.com/interesting-vibe-coding/kaji/discussions/" => 20,
+                    OpenUri(uri) if uri == "https://github.com/interesting-vibe-coding/kaji/issues/" => 30,
                     ShowDebugOverlay => 90,
                     _ => 500,
                 },
@@ -2227,23 +2227,23 @@ pub fn derive_command_from_key_assignment(action: &KeyAssignment) -> Option<Comm
             icon: None,
         },
         OpenUri(uri) => match uri.as_ref() {
-            "https://github.com/tw93/Kaku" => CommandDef {
+            "https://github.com/interesting-vibe-coding/kaji" => CommandDef {
                 brief: "Star on GitHub".into(),
-                doc: "Star Kaku on GitHub".into(),
+                doc: "Star Kaji on GitHub".into(),
                 keys: vec![],
                 args: &[],
                 menubar: &["Help"],
                 icon: None,
             },
-            "https://github.com/tw93/Kaku/discussions/" => CommandDef {
+            "https://github.com/interesting-vibe-coding/kaji/discussions/" => CommandDef {
                 brief: "Discuss on GitHub".into(),
-                doc: "Visit Kaku's GitHub discussion".into(),
+                doc: "Visit Kaji's GitHub discussion".into(),
                 keys: vec![],
                 args: &[],
                 menubar: &[],
                 icon: None,
             },
-            "https://github.com/tw93/Kaku/issues/" => CommandDef {
+            "https://github.com/interesting-vibe-coding/kaji/issues/" => CommandDef {
                 brief: "Report Issue".into(),
                 doc: "Submit bug report or feature request".into(),
                 keys: vec![],
@@ -2728,8 +2728,8 @@ fn compute_default_actions() -> Vec<KeyAssignment> {
         ToggleCurrentTabPanesInputBroadcast,
         ToggleAllPanesInputBroadcast,
         // ----------------- Help
-        OpenUri("https://github.com/tw93/Kaku".to_string()),
-        OpenUri("https://github.com/tw93/Kaku/issues/".to_string()),
+        OpenUri("https://github.com/interesting-vibe-coding/kaji".to_string()),
+        OpenUri("https://github.com/interesting-vibe-coding/kaji/issues/".to_string()),
         ShowDebugOverlay,
         // ----------------- Misc
         OpenLinkAtMouseCursor,
