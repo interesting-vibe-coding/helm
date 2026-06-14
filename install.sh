@@ -92,22 +92,22 @@ say ""
 _shell_name="$(basename "${SHELL:-bash}")"
 
 _setup_fish() {
-  local fn="$HOME/.config/fish/functions/helm.fish"
+  local fn="$HOME/.config/fish/functions/kaji.fish"
   [[ -f "$fn" ]] && grep -q "open -a Kaji" "$fn" 2>/dev/null && {
-    say "  ${DIM}helm command already in fish${NC}"; return; }
+    say "  ${DIM}kaji command already in fish${NC}"; return; }
   mkdir -p "$(dirname "$fn")"
-  printf 'function helm\n    open -a Kaji $argv\nend\n' > "$fn"
-  say "  ${PURPLE}✓${NC} Added ${BOLD}helm${NC} command to fish"
+  printf 'function kaji\n    open -a Kaji $argv\nend\n' > "$fn"
+  say "  ${PURPLE}✓${NC} Added ${BOLD}kaji${NC} command to fish"
 }
 
 _setup_posix() {
-  local marker="# --- helm-launcher ---"
+  local marker="# --- kaji-launcher ---"
   local rc="${HOME}/.zshrc"
   [[ ! -f "$rc" && -f "${HOME}/.bashrc" ]] && rc="${HOME}/.bashrc"
   grep -q "$marker" "$rc" 2>/dev/null && {
-    say "  ${DIM}helm command already in $(basename "$rc")${NC}"; return; }
-  printf '\n%s\nhelm() { open -a Kaji "$@"; }\n%s\n' "$marker" "$marker" >> "$rc"
-  say "  ${PURPLE}✓${NC} Added ${BOLD}helm${NC} command  ${DIM}(source $rc to activate)${NC}"
+    say "  ${DIM}kaji command already in $(basename "$rc")${NC}"; return; }
+  printf '\n%s\nkaji() { open -a Kaji "$@"; }\n%s\n' "$marker" "$marker" >> "$rc"
+  say "  ${PURPLE}✓${NC} Added ${BOLD}kaji${NC} command  ${DIM}(source $rc to activate)${NC}"
 }
 
 case "$_shell_name" in
